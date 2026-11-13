@@ -30,6 +30,14 @@ First run creates `data\kshetralekha.sqlite` with demo data. Sign in with PIN **
 On the phone: open `https://<PC IP>:8788`, accept the certificate warning once, Share → Add to Home Screen.
 Camera and location only work over HTTPS, which is why the script makes a self-signed certificate.
 
+### Online demo (GitHub Pages)
+
+**https://purvkanani5-art.github.io/fieldapp/** opens on any phone. Pages has no server, so the page starts the
+same Python backend inside the browser (Pyodide, a WebAssembly Python, from the jsDelivr CDN) and keeps the data
+in the browser's storage. The first visit downloads about 15 MB and builds the sample data (10 to 30 s); later
+visits open in a few seconds. Each phone has its own private copy; nothing is shared between devices. Publish
+a new version with `.\scripts\publish-pages.ps1`.
+
 ### Trying the prototype
 
 - The sign-in screen lists every demo person: tap one to sign in (PIN 1234 also works).

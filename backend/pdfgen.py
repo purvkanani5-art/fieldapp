@@ -142,7 +142,7 @@ def placeholder_signature(text: str) -> bytes:
         font = ImageFont.truetype("arial.ttf", 44)
         small = ImageFont.truetype("arial.ttf", 26)
     except OSError:
-        font = small = ImageFont.load_default()
+        font, small = ImageFont.load_default(size=44), ImageFont.load_default(size=26)
     d.rounded_rectangle((10, 10, 590, 210), radius=18, outline=(30, 90, 60, 255), width=5)
     d.text((40, 55), text, fill=(30, 90, 60, 255), font=font)
     d.text((40, 130), "Authorised Signatory", fill=(30, 90, 60, 255), font=small)

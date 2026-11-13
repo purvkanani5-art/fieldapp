@@ -82,6 +82,17 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
     GPS screens: At site / Away / Real GPS) so check-in works on a PC. In-app camera (`openCamera`, getUserMedia)
     with file fallback and, in demo only, drawn sample photos stamped "DEMO SAMPLE PHOTO". Set KL_DEMO=0 for real use.
 
+16. **GitHub Pages build (2026-11-14)**: owner wanted it on the phone without a server. `scripts/build_pages.py`
+    copies frontend/ plus backend/*.py (into `local/backend/`) and `local/manifest.json`; `scripts/publish-pages.ps1`
+    force-pushes that to the `gh-pages` branch. On *.github.io (or `?local=1`) `frontend/local/pyhost.js` starts
+    `local/pyworker.js` (a **module** worker: classic importScripts from the CDN failed) which loads Pyodide 314.0.7
+    from jsDelivr (packages fastapi, pillow, micropip, charset-normalizer; wheels for reportlab and
+    python-multipart in `frontend/local/wheels`), mounts IDBFS at /kl/data and calls the ASGI app directly.
+    `window.fetch` is patched for `/api/*`; links to `/api/*` (PDFs, CSV) are fetched and opened as blobs.
+    Browser-only settings: KL_JOURNAL=DELETE (no WAL), KL_PBKDF2_ITER=3000 (no OpenSSL there; `auth._pbkdf2_sha256`
+    is the pure fallback, checked equal to hashlib). anyio.to_thread.run_sync is replaced by an inline call (no
+    threads). JS null arrives in Python as JsNull: pass `undefined`. Test: `.cache\kl-pages-test.mjs` (10 checks).
+
 ## Testing
 - `D:\PersonalBooks\.cache\kl-e2e.mjs` (2026-11-14): resets the demo, then manager assigns a photo-proof task →
   worker gets inbox item, ticks checklist, completes with sample photo → manager inbox "Task done" with note and

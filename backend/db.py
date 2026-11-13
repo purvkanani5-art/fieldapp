@@ -134,7 +134,7 @@ def new_id() -> str:
 def connect() -> sqlite3.Connection:
     con = sqlite3.connect(DB_PATH, check_same_thread=False)
     con.row_factory = sqlite3.Row
-    con.execute("PRAGMA journal_mode=WAL")
+    con.execute(f"PRAGMA journal_mode={os.environ.get('KL_JOURNAL', 'WAL')}")  # DELETE in the browser build (no WAL there)
     con.execute("PRAGMA foreign_keys=ON")
     return con
 

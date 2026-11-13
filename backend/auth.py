@@ -11,6 +11,7 @@ import base64
 import hashlib
 import hmac
 import json
+import os
 import secrets
 import time
 
@@ -27,9 +28,39 @@ def _secret() -> bytes:
     return SECRET_PATH.read_bytes()
 
 
+# The browser build (GitHub Pages demo, data only on that device) sets KL_PBKDF2_ITER lower: there is no OpenSSL
+# there and the pure-Python fallback is slow.
+PBKDF2_ITER = int(os.environ.get("KL_PBKDF2_ITER", "120000"))
+
+
+def _pbkdf2_sha256(password: bytes, salt: bytes, rounds: int) -> bytes:
+    """RFC 8018 PBKDF2-HMAC-SHA256, one 32-byte block; used only where hashlib.pbkdf2_hmac is missing (Pyodide)."""
+    inner, outer = hashlib.sha256(), hashlib.sha256()
+    key = password if len(password) <= 64 else hashlib.sha256(password).digest()
+    key = key.ljust(64, b"\0")
+    inner.update(bytes(k ^ 0x36 for k in key))
+    outer.update(bytes(k ^ 0x5C for k in key))
+
+    def prf(msg: bytes) -> bytes:
+        i, o = inner.copy(), outer.copy()
+        i.update(msg)
+        o.update(i.digest())
+        return o.digest()
+
+    u = prf(salt + b"\x00\x00\x00\x01")
+    acc = int.from_bytes(u, "big")
+    for _ in range(rounds - 1):
+        u = prf(u)
+        acc ^= int.from_bytes(u, "big")
+    return acc.to_bytes(32, "big")
+
+
 def hash_pin(pin: str, salt: str | None = None) -> tuple[str, str]:
     salt = salt or secrets.token_hex(16)
-    digest = hashlib.pbkdf2_hmac("sha256", pin.encode(), bytes.fromhex(salt), 120_000)
+    if hasattr(hashlib, "pbkdf2_hmac"):
+        digest = hashlib.pbkdf2_hmac("sha256", pin.encode(), bytes.fromhex(salt), PBKDF2_ITER)
+    else:
+        digest = _pbkdf2_sha256(pin.encode(), bytes.fromhex(salt), PBKDF2_ITER)
     return digest.hex(), salt
 
 

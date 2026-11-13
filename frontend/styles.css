@@ -627,3 +627,6 @@ a.tile:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); }
 .tsheet .prop { min-width: 0; }
 .tsheet .prop .input, .tsheet .prop .select { width: 100%; min-width: 0; }
 .check svg.ic { width: 18px; height: 18px; vertical-align: -3px; }
+
+.splash .boot-note { margin: 22px auto 0; max-width: 300px; font-size: 14px; opacity: .85; font-weight: 600; min-height: 40px; animation: pulse 1.6s ease-in-out infinite; }
+.splash .boot-retry { margin-top: 12px; }

@@ -65,6 +65,7 @@ function loginView() {
       ${demo ? `<div><b style="font-family:var(--display);font-size:20px;letter-spacing:-.01em">Try the prototype</b><p class="hint">Tap a person to sign in as them. You can switch person any time.</p></div>
       <div class="demo-people">${KL.demoInfo.people.map((p) => `<button type="button" data-action="demoLogin" data-emp="${esc(p.employee_id)}">${avatar(p.name)}<span style="min-width:0"><b>${esc(p.name)}</b><small>${esc(ROLE_TEXT[p.role] || p.role)}${p.designation ? ` · ${esc(p.designation)}` : ''}</small></span></button>`).join('')}</div>
       <div class="or"><span></span>or sign in with your PIN<span></span></div>` : ''}
+      ${window.KL_LOCAL ? `<div class="banner info">${ic('shield')}<div><b>Runs entirely on this phone</b><p>This online demo has no server: the app and its sample data live in this browser. Nothing you enter leaves the device.</p></div></div>` : ''}
       ${l.error ? `<div class="banner bad">${ic('alert')}<div><b>${esc(l.error)}</b></div></div>` : ''}
       <label class="field"><span>Employee ID</span><input id="login-emp" class="input" value="${esc(l.emp)}" placeholder="EMP101" autocapitalize="characters" autocomplete="username" data-input="loginEmp" /></label>
       <label class="field"><span>PIN</span><input id="login-pin" class="input pinbox" type="password" inputmode="numeric" value="${esc(l.pin)}" placeholder="••••" autocomplete="current-password" data-input="loginPin" /></label>
