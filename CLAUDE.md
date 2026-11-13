@@ -84,7 +84,10 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
 
 16. **GitHub Pages build (2026-11-14)**: owner wanted it on the phone without a server. `scripts/build_pages.py`
     copies frontend/ plus backend/*.py (into `local/backend/`) and `local/manifest.json`; `scripts/publish-pages.ps1`
-    force-pushes that to the `gh-pages` branch. On *.github.io (or `?local=1`) `frontend/local/pyhost.js` starts
+    force-pushes that to the `gh-pages` branch. BUT Pages on this repo is set to serve `main` (root), and changing
+    that setting via the API was refused, so the live site is `main` itself: root `index.html` redirects to
+    `frontend/`, `.nojekyll`, and `frontend/local/manifest.json` (written by build_pages.py) has backendBase
+    `../../backend/`. Push to main = publish. Owner can switch Pages to gh-pages in Settings if wanted. On *.github.io (or `?local=1`) `frontend/local/pyhost.js` starts
     `local/pyworker.js` (a **module** worker: classic importScripts from the CDN failed) which loads Pyodide 314.0.7
     from jsDelivr (packages fastapi, pillow, micropip, charset-normalizer; wheels for reportlab and
     python-multipart in `frontend/local/wheels`), mounts IDBFS at /kl/data and calls the ASGI app directly.

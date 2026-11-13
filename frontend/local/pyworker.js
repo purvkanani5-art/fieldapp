@@ -35,7 +35,7 @@ async function start() {
   py.FS.mkdirTree('/kl/frontend');
   py.FS.mkdirTree('/kl/data');
   for (const name of manifest.backend) {
-    const text = await (await fetch(new URL('backend/' + name, HERE), { cache: 'no-cache' })).text();
+    const text = await (await fetch(new URL((manifest.backendBase || 'backend/') + name, HERE), { cache: 'no-cache' })).text();
     py.FS.writeFile('/kl/backend/' + name, text);
   }
   py.FS.mount(py.FS.filesystems.IDBFS, {}, '/kl/data');

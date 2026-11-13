@@ -5,14 +5,16 @@ Pyodide (frontend/local/pyworker.js) because Pages has no server.
 """
 
 import json
+import os
 import shutil
+import stat
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 out = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "site"
-if out.exists():
-    shutil.rmtree(out)
+if out.exists():  # git marks its objects read-only on Windows
+    shutil.rmtree(out, onexc=lambda fn, path, exc: (os.chmod(path, stat.S_IWRITE), fn(path)))
 shutil.copytree(ROOT / "frontend", out)
 backend = out / "local" / "backend"
 backend.mkdir(parents=True)
@@ -22,4 +24,7 @@ for n in names:
 wheels = sorted(p.name for p in (out / "local" / "wheels").glob("*.whl"))
 (out / "local" / "manifest.json").write_text(json.dumps({"backend": names, "wheels": wheels}, indent=1), encoding="utf-8")
 (out / ".nojekyll").write_text("", encoding="utf-8")
+# Pages served straight from the main branch: the worker reads ../../backend/ in the repository itself.
+(ROOT / "frontend" / "local" / "manifest.json").write_text(
+    json.dumps({"backend": names, "wheels": wheels, "backendBase": "../../backend/"}, indent=1), encoding="utf-8")
 print(f"built {out}: {len(names)} backend files, {len(wheels)} wheels")

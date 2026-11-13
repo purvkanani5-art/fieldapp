@@ -35,8 +35,11 @@ Camera and location only work over HTTPS, which is why the script makes a self-s
 **https://purvkanani5-art.github.io/fieldapp/** opens on any phone. Pages has no server, so the page starts the
 same Python backend inside the browser (Pyodide, a WebAssembly Python, from the jsDelivr CDN) and keeps the data
 in the browser's storage. The first visit downloads about 15 MB and builds the sample data (10 to 30 s); later
-visits open in a few seconds. Each phone has its own private copy; nothing is shared between devices. Publish
-a new version with `.\scripts\publish-pages.ps1`.
+visits open in a few seconds. Each phone has its own private copy; nothing is shared between devices.
+Pages serves the `main` branch: the root `index.html` opens `frontend/`, and the phone loads the Python files
+from `backend/`, so pushing to `main` publishes. After changing backend files run `python scripts/build_pages.py`
+(it refreshes `frontend/local/manifest.json`). `scripts/publish-pages.ps1` builds a self-contained copy for a
+`gh-pages` branch instead, if Pages is ever switched to that branch.
 
 ### Trying the prototype
 
