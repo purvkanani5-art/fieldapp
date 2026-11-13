@@ -112,6 +112,20 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
     I18N text-node translation gu/hi, DutyWatch). Owner: native-only parts (push, background location) are NOT
     built; a "For reviewers" note (reviewerNote()) explains them.
 
+18. **Projects and sites (2026-11-14)**: owner: divide by project; field staff see only their site, middle managers
+    only the projects/sites they manage, management everything; HR assigns; site screens as simple tabs per type;
+    planner may be general (no site); a person with no site uses HR + Planner only. Model: sites.project_type
+    (biochar, gasifier, agroforestry, office) + sites.subtype (biochar: kiln | plant); `user_sites` (works at) +
+    `user_projects` (manages whole project). `app.resolve_access` sets user.sites / all_sites (admin, hr) /
+    projects; `site_allowed` no longer treats "no sites" as all. `modules.team_ids` scopes team lists (attendance,
+    trips, updates, leave, approvals, dashboard, people, records). Planner: managers see plans of their sites,
+    General plans, their own. Endpoints `/api/hr/assign`, `/api/hr/site-member`, `/api/sites/{id}/summary`. New kinds
+    `gas_run` (posts feedstock/diesel out, power/ash in) and `nursery` (balance = sown + received − died − planted).
+    Front end `views-sites.js` (SITE_TABS, recMini, Views.sites/site/mysite/assign, worksAt); tabs: field Home ·
+    My site · Tasks · Inbox · Me, staff Home · Sites · Planner · People (Views.hr) · Inbox. KL.ui.siteBack returns
+    record screens to the site tab. Demo: 7 sites (Lodhika, Viramgam, Balaji, Nava, Deesa, Salariya, Head Office),
+    users EMP005/106/107 added. Tests: `kl_access_check.py` (16), `kl-e2e4.mjs` (13).
+
 ## Testing
 - `D:\PersonalBooks\.cache\kl-e2e.mjs` (2026-11-14): resets the demo, then manager assigns a photo-proof task →
   worker gets inbox item, ticks checklist, completes with sample photo → manager inbox "Task done" with note and

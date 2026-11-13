@@ -31,7 +31,7 @@ import demo_modules  # noqa: E402
 import modules  # noqa: E402
 import planner  # noqa: E402
 
-APP_VERSION = "0.3.0"
+APP_VERSION = "0.4.0"
 DEMO = os.environ.get("KL_DEMO", "1") == "1"  # prototype: demo accounts, person switch, reset
 FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
 
@@ -76,7 +76,7 @@ def current_user(request: Request, db: DbDep) -> dict:
     if not user:
         raise HTTPException(401, "This account is no longer active")
     db.run("UPDATE devices SET last_seen = ? WHERE id = ?", now_iso(), payload["d"])
-    user["sites"] = [r["site_id"] for r in db.all("SELECT site_id FROM user_sites WHERE user_id = ?", user["id"])]
+    resolve_access(db, user)
     user.pop("pin_hash", None)
     user.pop("pin_salt", None)
     return user
@@ -94,12 +94,28 @@ def is_staff(user: dict) -> bool:
     return user["role"] in ("admin", "manager", "hr")
 
 
+ALL_ACCESS = ("admin", "hr")  # management and HR see every project and site
+
+
+def resolve_access(db: Db, u: dict) -> dict:
+    """Which sites a person may see: their own sites, every site of the projects they manage, or all (director, HR)."""
+    direct = [r["site_id"] for r in db.all("SELECT site_id FROM user_sites WHERE user_id = ?", u["id"])]
+    projects = [r["project"] for r in db.all("SELECT project FROM user_projects WHERE user_id = ?", u["id"])]
+    every = db.all("SELECT id, project_type FROM sites")
+    u["all_sites"] = u["role"] in ALL_ACCESS
+    u["sites"] = [s["id"] for s in every] if u["all_sites"] else sorted(set(direct) | {s["id"] for s in every if s["project_type"] in projects})
+    u["direct_sites"] = direct
+    u["projects"] = projects
+    return u
+
+
 def site_allowed(user: dict, site_id: str) -> bool:
-    return user["role"] == "admin" or not user["sites"] or site_id in user["sites"]
+    return bool(user.get("all_sites")) or site_id in user["sites"]
 
 
 def public_user(u: dict) -> dict:
-    return {k: u.get(k) for k in ("id", "employee_id", "name", "role", "designation", "phone", "email", "active", "must_change_pin", "sites", "created_at", "manager_id", "consent_at")}
+    return {k: u.get(k) for k in ("id", "employee_id", "name", "role", "designation", "phone", "email", "active", "must_change_pin", "sites", "created_at", "manager_id", "consent_at",
+                                  "all_sites", "projects", "direct_sites")}
 
 
 def parse_float(v, name: str, required: bool = True) -> float | None:
@@ -182,7 +198,7 @@ def demo_switch(payload: dict, user: UserDep, db: DbDep):
     device_id = new_id()
     db.insert("devices", {"id": device_id, "user_id": target["id"], "name": "Demo switch", "created_at": now_iso(), "last_seen": now_iso()})
     db.audit(user["id"], "demo_switch", "user", target["id"], f"{user['employee_id']} -> {target['employee_id']}")
-    target["sites"] = [r["site_id"] for r in db.all("SELECT site_id FROM user_sites WHERE user_id = ?", target["id"])]
+    resolve_access(db, target)
     return {"token": auth.make_token(target["id"], device_id), "user": public_user(target)}
 
 
@@ -220,7 +236,7 @@ def login(payload: dict, db: DbDep):
     device_id = new_id()
     db.insert("devices", {"id": device_id, "user_id": user["id"], "name": device, "created_at": now_iso(), "last_seen": now_iso()})
     db.audit(user["id"], "login", "user", user["id"], device)
-    user["sites"] = [r["site_id"] for r in db.all("SELECT site_id FROM user_sites WHERE user_id = ?", user["id"])]
+    resolve_access(db, user)
     return {"token": auth.make_token(user["id"], device_id), "user": public_user(user)}
 
 
@@ -265,7 +281,7 @@ def bootstrap(user: UserDep, db: DbDep):
     return {
         "company": db.setting("company"), "travel": db.setting("travel"), "leaveTypes": db.setting("leave_types"),
         "updatePrompts": db.setting("update_prompts"), "sites": sites, "mySites": mine, "items": items, "templates": templates, "people": people,
-        "demo": DEMO,
+        "demo": DEMO, "projects": modules.PROJECTS,
     }
 
 
@@ -332,8 +348,9 @@ def attendance(user: UserDep, db: DbDep, scope: str = "mine", days: int = 31):
     base = "SELECT a.*, s.name AS site_name, u.name AS user_name, u.employee_id FROM attendance a JOIN sites s ON s.id = a.site_id JOIN users u ON u.id = a.user_id"
     if scope == "team" and is_staff(user):
         rows = db.all(base + " WHERE a.checkin_at >= ? ORDER BY a.checkin_at DESC", since_iso)
-        if user["sites"] and user["role"] != "admin":
-            rows = [r for r in rows if r["site_id"] in user["sites"]]
+        team = modules.team_ids(db, user)
+        if team is not None:
+            rows = [r for r in rows if r["user_id"] in team or r["site_id"] in user["sites"]]
     else:
         rows = db.all(base + " WHERE a.user_id = ? AND a.checkin_at >= ? ORDER BY a.checkin_at DESC", user["id"], since_iso)
     return {"rows": rows}
@@ -397,7 +414,9 @@ def trips(user: UserDep, db: DbDep, scope: str = "mine", status: str | None = No
     if where:
         sql += " WHERE " + " AND ".join(where)
     sql += " ORDER BY t.start_at DESC LIMIT 300"
-    return {"rows": db.all(sql, *args)}
+    rows = db.all(sql, *args)
+    team = modules.team_ids(db, user) if scope == "team" else None
+    return {"rows": [r for r in rows if team is None or r["user_id"] in team]}
 
 
 @app.post("/api/trips/{trip_id}/decide")
@@ -512,8 +531,8 @@ def farmers(user: UserDep, db: DbDep, q: str = ""):
     if q:
         ql = q.lower()
         rows = [r for r in rows if ql in (r["name"] + " " + r["village"] + " " + r["phone"]).lower()]
-    if user["sites"] and user["role"] != "admin":
-        rows = [r for r in rows if not r["site_id"] or r["site_id"] in user["sites"]]
+    if not user.get("all_sites"):
+        rows = [r for r in rows if r["site_id"] in user["sites"]]
     return {"rows": rows[:300]}
 
 
@@ -656,7 +675,9 @@ def updates(user: UserDep, db: DbDep, scope: str = "mine", days: int = 14):
     if not (scope == "team" and is_staff(user)):
         sql += " AND w.user_id = ?"
         args.append(user["id"])
-    return {"rows": db.all(sql + " ORDER BY w.date DESC, w.created_at DESC", *args)}
+    rows = db.all(sql + " ORDER BY w.date DESC, w.created_at DESC", *args)
+    team = modules.team_ids(db, user)
+    return {"rows": [r for r in rows if team is None or r["user_id"] in team]}
 
 
 @app.post("/api/updates")
@@ -717,6 +738,8 @@ def leaves(user: UserDep, db: DbDep, scope: str = "mine"):
         sql += " WHERE l.user_id = ?"
         args.append(user["id"])
     rows = db.all(sql + " ORDER BY l.created_at DESC LIMIT 200", *args)
+    team = modules.team_ids(db, user)
+    rows = [r for r in rows if team is None or r["user_id"] in team]
     for lv in rows:
         st = modules.steps_for(db, "leave", lv["id"])
         cur = next((s for s in st if s["status"] == "waiting"), None)
@@ -787,6 +810,10 @@ def approvals(user: UserDep, db: DbDep):
     trips_ = db.all("SELECT t.*, u.name AS user_name, s.name AS site_name FROM trips t JOIN users u ON u.id = t.user_id LEFT JOIN sites s ON s.id = t.site_id WHERE t.status = 'submitted' ORDER BY t.end_at")
     att = db.all("SELECT a.*, u.name AS user_name, s.name AS site_name, s.radius_m FROM attendance a JOIN users u ON u.id = a.user_id JOIN sites s ON s.id = a.site_id WHERE a.status = 'pending' ORDER BY a.checkin_at")
     lv = db.all("SELECT l.*, u.name AS user_name FROM leaves l JOIN users u ON u.id = l.user_id WHERE l.status = 'pending' ORDER BY l.created_at")
+    team = modules.team_ids(db, user)
+    if team is not None:
+        trips_ = [t for t in trips_ if t["user_id"] in team]
+        att = [x for x in att if x["user_id"] in team or x["site_id"] in user["sites"]]
     mine = {s["ref_id"] for s in modules.waiting_for(db, user) if s["kind"] == "leave"}
     keep = []
     for x in lv:
@@ -805,16 +832,19 @@ def dashboard(user: UserDep, db: DbDep):
     today = datetime.now().strftime("%Y-%m-%d")
     day0 = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
     start_utc = day0.astimezone(UTC).isoformat().replace("+00:00", "Z")  # check-in times are UTC: compare instants
-    on_site = db.all("SELECT a.id, a.checkin_at, a.checkin_dist, a.status, u.name AS user_name, s.name AS site_name FROM attendance a JOIN users u ON u.id = a.user_id JOIN sites s ON s.id = a.site_id WHERE a.checkout_at IS NULL ORDER BY a.checkin_at")
-    today_att = db.one("SELECT COUNT(DISTINCT user_id) AS n FROM attendance WHERE checkin_at >= ?", start_utc)["n"]
-    field_total = db.one("SELECT COUNT(*) AS n FROM users WHERE active = 1 AND role = 'field'")["n"]
+    on_site = db.all("SELECT a.id, a.user_id, a.checkin_at, a.checkin_dist, a.status, u.name AS user_name, s.name AS site_name FROM attendance a JOIN users u ON u.id = a.user_id JOIN sites s ON s.id = a.site_id WHERE a.checkout_at IS NULL ORDER BY a.checkin_at")
+    team = modules.team_ids(db, user)
+    in_team = (lambda uid: True) if team is None else (lambda uid: uid in team)
+    on_site = [a for a in on_site if team is None or a["user_id"] in team]
+    today_att = len({r["user_id"] for r in db.all("SELECT user_id FROM attendance WHERE checkin_at >= ?", start_utc) if in_team(r["user_id"])})
+    field_total = sum(1 for r in db.all("SELECT id FROM users WHERE active = 1 AND role = 'field'") if in_team(r["id"]))
     stock = []
-    for it in db.all("SELECT i.*, s.name AS site_name FROM register_items i JOIN sites s ON s.id = i.site_id WHERE i.active = 1 ORDER BY s.name, i.sort"):
+    for it in [x for x in db.all("SELECT i.*, s.name AS site_name FROM register_items i JOIN sites s ON s.id = i.site_id WHERE i.active = 1 ORDER BY s.name, i.sort") if site_allowed(user, x["site_id"])]:
         bal = item_balance(db, it["id"])
         stock.append({"item": it["name"], "site": it["site_name"], "unit": it["unit"], "balance": bal, "low": it["kind"] == "input" and it["low_stock"] and bal < it["low_stock"], "kind": it["kind"]})
     month = today[:7]
     travel = db.one("SELECT COALESCE(SUM(amount), 0) AS amt, COALESCE(SUM(km_claimed), 0) AS km, COUNT(*) AS n FROM trips WHERE status = 'approved' AND substr(end_at, 1, 7) = ?", month)
-    farmers_n = db.one("SELECT COUNT(*) AS n FROM farmers")["n"]
+    farmers_n = sum(1 for f in db.all("SELECT site_id FROM farmers") if site_allowed(user, f["site_id"]))
     docs_week = db.one("SELECT COUNT(*) AS n FROM documents WHERE created_at >= ?", datetime.fromtimestamp(datetime.now(UTC).timestamp() - 7 * 86400, UTC).isoformat())["n"]
     updates_today = db.one("SELECT COUNT(*) AS n FROM work_updates WHERE date = ?", today)["n"]
     open_fb = db.one("SELECT COUNT(*) AS n FROM feedback WHERE status = 'open'")["n"]
@@ -845,7 +875,9 @@ def dashboard(user: UserDep, db: DbDep):
 @app.get("/api/export/site/{site_id}")
 def export_site(site_id: str, user: UserDep, db: DbDep):
     """Audit pack: every movement with its photo hash, as CSV (the ZIP of photos is the SharePoint folder itself)."""
-    require(user, "admin", "manager")
+    require(user, "admin", "manager", "hr")
+    if not site_allowed(user, site_id):
+        raise HTTPException(403, "Not your site")
     rows = db.all("SELECT m.at, i.name AS item, m.type, m.qty, i.unit, m.balance_after, m.batch, m.note, m.lat, m.lng, u.name AS by_user, f.name AS photo, f.sha256 "
                   "FROM movements m JOIN register_items i ON i.id = m.item_id JOIN users u ON u.id = m.user_id LEFT JOIN files f ON f.id = m.file_id WHERE i.site_id = ? ORDER BY m.at", site_id)
     import csv
@@ -923,7 +955,8 @@ def admin_site_save(payload: dict, user: UserDep, db: DbDep):
     if len(name) < 2:
         raise HTTPException(422, "Site name is required")
     row = {"name": name, "project_type": str(payload.get("project_type", "other"))[:30], "lat": parse_float(payload.get("lat"), "Latitude"), "lng": parse_float(payload.get("lng"), "Longitude"),
-           "radius_m": int(parse_float(payload.get("radius_m", 150), "Radius") or 150), "address": str(payload.get("address", ""))[:200], "active": 1 if payload.get("active", True) else 0}
+           "radius_m": int(parse_float(payload.get("radius_m", 150), "Radius") or 150), "address": str(payload.get("address", ""))[:200], "active": 1 if payload.get("active", True) else 0,
+           "subtype": str(payload.get("subtype", ""))[:20], "strict": 1 if payload.get("strict") in (True, 1, "1", "yes", "Strict") else 0}
     sid = payload.get("id")
     if sid:
         db.update("sites", sid, row)

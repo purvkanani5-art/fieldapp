@@ -31,7 +31,8 @@ function fieldHome() {
   return `
     <div class="hero">${heroTop(pills.length ? `<div class="pills">${pills.map((p) => `<span class="pill">${p}</span>`).join('')}</div>` : '')}${now}</div>
     ${KL.outboxCount ? `<div class="offline-bar">${KL.outboxCount} item${KL.outboxCount === 1 ? '' : 's'} saved on this phone, waiting for signal</div>` : ''}
-    ${quickActions([['#attendance', 'pin', '', att ? 'Check out' : 'Check in'], ['#trips', 'bike', 'blue', trip ? 'End trip' : 'Start trip'], ['#tasks', 'kanban', 'violet', 'My tasks', late || ''], ['#registers', 'box', 'amber', 'Registers'], ['#farmers', 'sprout', 'earth', 'Farmers'], ['#updates', 'note', '', 'Daily update'], ['#leaves', 'sun', 'blue', 'Leave'], ['#feedback', 'chat', 'red', 'Suggest']])}
+    ${mySiteCards()}
+    ${quickActions([['#attendance', 'pin', '', att ? 'Check out' : 'Check in'], ['#trips', 'bike', 'blue', trip ? 'End trip' : 'Start trip'], ['#updates', 'note', '', 'Daily update'], ['#leaves', 'sun', 'amber', 'Leave'], ['#tasks', 'kanban', 'violet', 'My tasks', late || '']].slice(0, 4))}
     <div class="cols">
       ${group('My tasks', tasksBody, '', '<a href="#tasks">See all</a>')}
       ${group('Today', `<div class="stack">
@@ -44,6 +45,12 @@ function fieldHome() {
       </div>`)}
     </div>`;
 }
+function mySiteCards() {
+  const list = (KL.boot?.mySites || []).filter((s) => s.project_type !== 'office');
+  if (!list.length) return `<div class="card status-card" style="margin-top:16px"><div class="big-ic off">${ic('pin')}</div><div class="tx"><b>No site assigned</b><span>You can use HR, tasks and your inbox. HR adds you to a site when you work at one.</span></div></div>`;
+  const pm = KL.boot.projects || {};
+  return `<div class="my-sites">${list.map((s) => { const p = pm[s.project_type] || {}; const tabs = (SITE_TABS[s.project_type] || SITE_TABS.agroforestry)(s).slice(1, 4); return `<div class="my-site pj-${esc(s.project_type)}"><a class="ms-head" href="#site/${esc(s.id)}"><span class="pj-ic">${ic(p.icon || 'pin')}</span><span class="tx"><b>${esc(s.name)}</b><small>${esc(p.name || '')}${subtypeText(s) ? ` · ${esc(subtypeText(s))}` : ''}</small></span><span class="chev">${ic('chevron')}</span></a><div class="ms-tabs">${tabs.map(([k, icon, label]) => `<a href="#site/${esc(s.id)}/${k}">${ic(icon)}${esc(label)}</a>`).join('')}</div></div>`; }).join('')}</div>`;
+}
 function staffHome() {
   const me = KL.me || {};
   const d = data('dashboard', () => api('/api/dashboard'));
@@ -55,7 +62,7 @@ function staffHome() {
   const pills = ok ? [`${ic('pin')} ${d.onSite.length} on site now`, `${ic('kanban')} ${d.tasks.total - d.tasks.done} open tasks`, d.tasks.late ? `${ic('alert')} ${d.tasks.late} late` : ''].filter(Boolean) : [];
   return `
     <div class="hero">${heroTop(pills.length ? `<div class="pills">${pills.map((p) => `<span class="pill">${p}</span>`).join('')}</div>` : '')}${now}</div>
-    ${quickActions([['#planner', 'kanban', 'violet', 'Planner'], ['#approvals', 'check', 'amber', 'Approvals', pend || ''], ['#team', 'users', 'blue', 'Team'], ['#dashboard', 'chart', '', 'Dashboard'], ['#registers', 'box', 'amber', 'Registers'], ['#farmers', 'sprout', 'earth', 'Farmers'], [['admin', 'hr'].includes(KL.user.role) ? '#hrdesk' : '#admin', ['admin', 'hr'].includes(KL.user.role) ? 'folder' : 'cog', 'blue', ['admin', 'hr'].includes(KL.user.role) ? 'HR desk' : 'Admin'], ['#attendance', 'pin', '', 'Check in']])}
+    ${quickActions([['#sites', 'pin', 'green', 'Sites'], ['#approvals', 'check', 'amber', 'Approvals', pend || ''], ['#hr', 'users', 'blue', 'People'], ['#planner', 'kanban', 'violet', 'Planner'], ['#team', 'clock', '', 'Team today'], ['#reports', 'chart', 'earth', 'Reports'], ['#map', 'map', 'green', 'Map'], ['#admin', 'cog', '', 'Admin']])}
     ${Views.dashboardBody()}`;
 }
 
@@ -137,7 +144,7 @@ Actions.checkin = async () => {
   try {
     const r = await submitEvidence('/api/attendance/checkin', { siteId, lat: g.lat, lng: g.lng, accuracy: g.accuracy, takenAt: p.at, override: inside ? '' : reason }, photoFile('checkin', 'checkin.jpg'), 'Check-in');
     clearPhotos('checkin'); clearF('att-reason');
-    await refreshMe(); invalidate('attendance', 'dashboard'); render();
+    await refreshMe(); invalidate('attendance', 'dashboard', 'site'); render();
     if (!r.queued) {
       if (r.status === 'pending') toast('Check-in recorded as an exception, sent to your manager');
       else await celebrate('Checked in', `${site.name} · ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`);
@@ -238,6 +245,7 @@ Views.registers = (arg) => {
   const sites = (isStaff() ? KL.boot.sites : KL.boot.mySites).filter((s) => KL.boot.items.some((i) => i.site_id === s.id));
   const siteId = siteArg || (sites.length === 1 ? sites[0].id : F('reg-site', ''));
   if (itemId) return registerItemView(siteId, itemId);
+  if (siteArg && siteById(siteArg)) { setTimeout(() => location.replace(`#site/${siteArg}/stock`), 0); return spinner(); }
   const site = siteById(siteId);
   const reg = siteId ? data(`registers:${siteId}`, () => api(`/api/registers?siteId=${siteId}`)) : null;
   const picker = sites.length > 1 ? `<div class="card">${field('Site', select('reg-site', siteId, sites.map((s) => [s.id, s.name]), { blank: 'Choose a site' }))}</div>` : '';
@@ -254,7 +262,7 @@ Views.registers = (arg) => {
 };
 function registerItemView(siteId, itemId) {
   const item = KL.boot.items.find((i) => i.id === itemId);
-  if (!item) return `${topbar('Register', '#registers')}<div class="card"><p class="empty">Item not found.</p></div>`;
+  if (!item) return `${topbar('Register', `#site/${siteId}/stock`)}<div class="card"><p class="empty">Item not found.</p></div>`;
   const site = siteById(siteId);
   const reg = data(`registers:${siteId}`, () => api(`/api/registers?siteId=${siteId}`));
   const bal = reg && !reg.error ? reg.items.find((i) => i.id === itemId)?.balance : null;
@@ -269,7 +277,7 @@ function registerItemView(siteId, itemId) {
     return `<div class="banner ${after < 0 ? 'bad' : type === 'count' && Math.abs(after - bal) > 0 ? 'warn' : 'info'}"><b>Stock after: ${fmtNum(after, 2)} ${esc(item.unit)}</b>${type === 'count' ? `<p>Variance ${after - bal >= 0 ? '+' : ''}${fmtNum(after - bal, 2)} ${esc(item.unit)} against the book figure</p>` : after < 0 ? '<p>Not enough in stock. Record what came in first.</p>' : ''}</div>`;
   };
   const stamp = [`${site?.name || ''} · ${item.name}`, `${labels[type]} ${qty || ''} ${item.unit}`.trim(), KL.user.name];
-  return `${topbar(item.name, `#registers/${siteId}`)}
+  return `${topbar(item.name, `#site/${siteId}/stock`)}
     <p class="sub">${esc(site?.name || '')} · ${item.kind === 'product' ? 'finished product' : 'input'} · ${bal === null || bal === undefined ? '…' : `<b>${fmtNum(bal, 2)} ${esc(item.unit)}</b> in stock`}</p>
     <div class="card stack">
       <div class="seg">${['in', 'out', 'count'].map((t) => `<button type="button" data-action="movType" data-type="${t}" aria-pressed="${type === t}">${t === 'in' ? 'In' : t === 'out' ? 'Out' : 'Count'}</button>`).join('')}</div>
@@ -301,7 +309,7 @@ Actions.movSave = async (el) => {
     const r = await submitEvidence('/api/registers/movements', { itemId: el.dataset.item, type, qty: F('mov-qty'), batch: F('mov-batch', ''), note: F('mov-note', ''), lat: g.lat, lng: g.lng, accuracy: g.accuracy, takenAt: p.at }, photoFile('mov', `${item.name}-${type}.jpg`), `${item.name} ${type}`);
     clearPhotos('mov'); clearF('mov-qty', 'mov-batch', 'mov-note');
     if (!r.queued) toast(r.variance !== null && r.variance !== undefined ? `Count saved · variance ${r.variance > 0 ? '+' : ''}${fmtNum(r.variance, 2)}` : `Saved · stock now ${fmtNum(r.balance, 2)} ${item.unit}`);
-    invalidate('registers', 'movements', 'dashboard'); render();
+    invalidate('registers', 'movements', 'dashboard', 'site'); render();
   } catch (e) { toast(e.message, 'error'); }
 };
 
@@ -311,30 +319,31 @@ Views.farmers = (arg) => {
   const q = F('farmer-q', '');
   const list = data('farmers', () => api('/api/farmers'));
   const rows = list && !list.error ? list.rows.filter((f) => !q || `${f.name} ${f.village} ${f.phone}`.toLowerCase().includes(q.toLowerCase())) : [];
-  return `${topbar('Farmers', '#home', `<button type="button" class="btn small primary" data-action="farmerAdd">${ic('plus')} Add</button>`)}
+  return `${topbar('Farmers', isStaff() ? '#sites' : '#mysite', `<button type="button" class="btn small primary" data-action="farmerAdd">${ic('plus')} Add</button>`)}
     <input class="input" placeholder="Search by name, village or phone" value="${esc(q)}" data-input="farmerSearch" />
     ${list === null ? spinner() : list.error ? errorBox(list.error) : `<div class="card flush" style="margin-top:10px">${rows.length ? rows.map((f) => lrow({ href: `#farmers/${f.id}`, icon: 'sprout', tone: 'green', title: f.name, sub: `${esc([f.village, f.taluka].filter(Boolean).join(', '))}${f.phone ? ` · ${esc(f.phone)}` : ''} · ${f.docs} document${f.docs === 1 ? '' : 's'}, ${f.plots} plot${f.plots === 1 ? '' : 's'}` })).join('') : '<p class="empty">No farmers yet. Tap + Add.</p>'}</div>`}`;
 };
 Inputs.farmerSearch = (el) => { setF('farmer-q', el.value); const list = KL.cache.farmers; if (list && !list.error) { const q = el.value.toLowerCase(); const wrap = $('.card.flush'); if (wrap) wrap.innerHTML = list.rows.filter((f) => !q || `${f.name} ${f.village} ${f.phone}`.toLowerCase().includes(q)).map((f) => lrow({ href: `#farmers/${f.id}`, icon: 'sprout', tone: 'green', title: f.name, sub: `${esc([f.village, f.taluka].filter(Boolean).join(', '))} · ${f.docs} documents, ${f.plots} plots` })).join('') || '<p class="empty">No match.</p>'; } };
-Actions.farmerAdd = async () => {
-  const sites = KL.boot.mySites.length ? KL.boot.mySites : KL.boot.sites;
+Actions.farmerAdd = async (el) => {
+  const sites = KL.boot.mySites.filter((s) => s.project_type !== 'office' && s.project_type !== 'gasifier');
+  const pre = el?.dataset?.site ? siteById(el.dataset.site) : null;
   const v = await modal({ title: 'New farmer', fields: [
     { key: 'name', label: 'Full name', placeholder: 'e.g. Ramesh Bhai Patel' }, { key: 'father_name', label: "Father's / husband's name" }, { key: 'village', label: 'Village' }, { key: 'taluka', label: 'Taluka' }, { key: 'district', label: 'District' },
-    { key: 'phone', label: 'Mobile', type: 'tel', inputmode: 'tel' }, { key: 'id_last4', label: 'Aadhaar last 4 digits', inputmode: 'numeric' }, { key: 'site', label: 'Cluster / site', type: 'select', options: sites.map((s) => s.name), value: sites[0]?.name },
+    { key: 'phone', label: 'Mobile', type: 'tel', inputmode: 'tel' }, { key: 'id_last4', label: 'Aadhaar last 4 digits', inputmode: 'numeric' }, { key: 'site', label: 'Site', type: 'select', options: sites.map((s) => s.name), value: pre?.name || sites[0]?.name },
   ], confirmText: 'Add farmer' });
   if (!v) return;
   try {
     const site = sites.find((s) => s.name === v.site);
     const r = await api('/api/farmers', { json: { ...v, site_id: site?.id } });
-    invalidate('farmers'); toast('Farmer added'); location.hash = `#farmers/${r.id}`;
+    invalidate('farmers', 'site'); toast('Farmer added'); location.hash = `#farmers/${r.id}`;
   } catch (e) { toast(e.message, 'error'); }
 };
 function farmerDetail(id) {
   const f = data(`farmer:${id}`, () => api(`/api/farmers/${id}`));
-  if (f === null) return `${topbar('Farmer', '#farmers')}${spinner()}`;
-  if (f.error) return `${topbar('Farmer', '#farmers')}${errorBox(f.error)}`;
+  if (f === null) return `${topbar('Farmer', KL.ui.siteBack || '#farmers')}${spinner()}`;
+  if (f.error) return `${topbar('Farmer', KL.ui.siteBack || '#farmers')}${errorBox(f.error)}`;
   const kinds = { kml: 'KML plot boundary', land_record: 'Land record (7/12, 8A)', id_proof: 'ID proof', photo: 'Photo', other: 'Other' };
-  return `${topbar(f.name, '#farmers')}
+  return `${topbar(f.name, f.site_id ? `#site/${f.site_id}/farmers` : '#farmers')}
     <p class="sub">${esc([f.father_name && `s/o ${f.father_name}`, f.village, f.taluka, f.district].filter(Boolean).join(' · '))}${f.phone ? ` · ${esc(f.phone)}` : ''}${f.site_name ? ` · ${esc(f.site_name)}` : ''}</p>
     <div class="btns"><a class="btn primary" href="#sign/${esc(id)}">${ic('pen')} Sign a document</a><button type="button" class="btn" data-action="farmerUpload" data-id="${esc(id)}">${ic('upload')} Upload file</button></div>
     ${group('Plots', f.plots.length ? `<div class="card flush">${f.plots.map((p) => `<div class="lrow-static"><b>Survey ${esc(p.survey_no || '–')}</b><div class="kv" style="margin-top:4px"><span>Declared area</span><span>${p.area_ha_declared ? `${fmtNum(p.area_ha_declared, 2)} ha` : '–'}</span><span>From KML</span><span>${p.area_ha_kml ? `${fmtNum(p.area_ha_kml, 2)} ha` : '–'}</span>${p.area_ha_declared && p.area_ha_kml ? `<span>Difference</span><span class="${Math.abs(p.area_ha_kml - p.area_ha_declared) / p.area_ha_declared > 0.1 ? 'muted' : ''}">${fmtNum(((p.area_ha_kml - p.area_ha_declared) / p.area_ha_declared) * 100, 0)}%</span>` : ''}</div><div class="btns" style="margin-top:6px">${p.kml_file ? fileLink(p.kml_file, 'KML') : ''}${p.land_record_file ? fileLink(p.land_record_file, 'Land record') : ''}</div></div>`).join('')}</div>` : '<div class="card"><p class="empty">No plot yet. Upload a KML or land record to create one.</p></div>')}
@@ -365,7 +374,8 @@ Views.sign = (farmerId) => {
   const f = data(`farmer:${farmerId}`, () => api(`/api/farmers/${farmerId}`));
   if (f === null) return `${topbar('Sign a document', `#farmers/${farmerId}`)}${spinner()}`;
   if (f.error) return `${topbar('Sign a document', `#farmers/${farmerId}`)}${errorBox(f.error)}`;
-  const templates = KL.boot.templates;
+  const proj = siteById(f.site_id)?.project_type;
+  const templates = KL.boot.templates.filter((x) => !proj || x.project_type === proj || x.project_type === 'other').length ? KL.boot.templates.filter((x) => !proj || x.project_type === proj || x.project_type === 'other') : KL.boot.templates;
   const tid = F('sign-template', templates[0]?.id || '');
   const t = templates.find((x) => x.id === tid);
   const plot = f.plots[0];
@@ -400,7 +410,10 @@ function previewBody(t, f) {
 Actions.sigClear = () => KL.sig && KL.sig.clear();
 Actions.signSubmit = async (el) => {
   const farmerId = el.dataset.farmer;
-  const t = KL.boot.templates.find((x) => x.id === F('sign-template', KL.boot.templates[0]?.id));
+  const fr = KL.cache[`farmer:${farmerId}`];
+  const proj = fr && !fr.error ? siteById(fr.site_id)?.project_type : null;
+  const pool = KL.boot.templates.filter((x) => !proj || x.project_type === proj || x.project_type === 'other');
+  const t = KL.boot.templates.find((x) => x.id === F('sign-template', (pool[0] || KL.boot.templates[0])?.id));
   if (!t) return toast('Choose a document', 'error');
   if (!KL.sig || KL.sig.isEmpty()) return toast('The farmer has not signed yet', 'error');
   const fields = {};

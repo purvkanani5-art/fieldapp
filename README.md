@@ -21,11 +21,14 @@ First run creates `data\kshetralekha.sqlite` with demo data. Sign in with PIN **
 | Employee ID | Who | Role |
 |---|---|---|
 | EMP001 | Purv Kanani | admin |
-| EMP002 | Meera Shah | manager (all sites) |
+| EMP002 | Meera Shah | manager, Biochar and Gasifier projects |
 | EMP003 | Ravi Patel | HR |
-| EMP101 | Jignesh Rathod | field, biochar site |
-| EMP102 | Kiran Vaghela | field, agroforestry cluster |
-| EMP103 | Suresh Makwana | field, gasifier plant |
+| EMP005 | Nidhi Trivedi | manager, Agroforestry project |
+| EMP101 | Jignesh Rathod | field, Lodhika Kiln Site |
+| EMP106 | Mehul Prajapati | field, Viramgam Biochar Plant |
+| EMP102 | Kiran Vaghela | field, Nava Agroforestry Site |
+| EMP107 | Asha Rabari | field, Deesa and Salariya |
+| EMP103 | Suresh Makwana | field, Balaji Gasifier Site |
 
 On the phone: open `https://<PC IP>:8788`, accept the certificate warning once, Share → Add to Home Screen.
 Camera and location only work over HTTPS, which is why the script makes a self-signed certificate.
@@ -53,6 +56,22 @@ from `backend/`, so pushing to `main` publishes. After changing backend files ru
 - For real use start the server with `KL_DEMO=0`: no demo people, switch, pretend location or sample photos.
 
 ## What is in it
+
+**Projects and sites.** The app is organised by project (vertical) and site:
+
+| Project | Demo sites | Tabs on each site |
+|---|---|---|
+| Biochar, low-tech (kilns) | Lodhika Kiln Site | Overview · Stock (diesel, biomass, biochar) · Kiln batches (+ lab) · Farmers (signing, applications) · Safety · Team |
+| Biochar, high-tech (plant) | Viramgam Biochar Plant | the same, with Plant runs |
+| Gasifier | Balaji Gasifier Site | Overview · Stock · Generation (runs, kWh) · Equipment · Safety · Team |
+| Agroforestry | Nava, Deesa, Salariya | Overview · Nursery (sapling register) · Plantation (planting, survival) · Farmers · Team |
+
+Who sees what: field staff see only the sites they work at; a project manager sees every site of the projects
+they manage (Meera: Biochar and Gasifier, Nidhi: Agroforestry); the director and HR see everything. HR sets this
+on the employee record ("Works at") or from a site's Team tab. Someone with no site uses only HR, the Planner and
+the inbox. Planner plans can be for a site or General (no site) for work anywhere. General HR (approvals, leave,
+claims, payroll, policies) is in People for managers and in Me for everyone.
+
 
 - **Site check-in / out**: pick the site, the app shows your distance to it, take a live selfie (camera only, no
   gallery), Check in. Allowed within the site radius plus up to 50 m GPS accuracy. From outside you can only

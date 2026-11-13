@@ -33,11 +33,11 @@ const fmtVal = (f, v) => {
   if (f.type === 'number') return fmtNum(v, 2);
   return String(v);
 };
-function recSub(k, r) {
+function recSub(k, r, inSite = false) {
   const parts = [];
-  const want = ['date', 'amount', 'qty', 'qty_kg', 'output_kg', 'severity', 'site', 'person', 'farmer', 'category', 'type', 'species', 'count', 'due', 'valid_until', 'customer'];
+  const want = ['action', 'date', 'amount', 'qty', 'qty_kg', 'output_kg', 'power_kwh', 'severity', 'site', 'person', 'farmer', 'category', 'type', 'species', 'count', 'due', 'valid_until', 'customer'];
   for (const key of want) {
-    if (key === k.title) continue;
+    if (key === k.title || (inSite && key === 'site')) continue;
     const f = k.fields.find((x) => x.key === key);
     if (f && r.data[key] !== undefined && r.data[key] !== '') parts.push(fmtVal(f, r.data[key]));
     if (parts.length >= 3) break;
@@ -58,6 +58,17 @@ const HUB = {
   ops: { title: 'Safety & equipment', icon: 'shield', tone: 'red', extra: () => [['#map', 'map', 'green', 'Map', 'Sites, plots, incidents and people on site']] },
   carbon: { title: 'Production & carbon', icon: 'flame', tone: 'earth', extra: () => [['#carbon', 'leaf', 'green', 'Carbon chain of custody', 'Every batch from feedstock to farm, with checks'], ['#map', 'map', 'blue', 'Map', 'Farm plots and where biochar went']] },
   supply: { title: 'Purchasing & supply', icon: 'box', tone: 'amber', extra: () => [['#registers', 'box', 'amber', 'Site registers', 'Stock balances move with every batch, transfer and dispatch']] },
+};
+/* People: the staff tab for everything that is not tied to one site. */
+Views.hr = () => {
+  const pend = KL.me?.pendingApprovals || 0;
+  const hrRole = ['admin', 'hr'].includes(KL.user.role);
+  const row = (href, icon, tone, title, sub, right = '') => lrow({ href, icon, tone, title, sub, right });
+  return `<h1 class="large">People</h1><p class="sub">Approvals, your team and HR for ${KL.user.all_sites ? 'everyone' : 'your projects'}</p>
+    <div class="card flush">${row('#me', 'user', 'blue', `${KL.user.name}`, 'My record, leave, claims, settings')}</div>
+    ${group('Today', `<div class="card flush">${row('#approvals', 'check', pend ? 'amber' : '', 'Approvals', 'Leave, claims, purchases, trips, check-in exceptions', pend ? tag(String(pend), 'warn') : '')}${row('#team', 'clock', 'green', 'Team activity', 'Attendance, trips and daily updates')}${row('#attsum', 'calendar', 'green', 'Attendance summary', 'Month grid: present, late, absent, overtime')}</div>`)}
+    ${group('Employees', `<div class="card flush">${row('#people', 'users', 'blue', 'Employee directory', hrRole ? 'Records, sites and projects, reporting lines' : 'Your team')}${hrRole ? row('#payroll', 'receipt', 'violet', 'Payroll', 'Payslips, PF/ESI/PT/TDS, bank file, Tally') : ''}${row('#rec/expense', 'receipt', 'amber', 'Expense claims', 'With receipt photos')}${row('#rec/advance', 'receipt', '', 'Advances & loans', 'Recovered in payroll')}${row('#rec/asset_issue', 'box', '', 'Assets issued', 'Phones, tools, safety kit')}${row('#rec/training', 'shield', 'green', 'Training & certificates', 'With expiry')}${row('#rec/goal', 'target', '', 'Goals', 'Targets and progress')}${row('#rec/review', 'chart', '', 'Reviews', 'Half-yearly ratings')}${row('#rec/regularisation', 'clock', '', 'Attendance corrections', 'Approved by managers')}</div>`)}
+    ${group('Company', `<div class="card flush">${row('#rec/policy', 'doc', '', 'Policies', 'Everyone reads and accepts')}${row('#rec/holiday', 'calendar', 'violet', 'Holidays & shifts', 'Calendar used for leave and attendance')}${hrRole ? row('#rec/onboarding', 'users', 'blue', 'Onboarding & exits', 'Joining and leaving checklists') : ''}${hrRole ? row('#hrdesk', 'folder', 'amber', 'HR desk', 'Complaints, suggestions, employee documents') : ''}${row('#reports', 'chart', 'earth', 'Reports', 'Month summary and CSV downloads')}${row('#admin', 'cog', '', 'Administration', 'Users and PINs, sites, registers, templates')}${hrRole ? row('#hrsettings', 'cog', '', 'HR settings & integrations', 'Approval chains, leave policy, WhatsApp, Tally') : ''}</div>`)}`;
 };
 Views.hub = (group) => {
   const kd = kinds();
@@ -91,26 +102,27 @@ function preload(k) {
 }
 function recList(k) {
   preload(k);
+  KL.ui.siteBack = null;
   const list = data(`m:${k.key}`, () => api(`/api/m/${k.key}`));
   const st = F(`rl-${k.key}-status`, '');
   const statuses = k.approval ? ['pending', 'approved', 'rejected'] : (k.statuses || []);
   const rows = list && !list.error ? list.rows.filter((r) => !st || r.status === st) : [];
-  const back = `#hub/${k.group}`;
+  const back = ['hr', 'money'].includes(k.group) ? (isStaff() ? '#hr' : '#me') : (isStaff() ? '#sites' : '#mysite');
   const right = `${isStaff() ? `<a class="btn icon-only" href="/api/m-export/${esc(k.key)}.csv?token=${encodeURIComponent(KL.token)}" aria-label="Download CSV">${ic('download')}</a>` : ''}${k.canCreate ? `<a class="btn small primary" href="#rec/${esc(k.key)}/new">${ic('plus')} New</a>` : ''}`;
   const filter = statuses.length ? `<div class="chips" style="margin-bottom:12px"><button type="button" data-action="recFilter" data-kind="${esc(k.key)}" data-status="" aria-pressed="${!st}">All</button>${statuses.map((s) => `<button type="button" data-action="recFilter" data-kind="${esc(k.key)}" data-status="${esc(s)}" aria-pressed="${st === s}">${esc(s === 'pending' ? 'awaiting approval' : s)}</button>`).join('')}</div>` : '';
   const body = list === null ? spinner() : list.error ? errorBox(list.error) : rows.length ? `<div class="card flush">${rows.map((r) => recRow(k, r)).join('')}</div>` : emptyState(k.icon, `No ${k.label.toLowerCase()} yet`, k.canCreate ? 'Tap New to add the first one.' : '');
   const ck = k.key === 'checklist_template' ? checklistToday() : ['', ''];
   return `${topbar(k.label, back, right)}<p class="sub">${esc(KDESC[k.key] || '')}</p>${ck[0]}${filter}${body}${ck[1]}`;
 }
-function recRow(k, r) {
-  let right = stag(r.status);
+function recRow(k, r, inSite = false) {
+  let right = k.approval || (k.statuses || []).length ? stag(r.status) : '';
   if (k.key === 'batch') right = `<span class="right"><b class="mono">${fmtNum(r.data.output_kg)} kg</b><br>${r.yield !== null ? tag(`${r.yield}% yield`, 'info') : ''}</span>`;
   if (k.key === 'survival' && r.survival !== null) right = tag(`${r.survival}% alive`, r.survival >= 80 ? 'ok' : 'warn');
   if (k.key === 'policy') right = r.acked ? tag('accepted', 'ok') : r.data.must_ack === 'Yes' ? tag('to accept', 'warn') : '';
   if (k.key === 'equipment' && r.service_overdue) right = `${stag(r.status)} ${tag('service due', 'bad')}`;
   if (k.key === 'training' && r.data.valid_until && r.data.valid_until < todayISO()) right = tag('expired', 'bad');
   if (k.approval && r.status === 'pending' && r.waiting) right = `<span class="right">${stag('pending')}<br><small class="muted">with ${esc(firstName(r.waiting))}</small></span>`;
-  return lrow({ href: `#rec/${k.key}/${r.id}`, icon: r.file_id ? `${authImg(r.file_id)}` : k.icon, tone: '', title: r.title || k.one, sub: `${recSub(k, r)}${recSub(k, r) ? ' · ' : ''}${esc(timeAgo(r.created_at))}`, right });
+  return lrow({ href: `#rec/${k.key}/${r.id}`, icon: r.file_id ? `${authImg(r.file_id)}` : k.icon, tone: '', title: r.title || k.one, sub: `${recSub(k, r, inSite)}${recSub(k, r, inSite) ? ' · ' : ''}${esc(timeAgo(r.created_at))}`, right });
 }
 Actions.recFilter = (el) => { setF(`rl-${el.dataset.kind}-status`, el.dataset.status); render(); };
 function checklistToday() {
@@ -124,7 +136,7 @@ function checklistToday() {
 function recDetail(k, id) {
   preload(k);
   const r = data(`m:${k.key}:${id}`, () => api(`/api/m/${k.key}/${id}`));
-  const back = `#rec/${k.key}`;
+  const back = KL.ui.siteBack || `#rec/${k.key}`;
   if (r === null) return `${topbar(k.one, back)}${spinner()}`;
   if (r.error) return `${topbar(k.one, back)}${errorBox(r.error)}`;
   const mayEdit = isStaff() || (r.created_by === KL.user.id && !(k.approval && ['approved', 'rejected'].includes(r.status)));
@@ -221,9 +233,13 @@ function clearRecForm(kind) { for (const key of Object.keys(KL.ui.forms)) if (ke
 function fieldOptions(k, f) {
   if (f.type === 'select') return f.options.map((o) => [o, o]);
   if (f.type === 'user') return KL.boot.people.map((p) => [p.id, `${p.name} · ${ROLE_TEXT[p.role] || p.role}`]);
-  if (f.type === 'site') return ((isStaff() || ['to_site'].includes(f.key)) ? KL.boot.sites : KL.boot.mySites).map((s) => [s.id, s.name]);
+  if (f.type === 'site') return (f.key === 'to_site' ? KL.boot.sites : KL.boot.mySites).filter((s) => s.project_type !== 'office' || ['labour', 'shift', 'onboarding'].includes(k.key)).map((s) => [s.id, s.name]);
   if (f.type === 'farmer') { const fl = data('farmers', () => api('/api/farmers')); return fl && !fl.error ? fl.rows.map((x) => [x.id, `${x.name} · ${x.village || ''}`]) : []; }
-  if (f.type === 'ref') { const rr = data(`m:${f.ref}`, () => api(`/api/m/${f.ref}`)); return rr && !rr.error ? rr.rows.map((x) => [x.id, x.title + (f.ref === 'batch' ? ` · ${fmtNum(x.data.output_kg)} kg` : '')]) : []; }
+  if (f.type === 'ref') {
+    const rr = data(`m:${f.ref}`, () => api(`/api/m/${f.ref}`));
+    const site = F(rk(k.key, 'site'), '');
+    return rr && !rr.error ? rr.rows.filter((x) => !site || !x.site_id || x.site_id === site || ['supplier'].includes(f.ref)).map((x) => [x.id, x.title + (f.ref === 'batch' ? ` · ${fmtNum(x.data.output_kg)} kg` : '')]) : [];
+  }
   if (f.type === 'item') {
     const site = F(rk(k.key, 'site'), '') || F(rk(k.key, 'from_site'), '');
     const names = [...new Set(KL.boot.items.filter((i) => !site || i.site_id === site).map((i) => i.name))];
@@ -243,7 +259,7 @@ function recForm(k, id) {
   preload(k);
   const editing = Boolean(id);
   const r = editing ? data(`m:${k.key}:${id}`, () => api(`/api/m/${k.key}/${id}`)) : null;
-  const back = editing ? `#rec/${k.key}/${id}` : `#rec/${k.key}`;
+  const back = editing ? `#rec/${k.key}/${id}` : KL.ui.siteBack || `#rec/${k.key}`;
   if (editing && r === null) return `${topbar(`Edit ${k.one}`, back)}${spinner()}`;
   if (editing && r.error) return `${topbar(`Edit ${k.one}`, back)}${errorBox(r.error)}`;
   const initKey = `${k.key}:${id || 'new'}`;
@@ -345,9 +361,9 @@ Actions.recSave = async (el) => {
   try {
     const r = await submitEvidence(`/api/m/${k.key}`, { data: JSON.stringify(d), id: id || '', lat: g ? g.lat : '', lng: g ? g.lng : '' }, photoFile(`rec-${k.key}`, `${k.one}.jpg`), k.one);
     clearRecForm(k.key); KL.ui.recInit = null;
-    invalidate(`m:${k.key}`, 'm:batch', 'registers', 'dashboard', 'm-approvals', 'planner'); await refreshMe();
-    if (r.queued) { location.hash = `#rec/${k.key}`; return; }
-    location.hash = `#rec/${k.key}/${r.id}`;
+    invalidate(`m:${k.key}`, 'm:batch', 'registers', 'dashboard', 'm-approvals', 'planner', 'site'); await refreshMe();
+    if (r.queued) { location.hash = KL.ui.siteBack || `#rec/${k.key}`; return; }
+    location.hash = KL.ui.siteBack && !id ? KL.ui.siteBack : `#rec/${k.key}/${r.id}`;
     const msg = { batch: ['Batch recorded', 'Stock registers updated: feedstock out, biochar in.'], incident: ['Incident reported', 'Managers are told; a follow-up task is raised for medium and above.'],
       checklist_run: ['Checklist saved', 'Items not OK have been sent to the manager as tasks.'], application: ['Application recorded', 'Biochar stock reduced and the farm added to the batch chain.'] }[k.key];
     if (!id && msg) await celebrate(msg[0], msg[1]);
@@ -402,6 +418,7 @@ Views.person = (id) => {
   return `${topbar(u.name, back, p.canEdit ? `<a class="btn small" href="#personedit/${esc(u.id)}">${ic('pen')} Edit</a>` : '')}
     <div class="card profile">${avatar(u.name, 'xl')}<div style="min-width:0"><b>${esc(u.name)}</b><span>${esc(u.designation || '')} · ${esc(u.employee_id)}</span><span class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap">${tag(ROLE_TEXT[u.role] || u.role, 'ok')}${u.manager_name ? tag(`reports to ${u.manager_name}`, 'info') : ''}${p.profile.employment ? tag(p.profile.employment) : ''}</span></div></div>
     ${u.reports.length ? `<p class="hint" style="margin:10px 4px 0">Team: ${u.reports.map((x) => esc(x.name)).join(', ')}</p>` : ''}
+    ${group('Works at', worksAt(u))}
     ${group('Leave balance', `<div class="tiles">${p.balances.filter((b) => b.available !== null).map((b) => `<div class="tile ${b.available <= 1 ? 'warn' : 'ok'}"><b>${fmtNum(b.available, 1)}</b><span>${esc(b.type)} left · ${fmtNum(b.used, 1)} used${b.pending ? `, ${fmtNum(b.pending, 1)} pending` : ''}</span></div>`).join('')}</div>`, '', '<a href="#leaves">Apply</a>')}
     ${sections.map(([title, fs]) => group(title, `<div class="card"><div class="kv">${fs.map((f) => `<span>${esc(f.label)}</span><span>${esc(f.type === 'money' && p.profile[f.key] && !String(p.profile[f.key]).startsWith('•') ? rupees(p.profile[f.key]) : f.type === 'date' && p.profile[f.key] ? fmtDate(p.profile[f.key], false) : p.profile[f.key] || '–')}</span>`).join('')}${title.startsWith('Salary') && gross ? `<span>Gross a month</span><span>${rupees(gross)}</span>` : ''}</div></div>`)).join('')}
     ${group('Assets', p.assets.length ? `<div class="card flush">${p.assets.map((a) => lrow({ href: `#rec/asset_issue/${a.id}`, icon: 'box', title: a.data.asset, sub: `${esc(a.data.category || '')} · ${esc(a.data.serial || '')}`, right: stag(a.status) })).join('')}</div>` : '<div class="card"><p class="hint">None issued.</p></div>')}

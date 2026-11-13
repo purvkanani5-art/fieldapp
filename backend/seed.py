@@ -12,23 +12,32 @@ from storage import store
 
 USERS = [
     ("EMP001", "Purv Kanani", "admin", "Director"),
-    ("EMP002", "Meera Shah", "manager", "Operations Manager"),
+    ("EMP002", "Meera Shah", "manager", "Operations Manager, Biochar & Gasifier"),
     ("EMP003", "Ravi Patel", "hr", "HR Executive"),
-    ("EMP101", "Jignesh Rathod", "field", "Field Officer, Biochar"),
+    ("EMP005", "Nidhi Trivedi", "manager", "Project Manager, Agroforestry"),
+    ("EMP101", "Jignesh Rathod", "field", "Kiln Supervisor, Biochar"),
     ("EMP102", "Kiran Vaghela", "field", "Field Officer, Agroforestry"),
     ("EMP103", "Suresh Makwana", "field", "Site Operator, Gasifier"),
+    ("EMP106", "Mehul Prajapati", "field", "Plant Operator, Biochar"),
+    ("EMP107", "Asha Rabari", "field", "Nursery Supervisor, Agroforestry"),
 ]
 
+# Projects (verticals) hold sites. Biochar sites are low-tech (Kon-Tiki kilns) or high-tech (industrial pyrolysis plant).
 SITES = [
-    ("Biochar Site, Rajkot", "biochar", 22.3039, 70.8022, 200, "Survey 112, Lodhika, Rajkot"),
-    ("Agroforestry Cluster, Junagadh", "agroforestry", 21.5222, 70.4579, 400, "Vanthali road, Junagadh"),
-    ("Gasifier Plant, Surat", "gasifier", 21.1702, 72.8311, 150, "GIDC Sachin, Surat"),
-    ("Head Office, Ahmedabad", "office", 23.0225, 72.5714, 120, "SG Highway, Ahmedabad"),
+    ("Lodhika Kiln Site", "biochar", "kiln", 22.3039, 70.8022, 200, "Survey 112, Lodhika, Rajkot"),
+    ("Nava Agroforestry Site", "agroforestry", "", 21.5222, 70.4579, 400, "Nava, Vanthali road, Junagadh"),
+    ("Balaji Gasifier Site", "gasifier", "", 21.1702, 72.8311, 150, "Balaji Industrial Estate, Sachin, Surat"),
+    ("Head Office, Ahmedabad", "office", "", 23.0225, 72.5714, 120, "SG Highway, Ahmedabad"),
+    ("Viramgam Biochar Plant", "biochar", "plant", 23.1226, 72.0367, 250, "GIDC Viramgam, Ahmedabad"),
+    ("Deesa Agroforestry Site", "agroforestry", "", 24.2585, 72.1907, 500, "Deesa, Banaskantha"),
+    ("Salariya Agroforestry Site", "agroforestry", "", 21.3301, 70.6203, 500, "Salariya, Junagadh"),
 ]
 
+BIOCHAR_ITEMS = [("Diesel", "L", "input", 60), ("Biomass (feedstock)", "kg", "input", 2000), ("Biochar (finished)", "kg", "product", 0)]
 ITEMS = {
-    "biochar": [("Diesel", "L", "input", 60), ("Biomass (feedstock)", "kg", "input", 2000), ("Biochar (finished)", "kg", "product", 0)],
-    "gasifier": [("Feedstock", "kg", "input", 1500), ("Diesel", "L", "input", 40), ("Power generated", "kWh", "product", 0), ("Ash / char", "kg", "product", 0)],
+    "Lodhika Kiln Site": BIOCHAR_ITEMS,
+    "Viramgam Biochar Plant": BIOCHAR_ITEMS,
+    "Balaji Gasifier Site": [("Feedstock", "kg", "input", 1500), ("Diesel", "L", "input", 40), ("Power generated", "kWh", "product", 0), ("Ash / char", "kg", "product", 0)],
 }
 
 TEMPLATE_BODY = """This agreement is made on the date above between {{company}} (the Company) and Shri/Smt {{name}}, s/o or d/o {{father_name}}, resident of village {{village}}, taluka {{taluka}}, district {{district}} (the Farmer).
@@ -66,23 +75,30 @@ def seed_if_empty() -> None:
                                   "kind": "company_signature", "created_at": now})
         db.set_setting("company_signature_file", fid)
 
-        site_ids = {}
-        for name, ptype, lat, lng, radius, addr in SITES:
-            site_ids[ptype] = db.insert("sites", {"name": name, "project_type": ptype, "lat": lat, "lng": lng, "radius_m": radius, "address": addr, "active": 1})
-        for ptype, items in ITEMS.items():
+        site_ids, by_name = {}, {}
+        for name, ptype, sub, lat, lng, radius, addr in SITES:
+            sid = db.insert("sites", {"name": name, "project_type": ptype, "subtype": sub, "lat": lat, "lng": lng, "radius_m": radius, "address": addr, "active": 1})
+            site_ids.setdefault(ptype, sid)
+            by_name[name] = sid
+        for site_name, items in ITEMS.items():
             for i, (name, unit, kind, low) in enumerate(items):
-                db.insert("register_items", {"site_id": site_ids[ptype], "name": name, "unit": unit, "kind": kind, "low_stock": low, "active": 1, "sort": i})
+                db.insert("register_items", {"site_id": by_name[site_name], "name": name, "unit": unit, "kind": kind, "low_stock": low, "active": 1, "sort": i})
 
         pin_hash, salt = hash_pin("1234")
         uid = {}
         for emp, name, role, desig in USERS:
             uid[emp] = db.insert("users", {"employee_id": emp, "name": name, "role": role, "designation": desig, "pin_hash": pin_hash, "pin_salt": salt,
                                            "must_change_pin": 0, "active": 1, "created_at": now})
-        assign = {"EMP002": list(site_ids.values()), "EMP101": [site_ids["biochar"]], "EMP102": [site_ids["agroforestry"]], "EMP103": [site_ids["gasifier"]],
-                  "EMP003": [site_ids["office"]]}
-        for emp, sites in assign.items():
-            for s in sites:
-                db.insert("user_sites", {"user_id": uid[emp], "site_id": s})
+        # Field staff work at sites; project managers manage whole projects (every site in them, now and later).
+        assign = {"EMP101": ["Lodhika Kiln Site"], "EMP106": ["Viramgam Biochar Plant"], "EMP102": ["Nava Agroforestry Site"],
+                  "EMP107": ["Deesa Agroforestry Site", "Salariya Agroforestry Site"], "EMP103": ["Balaji Gasifier Site"], "EMP003": ["Head Office, Ahmedabad"],
+                  "EMP002": ["Head Office, Ahmedabad"], "EMP005": ["Head Office, Ahmedabad"]}
+        for emp, names in assign.items():
+            for n in names:
+                db.insert("user_sites", {"user_id": uid[emp], "site_id": by_name[n]})
+        for emp, projects in {"EMP002": ["biochar", "gasifier"], "EMP005": ["agroforestry"]}.items():
+            for p in projects:
+                db.insert("user_projects", {"user_id": uid[emp], "project": p})
 
         db.insert("templates", {"name": "Agroforestry Farmer Agreement", "project_type": "agroforestry", "body": TEMPLATE_BODY,
                                 "fields": json.dumps(TEMPLATE_FIELDS), "active": 1})

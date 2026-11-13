@@ -35,8 +35,9 @@ CREATE TABLE IF NOT EXISTS devices (
 CREATE TABLE IF NOT EXISTS sites (
   id TEXT PRIMARY KEY, name TEXT NOT NULL, project_type TEXT NOT NULL,
   lat REAL NOT NULL, lng REAL NOT NULL, radius_m INTEGER NOT NULL DEFAULT 150,
-  address TEXT DEFAULT '', active INTEGER DEFAULT 1
+  address TEXT DEFAULT '', active INTEGER DEFAULT 1, subtype TEXT DEFAULT ''
 );
+CREATE TABLE IF NOT EXISTS user_projects (user_id TEXT NOT NULL, project TEXT NOT NULL, PRIMARY KEY (user_id, project));
 
 CREATE TABLE IF NOT EXISTS files (
   id TEXT PRIMARY KEY, path TEXT NOT NULL, name TEXT NOT NULL, mime TEXT NOT NULL, size INTEGER NOT NULL,
@@ -120,7 +121,7 @@ CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications (user_id, read);
 """
 
 
-NO_ID_TABLES = {"user_sites"}
+NO_ID_TABLES = {"user_sites", "user_projects"}
 
 
 def now_iso() -> str:

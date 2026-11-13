@@ -1,11 +1,12 @@
 /* Kshetralekha: routing, sign-in, navigation (tab bar on phones, sidebar on computers), the prototype's
    person switch, event wiring and start-up. */
 
-const TABS_FIELD = [['home', 'home', 'Home'], ['work', 'work', 'Work'], ['tasks', 'kanban', 'Tasks'], ['inbox', 'bell', 'Inbox'], ['me', 'user', 'Me']];
-const TABS_STAFF = [['home', 'home', 'Home'], ['planner', 'kanban', 'Planner'], ['manage', 'manage', 'Manage'], ['inbox', 'bell', 'Inbox'], ['me', 'user', 'Me']];
+const TABS_FIELD_ALL = [['home', 'home', 'Home'], ['mysite', 'pin', 'My site'], ['tasks', 'kanban', 'Tasks'], ['inbox', 'bell', 'Inbox'], ['me', 'user', 'Me']];
+const TABS_STAFF = [['home', 'home', 'Home'], ['sites', 'pin', 'Sites'], ['planner', 'kanban', 'Planner'], ['hr', 'users', 'People'], ['inbox', 'bell', 'Inbox']];
+const fieldTabs = () => TABS_FIELD_ALL.filter(([k]) => k !== 'mysite' || (KL.boot?.mySites || []).some((s) => s.project_type !== 'office'));
 const TAB_OF = { attendance: 'work', trips: 'work', registers: 'work', farmers: 'work', sign: 'work', updates: 'me', leaves: 'me', feedback: 'me', dashboard: 'manage', approvals: 'manage', team: 'manage', hrdesk: 'manage', admin: 'manage',
   people: 'manage', personedit: 'manage', payroll: 'manage', reports: 'manage', hrsettings: 'manage', messages: 'manage', privacy: 'me', security: 'me' };
-const STAFF_ROUTES = new Set(['manage', 'dashboard', 'approvals', 'team', 'hrdesk', 'admin', 'people', 'personedit', 'payroll', 'reports', 'hrsettings', 'messages']);
+const STAFF_ROUTES = new Set(['manage', 'dashboard', 'approvals', 'team', 'hrdesk', 'admin', 'people', 'personedit', 'payroll', 'reports', 'hrsettings', 'messages', 'hr', 'assign']);
 const NEEDS_GPS = new Set(['attendance', 'trips', 'registers', 'sign', 'farmers']);
 
 function route() {
@@ -13,9 +14,13 @@ function route() {
   const i = h.indexOf('/');
   return i === -1 ? { name: h, arg: '' } : { name: h.slice(0, i), arg: h.slice(i + 1) };
 }
+const SITE_VIEWS = new Set(['site', 'sites', 'mysite', 'work', 'registers', 'farmers', 'sign', 'carbon', 'map']);
+const PEOPLE_VIEWS = new Set(['hr', 'hub', 'people', 'person', 'personedit', 'assign', 'attsum', 'payroll', 'hrsettings', 'messages', 'approvals', 'team', 'hrdesk', 'admin', 'manage', 'reports', 'dashboard', 'me', 'updates', 'leaves', 'feedback', 'privacy', 'security']);
 function tabOf(view) {
   if (view === 'planner' || view === 'tasks') return isStaff() ? 'planner' : 'tasks';
-  if (['hub', 'rec', 'carbon', 'map', 'attsum', 'person'].includes(view)) return isStaff() ? 'manage' : 'work';
+  if (view === 'rec') { const k = kindDef(route().arg.split('/')[0]); view = k && ['hr', 'money'].includes(k.group) ? 'hr' : 'site'; }
+  if (SITE_VIEWS.has(view) || view === 'site') return isStaff() ? 'sites' : 'mysite';
+  if (PEOPLE_VIEWS.has(view)) return isStaff() ? 'hr' : (['hr', 'hub', 'person', 'attsum'].includes(view) ? 'me' : TAB_OF[view] || view);
   return TAB_OF[view] || view;
 }
 function badgeFor(k) {
@@ -26,23 +31,24 @@ function badgeFor(k) {
   return '';
 }
 function tabBar(active) {
-  const tabs = isStaff() ? TABS_STAFF : TABS_FIELD;
+  const tabs = isStaff() ? TABS_STAFF : fieldTabs();
   return `<nav class="tabbar" aria-label="Main">${tabs.map(([k, icon, label]) => `<a href="#${k}" class="${active === k ? 'on' : ''}">${ic(icon)}${label}${badgeFor(k)}</a>`).join('')}</nav>`;
 }
 function sideNav(active) {
   const u = KL.user;
-  const tabs = isStaff() ? [...TABS_STAFF.slice(0, 2), ['work', 'work', 'Field work'], ...TABS_STAFF.slice(2)] : TABS_FIELD;
+  const tabs = isStaff() ? [...TABS_STAFF, ['me', 'user', 'Me']] : fieldTabs();
   const quick = [['attendance', 'pin', 'Site check-in'], ['trips', 'bike', 'Travel'], ['registers', 'box', 'Site registers'], ['farmers', 'sprout', 'Farmers'], ['updates', 'note', 'Daily update']];
-  const mods = [['hub/hr', 'users', 'People'], ['hub/money', 'receipt', 'Money'], ['hub/ops', 'shield', 'Safety & equipment'], ['hub/carbon', 'flame', 'Production & carbon'], ['hub/supply', 'box', 'Purchasing & supply'], ['map', 'map', 'Map'], ...(isStaff() ? [['reports', 'chart', 'Reports']] : [])];
+  const pm = KL.boot?.projects || {};
+  const ms = (KL.boot?.mySites || []).filter((s) => s.project_type !== 'office');
+  const tree = Object.entries(pm).map(([key, p]) => [p, ms.filter((s) => s.project_type === key)]).filter(([, l]) => l.length);
   const cur = location.hash.replace('#', '');
   const link = ([k, icon, label]) => `<a class="nav ${active === k || (k.includes('/') && cur.startsWith(k)) ? 'on' : ''}" href="#${k}">${ic(icon)}<span>${label}</span>${badgeFor(k)}</a>`;
   return `<aside class="side" aria-label="Navigation">
     <a class="brand" href="#home"><img src="./icon.svg" alt="" /><span><b>Kshetralekha</b><small>${esc(KL.boot?.company?.short || 'Sajeevan')} · field app</small></span></a>
     ${tabs.map(link).join('')}
-    <div class="sep"></div><div class="label">Operations</div>
-    ${mods.map(link).join('')}
+    ${tree.map(([p, list]) => `<div class="sep"></div><div class="label">${esc(p.name)}</div>${list.map((s) => `<a class="nav sub ${cur.startsWith(`site/${s.id}`) ? 'on' : ''}" href="#site/${esc(s.id)}">${ic(p.icon)}<span>${esc(s.name)}</span></a>`).join('')}`).join('')}
     <div class="sep"></div><div class="label">Quick</div>
-    ${quick.map(link).join('')}
+    ${quick.filter(([k]) => !['registers', 'farmers'].includes(k)).map(link).join('')}${link(['map', 'map', 'Map'])}
     <div class="foot-card">${KL.boot?.demo ? `<b style="color:var(--violet);font-size:12px;letter-spacing:.08em">PROTOTYPE</b>` : ''}
       <div class="me-chip">${avatar(u.name)}<span style="flex:1;min-width:0"><b style="color:var(--ink);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(u.name)}</b>${esc(ROLE_TEXT[u.role] || u.role)}</span></div>
       ${KL.boot?.demo ? `<button type="button" class="btn small wide" style="margin-top:10px" data-action="switchOpen">${ic('swap')} View as someone else</button>` : ''}

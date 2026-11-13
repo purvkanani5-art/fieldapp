@@ -1,8 +1,8 @@
 /* Kshetralekha service worker: the app shell is cached so the app opens with no signal; API calls always go
    to the network (the app's own outbox handles offline submissions). Bump CACHE_VERSION on every deploy. */
-const CACHE_VERSION = 'kl-v5';
+const CACHE_VERSION = 'kl-v6';
 const PYODIDE_CACHE = 'kl-pyodide-314.0.7'; // the Python runtime from the CDN, kept across app versions
-const SHELL = ['./', './index.html', './styles.css', './core.js', './views-field.js', './views-me.js', './views-staff.js', './views-planner.js', './views-modules.js', './app.js', './manifest.webmanifest', './icon.svg', './logo.png',
+const SHELL = ['./', './index.html', './styles.css', './core.js', './views-field.js', './views-me.js', './views-staff.js', './views-planner.js', './views-modules.js', './views-sites.js', './app.js', './manifest.webmanifest', './icon.svg', './logo.png',
   './icon-192.png', './apple-touch-icon.png', './fonts/bricolage.woff2', './fonts/jakarta.woff2', './local/pyhost.js'];
 
 self.addEventListener('install', (e) => {

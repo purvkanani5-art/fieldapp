@@ -667,3 +667,48 @@ a.tile:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); }
 .tile.earth .ti { background: var(--earth-tint); color: var(--earth); }
 .tile b { overflow-wrap: anywhere; }
 @media (max-width: 1039px) { .tiles.auto { grid-template-columns: 1fr 1fr; } .tiles.auto .tile b { font-size: 22px; } }
+
+/* ------------------------------------------------------------- projects and sites */
+.pj-ic { width: 44px; height: 44px; border-radius: 15px; display: grid; place-items: center; flex: none; color: #fff; }
+.pj-biochar .pj-ic { background: linear-gradient(140deg, #a8743f, #6b4320); }
+.pj-gasifier .pj-ic { background: linear-gradient(140deg, #4f86d6, #2a5ea8); }
+.pj-agroforestry .pj-ic { background: linear-gradient(140deg, #3fa66b, #1e7a4c); }
+.project-block { margin-top: 18px; }
+.project-head { display: flex; align-items: center; gap: 12px; margin: 0 2px 10px; }
+.project-head b { display: block; font: 750 19px var(--display); letter-spacing: -0.01em; }
+.project-head small { color: var(--muted); font-size: 13px; line-height: 1.35; display: block; }
+.project-head .count { margin-left: auto; font-size: 12px; font-weight: 800; color: var(--muted); background: var(--chip); padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.site-list { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); }
+.site-card { display: flex; align-items: center; gap: 10px; padding: 16px; border-radius: 18px; background: var(--surface); box-shadow: var(--shadow-1); text-decoration: none; color: inherit; transition: transform .18s var(--ease), box-shadow .2s; border: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+.site-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); }
+.site-card .tx { flex: 1; min-width: 0; }
+.site-card b { display: block; font-size: 16px; }
+.site-card small { color: var(--muted); font-size: 13px; }
+.site-head { display: flex; align-items: center; gap: 12px; margin: 2px 0 12px; }
+.site-head .tx { flex: 1; min-width: 0; }
+.site-head b { display: block; font-size: 15px; }
+.site-head small { color: var(--muted); font-size: 12.5px; }
+.site-tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; position: sticky; top: 64px; z-index: 12; padding: 6px 2px 10px; margin: 0 -2px; background: linear-gradient(var(--bg) 80%, transparent); }
+.site-tabs::-webkit-scrollbar { display: none; }
+.site-tabs a { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px; border-radius: 13px; text-decoration: none; color: var(--muted); font-weight: 700; font-size: 14px; background: var(--surface); box-shadow: var(--shadow-1); transition: background .2s, color .2s; }
+.site-tabs a svg.ic { width: 18px; height: 18px; }
+.site-tabs a.on { background: var(--forest); color: #fff; }
+.site-body > .group:first-child { margin-top: 8px; }
+.site-qa { grid-template-columns: repeat(4, 1fr) !important; margin-top: 4px; }
+.site-tiles { margin-top: 14px; grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 560px) { .site-tiles { grid-template-columns: 1fr 1fr; } }
+.more-row .tx b { color: var(--brand); font-size: 14px; }
+.my-sites { display: grid; gap: 10px; margin-top: 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); }
+.my-site { background: var(--surface); border-radius: 20px; box-shadow: var(--shadow-1); overflow: hidden; border: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+.ms-head { display: flex; align-items: center; gap: 12px; padding: 14px 14px 10px; text-decoration: none; color: inherit; }
+.ms-head .tx { flex: 1; min-width: 0; }
+.ms-head b { display: block; font: 750 17px var(--display); }
+.ms-head small { color: var(--muted); font-size: 13px; }
+.ms-tabs { display: flex; border-top: 1px solid var(--line); }
+.ms-tabs a { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 11px 4px; font-size: 13px; font-weight: 700; color: var(--ink-2); text-decoration: none; }
+.ms-tabs a + a { border-left: 1px solid var(--line); }
+.ms-tabs a svg.ic { width: 16px; height: 16px; color: var(--brand); }
+.side a.nav.sub { font-size: 14px; padding: 8px 12px; }
+.side a.nav.sub svg.ic { width: 18px; height: 18px; }
+@media (min-width: 1040px) { .site-tabs { top: 0; } }
+@media (min-width: 1040px) { .side { overflow-y: auto; } }

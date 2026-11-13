@@ -87,7 +87,7 @@ function plannerHub() {
 function planCard(p) {
   const pct = p.total ? Math.round((p.done / p.total) * 100) : 0;
   return `<a class="card hover plan-card" href="#${isStaff() ? 'planner' : 'tasks'}/${esc(p.id)}">
-    <div class="top"><span class="pmark pm-${esc(p.color)}">${esc(initials(p.name))}</span><span style="flex:1;min-width:0"><b>${esc(p.name)}</b><small>${esc(p.site_name || 'All sites')}</small></span><span class="chev">${ic('chevron')}</span></div>
+    <div class="top"><span class="pmark pm-${esc(p.color)}">${esc(initials(p.name))}</span><span style="flex:1;min-width:0"><b>${esc(p.name)}</b><small>${esc(p.site_name || 'General · no particular site')}</small></span><span class="chev">${ic('chevron')}</span></div>
     <div class="progress" style="margin-top:14px"><i style="width:${pct}%"></i></div>
     <div class="stats"><span><b>${p.done}</b>/${p.total} done</span><span><b>${p.doing}</b> in progress</span>${p.late ? `<span style="color:var(--red)"><b style="color:var(--red)">${p.late}</b> late</span>` : ''}<span style="margin-left:auto">${pct}%</span></div>
   </a>`;
@@ -128,7 +128,7 @@ function planView(arg) {
     </div>`;
   const body = mode === 'grid' ? planGrid(plan, buckets, list) : mode === 'charts' ? planCharts(plan, buckets, list) : planBoard(plan, buckets, list, groupBy);
   return `${topbar(plan.name, `#${base}`, staff ? `<button type="button" class="btn icon-only" data-action="planEdit" data-id="${esc(plan.id)}" aria-label="Plan settings">${ic('cog')}</button>` : '')}
-    <div class="plan-head"><span class="pmark pm-${esc(plan.color)}">${esc(initials(plan.name))}</span><span class="tx"><b>${esc(plan.site_id ? siteName(plan.site_id) : 'All sites')}</b><small>${tasks.length} tasks · ${done} done${tasks.filter(isLate).length ? ` · ${tasks.filter(isLate).length} late` : ''}</small></span><div class="progress" style="flex:0 0 120px"><i style="width:${tasks.length ? Math.round((done / tasks.length) * 100) : 0}%"></i></div></div>
+    <div class="plan-head"><span class="pmark pm-${esc(plan.color)}">${esc(initials(plan.name))}</span><span class="tx"><b>${esc(plan.site_id ? siteName(plan.site_id) : 'General plan · any site or none')}</b><small>${tasks.length} tasks · ${done} done${tasks.filter(isLate).length ? ` · ${tasks.filter(isLate).length} late` : ''}</small></span><div class="progress" style="flex:0 0 120px"><i style="width:${tasks.length ? Math.round((done / tasks.length) * 100) : 0}%"></i></div></div>
     ${tools}
     ${body}
     ${staff && mode !== 'charts' ? `<button type="button" class="fab" data-action="taskAdd" data-plan="${esc(plan.id)}" aria-label="New task">${ic('plus')}</button>` : ''}`;
@@ -230,10 +230,10 @@ function applyPlanFilter() {
 Actions.planEdit = async (el) => {
   const id = el.dataset.id;
   const pl = id ? KL.cache[`planner:plan:${id}`]?.plan : null;
-  const sites = KL.boot.sites;
-  const v = await modal({ title: pl ? 'Plan settings' : 'New plan', message: pl ? '' : 'A plan is a board for one site or project, with buckets of tasks.', fields: [
+  const sites = KL.boot.mySites.filter((s) => s.project_type !== 'office');
+  const v = await modal({ title: pl ? 'Plan settings' : 'New plan', message: pl ? '' : 'A plan is a board of tasks. Pick a site, or leave it General for work that is not tied to a site in the app.', fields: [
     { key: 'name', label: 'Plan name', value: pl?.name || '', placeholder: 'e.g. Biochar Site, Rajkot · December' },
-    { key: 'site', label: 'Site (people on this site can see the plan)', type: 'select', options: ['All sites', ...sites.map((s) => s.name)], value: pl?.site_id ? siteName(pl.site_id) : 'All sites' },
+    { key: 'site', label: 'Site (optional)', type: 'select', options: ['General (no site)', ...sites.map((s) => s.name)], value: pl?.site_id ? siteName(pl.site_id) : 'General (no site)' },
     { key: 'color', label: 'Colour', type: 'select', options: PLAN_COLORS, value: pl?.color || 'leaf' },
   ], confirmText: pl ? 'Save' : 'Create plan' });
   if (!v) return;

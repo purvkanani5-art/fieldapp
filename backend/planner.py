@@ -70,8 +70,11 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
     # -------------------------------------------------------------- reading
 
     def visible_plan_ids(db: Db, user: dict) -> list[str]:
-        if is_staff(user):
+        if user.get("all_sites"):
             return [p["id"] for p in db.all("SELECT id FROM plans WHERE archived = 0")]
+        if is_staff(user):  # project managers: plans of their sites, company-wide plans, and their own
+            return [p["id"] for p in db.all("SELECT id, site_id, created_by FROM plans WHERE archived = 0")
+                    if p["site_id"] is None or p["site_id"] in user["sites"] or p["created_by"] == user["id"]]
         mine = {row["plan_id"] for row in db.all(
             "SELECT DISTINCT t.plan_id FROM tasks t JOIN task_assignees a ON a.task_id = t.id WHERE a.user_id = ?", user["id"])}
         for p in db.all("SELECT id, site_id FROM plans WHERE archived = 0"):

@@ -191,8 +191,11 @@ def seed_activity(db: Db) -> None:
     if db.one("SELECT 1 FROM attendance LIMIT 1") or db.one("SELECT 1 FROM plans LIMIT 1"):
         return
     users = {u["employee_id"]: u for u in db.all("SELECT * FROM users")}
-    sites = {s["project_type"]: s for s in db.all("SELECT * FROM sites")}
-    field = [("EMP101", "biochar"), ("EMP102", "agroforestry"), ("EMP103", "gasifier")]
+    sites: dict = {}
+    for s_ in db.all("SELECT * FROM sites ORDER BY rowid"):
+        sites.setdefault(s_["project_type"], s_)  # the first site of each project
+        sites[s_["name"]] = s_
+    field = [("EMP101", "biochar"), ("EMP102", "agroforestry"), ("EMP103", "gasifier"), ("EMP106", "Viramgam Biochar Plant"), ("EMP107", "Deesa Agroforestry Site")]
     manager = users["EMP002"]
     now = datetime.now().astimezone()
 
@@ -267,7 +270,7 @@ def seed_activity(db: Db) -> None:
         "Ash / char": [("in", (40, 75), "ash", "Ash pit")],
     }
     for item in db.all("SELECT i.*, s.name AS site_name, s.lat, s.lng, s.project_type FROM register_items i JOIN sites s ON s.id = i.site_id"):
-        who = users["EMP101" if item["project_type"] == "biochar" else "EMP103"]
+        who = users[{"Viramgam Biochar Plant": "EMP106", "Balaji Gasifier Site": "EMP103"}.get(item["site_name"], "EMP101")]
         bal = {"Diesel": 120.0, "Biomass (feedstock)": 3200.0, "Feedstock": 2600.0}.get(item["name"], 0.0)
         for days_ago in range(13, 0, -1):
             if local_day(days_ago, 9, 0).weekday() == 6:
@@ -355,7 +358,7 @@ def seed_activity(db: Db) -> None:
                          "decision_note": "Get well soon", "created_at": iso(local_day(8, 8, 0))})
     db.insert("leaves", {"user_id": users["EMP101"]["id"], "from_date": local_day(-5, 9, 0).strftime("%Y-%m-%d"), "to_date": local_day(-6, 9, 0).strftime("%Y-%m-%d"),
                          "type": "Casual", "reason": "Family function in the village", "status": "pending", "created_at": iso(now - timedelta(hours=20))})
-    db.insert("feedback", {"user_id": None, "type": "complaint", "text": "No drinking water cooler at the Rajkot kiln yard in the afternoon heat.",
+    db.insert("feedback", {"user_id": None, "type": "complaint", "text": "No drinking water cooler at the Lodhika kiln yard in the afternoon heat.",
                            "status": "open", "created_at": iso(local_day(2, 14, 0))})
     db.insert("feedback", {"user_id": users["EMP103"]["id"], "type": "suggestion", "text": "A second ash trolley would save an hour every day.",
                            "status": "closed", "response": "Approved, ordering one this week.", "responded_by": users["EMP003"]["id"],
@@ -390,7 +393,7 @@ def seed_activity(db: Db) -> None:
 
     # ---- inbox: what each person would have been told
     db.notify(manager["id"], "Trip to approve: Kiran Vaghela", "Two-wheeler trip, awaiting your approval", "#approvals")
-    db.notify(manager["id"], "Check-in exception: Suresh Makwana", "380 m from Gasifier Plant, Surat: Working at the far feedstock yard", "#approvals")
+    db.notify(manager["id"], "Check-in exception: Suresh Makwana", "380 m from Balaji Gasifier Site: Working at the far feedstock yard", "#approvals")
     db.notify(manager["id"], "Leave request: Jignesh Rathod", "Casual leave next week", "#approvals")
     db.notify(users["EMP101"]["id"], "Trip approved", "Your last trip was approved", "#trips")
     db.notify(users["EMP101"]["id"], f"Payslip {month}", "HR uploaded your payslip", "#me")
@@ -428,7 +431,7 @@ def seed_planner(db: Db, users: dict, sites: dict) -> None:
             db.insert("task_assignees", {"task_id": tid, "user_id": users[emp]["id"]})
         return tid
 
-    pid, b = make_plan("Biochar Site, Rajkot · November", "biochar", "earth", ["To do", "This week", "Kiln maintenance", "Done this month"])
+    pid, b = make_plan("Lodhika Kiln Site · November", "biochar", "earth", ["To do", "This week", "Kiln maintenance", "Done this month"])
     task(pid, b["This week"], "Stock count: biomass and biochar", ["EMP101"], prio="important", due=0, labels=("pink",),
          checklist=("Count biomass bales", "Weigh biochar sacks", "Photograph both heaps", "Enter counts in the register"), done_items=1,
          notes="Physical count for the monthly carbon audit. Enter each count in the register so the variance is recorded.", photo=True, progress="in_progress")
@@ -443,7 +446,7 @@ def seed_planner(db: Db, users: dict, sites: dict) -> None:
     task(pid, b["Done this month"], "Install new weighbridge display", ["EMP101"], progress="completed", labels=("yellow",), done_note="Installed and calibrated with a 500 kg test weight.")
     task(pid, b["Done this month"], "Monthly biochar sample to the lab", ["EMP101"], progress="completed", labels=("pink",), done_note="Couriered to the lab; receipt in the folder.")
 
-    pid, b = make_plan("Agroforestry: monsoon planting", "agroforestry", "leaf", ["Farmer onboarding", "Plot surveys", "Planting", "Completed"])
+    pid, b = make_plan("Nava Agroforestry · monsoon planting", "agroforestry", "leaf", ["Farmer onboarding", "Plot surveys", "Planting", "Completed"])
     task(pid, b["Farmer onboarding"], "Sign agreements: Bhesan village (5 farmers)", ["EMP102"], prio="important", due=4, labels=("green", "blue"),
          checklist=("Harsukh Bhai", "Lalji Bhai", "Champaben", "Dhiru Bhai", "Vasant Bhai"), done_items=2, progress="in_progress")
     task(pid, b["Plot surveys"], "KML boundaries for Mendarda plots", ["EMP102"], due=1, labels=("green",),
@@ -454,7 +457,16 @@ def seed_planner(db: Db, users: dict, sites: dict) -> None:
     task(pid, b["Completed"], "Village meeting on the carbon programme", ["EMP102"], progress="completed", labels=("purple",),
          done_note="28 farmers attended; 9 interested in joining.")
 
-    pid, b = make_plan("Gasifier Plant, Surat · operations", "gasifier", "blue", ["Daily", "Maintenance", "Compliance", "Done"])
+    gp, gb = make_plan("General · head office and other work", None, "violet", ["To do", "In progress", "Done"])
+    task(gp, gb["To do"], "Survey a new biochar site at Bhachau, Kutch (not in the app yet)", ["EMP002"], prio="important", due=9, labels=("green",),
+         notes="Site visit for a possible third biochar location; not a site in the app, so this plan has no site.")
+    task(gp, gb["To do"], "Collect annual health check reports from everyone", ["EMP003"], due=12, labels=("blue",))
+    task(gp, gb["In progress"], "Help the Deesa team with the district forest office meeting", ["EMP107", "EMP005"], due=3, labels=("purple",), progress="in_progress")
+    task(gp, gb["To do"], "Prepare carbon registry audit binder (all projects)", ["EMP001", "EMP002", "EMP005"], prio="urgent", due=6, labels=("pink",),
+         checklist=("Biochar batch reports", "Agroforestry survival data", "Gasifier run logs"))
+    task(gp, gb["Done"], "Renew vehicle insurance for the company car", ["EMP002"], progress="completed", done_note="Renewed till Nov 2027.")
+
+    pid, b = make_plan("Balaji Gasifier · operations", "gasifier", "blue", ["Daily", "Maintenance", "Compliance", "Done"])
     task(pid, b["Maintenance"], "Clean cyclone and filter housing", ["EMP103"], prio="important", due=0, labels=("yellow",),
          checklist=("Shut down safely", "Clean cyclone", "Replace filter", "Restart and log"), done_items=4, progress="in_progress", photo=True)
     task(pid, b["Daily"], "Log power generation at 6 pm", ["EMP103"], due=0, labels=("blue",))

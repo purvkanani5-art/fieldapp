@@ -86,7 +86,7 @@ Views.approvals = () => {
       <div class="btns"><button type="button" class="btn danger" data-action="decide" data-kind="leaves" data-id="${esc(l.id)}" data-decision="rejected">Reject</button><button type="button" class="btn primary" data-action="decide" data-kind="leaves" data-id="${esc(l.id)}" data-decision="approved">Approve</button></div>
     </div>`);
   const empty = '<div class="card"><p class="empty">Nothing waiting.</p></div>';
-  return `${topbar('Approvals', '#manage')}
+  return `${topbar('Approvals', '#hr')}
     ${group('Requests (claims, purchases, payments, corrections)', requestApprovals())}
     ${group('Travel claims', trips.length ? `<div class="stack">${trips.join('')}</div>` : empty, String(trips.length))}
     ${group('Check-in exceptions', att.length ? `<div class="stack">${att.join('')}</div>` : empty, String(att.length))}
@@ -114,7 +114,7 @@ Views.team = () => {
   if (tab === 'attendance') body = att === null ? spinner() : att.error ? errorBox(att.error) : att.rows.length ? `<div class="card flush">${att.rows.map((a) => attRow(a, true)).join('')}</div>` : '<div class="card"><p class="empty">No check-ins in 7 days.</p></div>';
   if (tab === 'trips') body = trips === null ? spinner() : trips.error ? errorBox(trips.error) : trips.rows.length ? `<div class="card flush">${trips.rows.filter((t) => t.status !== 'open').map((t) => tripRow(t, true)).join('')}</div>` : '<div class="card"><p class="empty">No trips yet.</p></div>';
   if (tab === 'updates') body = upd === null ? spinner() : upd.error ? errorBox(upd.error) : upd.rows.length ? `<div class="card flush">${upd.rows.map((r) => `<div class="lrow-static"><b>${esc(r.user_name)} · ${esc(fmtDate(r.date, false))}${r.hours ? ` · ${r.hours} h` : ''}${r.site_name ? ` · ${esc(r.site_name)}` : ''}</b><p class="hint" style="white-space:pre-wrap;margin-top:2px">${esc(r.summary)}</p>${r.blockers ? `<p class="hint" style="color:var(--amber)">Blocker: ${esc(r.blockers)}</p>` : ''}</div>`).join('')}</div>` : '<div class="card"><p class="empty">No updates in 7 days.</p></div>';
-  return `${topbar('Team activity', '#manage')}
+  return `${topbar('Team activity', '#hr')}
     <div class="seg">${[['attendance', 'Attendance'], ['trips', 'Trips'], ['updates', 'Updates']].map(([k, l]) => `<button type="button" data-action="teamTab" data-tab="${k}" aria-pressed="${tab === k}">${l}</button>`).join('')}</div>
     <div style="margin-top:10px">${body}</div>`;
 };
@@ -157,7 +157,7 @@ Views.admin = (arg) => {
   if (arg === 'company') return adminCompany();
   if (arg === 'audit') return adminAudit();
   const admin = isAdmin(), hr = KL.user.role === 'hr', mgr = KL.user.role === 'manager';
-  return `${topbar('Administration', '#manage')}<div class="card flush">
+  return `${topbar('Administration', '#hr')}<div class="card flush">
     ${admin || hr ? lrow({ href: '#admin/users', icon: 'user', tone: 'green', title: 'Users & PINs', sub: 'Add staff, roles, sites, reset a PIN' }) : ''}
     ${admin || mgr ? lrow({ href: '#admin/sites', icon: 'pin', tone: 'blue', title: 'Sites & geofences', sub: 'Location, allowed radius' }) : ''}
     ${admin || mgr ? lrow({ href: '#admin/items', icon: 'box', tone: 'amber', title: 'Register items', sub: 'Diesel, biomass, outputs per site, low-stock alerts' }) : ''}
@@ -203,13 +203,15 @@ Actions.siteEdit = async (el) => {
   const s = el.dataset.id ? KL.boot.sites.find((x) => x.id === el.dataset.id) : null;
   const g = KL.ui.gps;
   const v = await modal({ title: s ? `Edit ${s.name}` : 'New site', fields: [
-    { key: 'name', label: 'Name', value: s?.name || '' }, { key: 'project_type', label: 'Project type', type: 'select', options: ['biochar', 'agroforestry', 'gasifier', 'office', 'other'], value: s?.project_type || 'biochar' },
+    { key: 'name', label: 'Name', value: s?.name || '' }, { key: 'project_type', label: 'Project', type: 'select', options: ['biochar', 'agroforestry', 'gasifier', 'office'], value: s?.project_type || 'biochar' },
+    { key: 'subtype', label: 'Biochar type (biochar sites only)', type: 'select', options: ['kiln', 'plant', ''], value: s?.subtype || 'kiln' },
+    { key: 'strict', label: 'Check-in rule', type: 'select', options: ['Allow exceptions', 'Strict'], value: s?.strict ? 'Strict' : 'Allow exceptions' },
     { key: 'lat', label: `Latitude${g ? ' (your location is ' + g.lat.toFixed(5) + ')' : ''}`, value: s?.lat ?? g?.lat?.toFixed(6) ?? '', inputmode: 'decimal' }, { key: 'lng', label: 'Longitude', value: s?.lng ?? g?.lng?.toFixed(6) ?? '', inputmode: 'decimal' },
     { key: 'radius_m', label: 'Allowed radius (m)', value: s?.radius_m ?? 150, inputmode: 'numeric' }, { key: 'address', label: 'Address', value: s?.address || '' },
     ...(s ? [{ key: 'active', label: 'Status', type: 'select', options: ['active', 'inactive'], value: s.active ? 'active' : 'inactive' }] : []),
   ], confirmText: 'Save' });
   if (!v) return;
-  try { await api('/api/admin/sites', { json: { ...v, id: s?.id, active: s ? v.active === 'active' : true } }); await reloadBoot(); toast('Saved'); render(); } catch (e) { toast(e.message, 'error'); }
+  try { await api('/api/admin/sites', { json: { ...v, subtype: v.project_type === 'biochar' ? v.subtype : '', strict: v.strict === 'Strict', id: s?.id, active: s ? v.active === 'active' : true } }); await reloadBoot(); toast('Saved'); render(); } catch (e) { toast(e.message, 'error'); }
 };
 function adminItems() {
   const bySite = {};

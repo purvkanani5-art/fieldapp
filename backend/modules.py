@@ -58,7 +58,27 @@ MIGRATIONS = [
     "ALTER TABLE users ADD COLUMN consent_at TEXT",
     "ALTER TABLE sites ADD COLUMN strict INTEGER DEFAULT 0",
     "ALTER TABLE attendance ADD COLUMN flag TEXT DEFAULT ''",
+    "ALTER TABLE sites ADD COLUMN subtype TEXT DEFAULT ''",
+    "CREATE TABLE IF NOT EXISTS user_projects (user_id TEXT NOT NULL, project TEXT NOT NULL, PRIMARY KEY (user_id, project))",
 ]
+
+PROJECTS = {
+    "biochar": {"name": "Biochar", "icon": "flame", "tone": "earth", "blurb": "Kiln sites and industrial plants: biomass in, biochar out, lab-tested and applied on farms",
+                "subtypes": {"kiln": "Low-tech · kilns", "plant": "High-tech · industrial plant"}},
+    "gasifier": {"name": "Gasifier", "icon": "cog", "tone": "blue", "blurb": "Biomass gasifiers making power: feedstock, run hours, kWh, ash"},
+    "agroforestry": {"name": "Agroforestry", "icon": "tree", "tone": "", "blurb": "Nurseries, plantation on farmers' land, survival and farmer records"},
+}
+
+
+def team_ids(db: Db, user: dict) -> set | None:
+    """People a person may see records of: None means everyone (director, HR); otherwise people at their sites, their reports, themselves."""
+    if user.get("all_sites"):
+        return None
+    sites = set(user.get("sites") or [])
+    ids = {r["user_id"] for r in db.all("SELECT user_id, site_id FROM user_sites") if r["site_id"] in sites}
+    ids |= {r["id"] for r in db.all("SELECT id FROM users WHERE manager_id = ?", user["id"])}
+    ids.add(user["id"])
+    return ids
 
 DEFAULTS = {
     "approval_chains": {
@@ -164,7 +184,17 @@ KINDS: dict[str, dict] = {
               "fields": [F("site", "Site", "site", required=True), F("equipment", "Kiln / unit", "ref", ref="equipment"), F("start", "Started", "datetime", required=True),
                          F("end", "Finished", "datetime"), F("feedstock_type", "Feedstock", "select", options=["Cotton stalk", "Groundnut shell", "Pigeon pea stalk", "Prosopis wood", "Rice husk", "Mixed"]),
                          F("feedstock_kg", "Feedstock used (kg)", "number", required=True), F("moisture", "Feedstock moisture %", "number"),
-                         F("output_kg", "Biochar out (kg)", "number", required=True), F("peak_temp", "Peak temperature °C", "number"), F("notes", "Notes", "textarea")]},
+                         F("output_kg", "Biochar out (kg)", "number", required=True), F("peak_temp", "Peak temperature °C", "number"),
+                         F("run_hours", "Run hours (plants)", "number"), F("power_kwh", "Power used kWh (plants)", "number"), F("notes", "Notes", "textarea")]},
+    "gas_run": {"label": "Gasifier runs", "one": "Gasifier run", "group": "ops", "icon": "cog", "create": "all", "scope": "site", "title": "date", "photo": "Energy meter",
+                "fields": [F("site", "Site", "site", required=True), F("equipment", "Gasifier", "ref", ref="equipment"), F("date", "Date", "date", required=True),
+                           F("run_hours", "Run hours", "number", required=True), F("feedstock_kg", "Feedstock used (kg)", "number", required=True),
+                           F("power_kwh", "Power generated (kWh)", "number", required=True), F("ash_kg", "Ash / char out (kg)", "number"),
+                           F("diesel_l", "Diesel for start-up (L)", "number"), F("notes", "Stoppages, issues", "textarea")]},
+    "nursery": {"label": "Nursery register", "one": "Nursery entry", "group": "carbon", "icon": "sprout", "create": "all", "scope": "site", "title": "species", "photo": "Photo",
+                "fields": [F("site", "Nursery site", "site", required=True), F("species", "Species", "select", options=["Teak", "Mango", "Drumstick", "Neem", "Melia dubia", "Bamboo", "Lemon"], required=True),
+                           F("action", "Entry", "select", options=["Seeds sown", "Saplings received", "Died or culled"], required=True),
+                           F("qty", "Number of plants", "number", required=True), F("date", "Date", "date", required=True), F("source", "Source / bed no")]},
     "lab_result": {"label": "Lab results", "one": "Lab result", "group": "carbon", "icon": "scale", "create": "staff", "scope": "site", "title": "lab", "photo": "Lab report",
                    "fields": [F("batch", "Batch", "ref", ref="batch", required=True), F("lab", "Laboratory", required=True), F("sample_date", "Sampled on", "date"),
                               F("carbon", "Organic carbon %", "number", required=True), F("h_corg", "H/Corg ratio", "number"), F("ash", "Ash %", "number"), F("ph", "pH", "number"),
@@ -715,17 +745,19 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
         c = k.get("create", "staff")
         return c == "all" or (c == "staff" and is_staff(user)) or (c == "hr" and user["role"] in ("admin", "hr"))
 
-    def visible(user: dict, k: dict, rec: dict) -> bool:
-        if is_staff(user):
+    def visible(user: dict, k: dict, rec: dict, team: set | None = None) -> bool:
+        if user.get("all_sites"):
             return True
         scope = k.get("scope", "own")
         mine = rec["user_id"] == user["id"] or rec["created_by"] == user["id"]
+        if is_staff(user):  # project managers: their sites and their people
+            return mine or scope == "all" or (rec["site_id"] in user["sites"]) or (team is not None and rec["user_id"] in team)
         if scope == "all":
             return True
         if scope == "staff":
             return mine
         if scope == "site":
-            return mine or not rec["site_id"] or rec["site_id"] in user["sites"] or not user["sites"]
+            return mine or rec["site_id"] in user["sites"]
         return mine
 
     def enrich(db: Db, kind: str, rec: dict, *, full: bool = False) -> dict:
@@ -800,7 +832,8 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
         if status:
             sql += " AND status = ?"
             args.append(status)
-        rows = [x for x in db.all(sql + " ORDER BY created_at DESC LIMIT 400", *args) if visible(user, k, x)]
+        team = team_ids(db, user)
+        rows = [x for x in db.all(sql + " ORDER BY created_at DESC LIMIT 400", *args) if visible(user, k, x, team)]
         if ref:
             rows = [x for x in rows if ref in x["data"]]
         out = [enrich(db, kind, x) for x in rows]
@@ -814,7 +847,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
     def get_record(kind: str, rid: str, user: user_dep, db: db_dep):
         k = kind_or_404(kind)
         rec = db.one("SELECT * FROM records WHERE id = ? AND kind = ?", rid, kind)
-        if not rec or not visible(user, k, rec):
+        if not rec or not visible(user, k, rec, team_ids(db, user)):
             raise HTTPException(404, "Not found")
         rec = enrich(db, kind, rec, full=True)
         if kind == "policy":
@@ -917,6 +950,23 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
             db.notify_role(("manager", "admin"), f"Batch {data['code']} produced", f"{num(data.get('output_kg')):g} kg biochar from {num(data.get('feedstock_kg')):g} kg", link, site)
         if kind == "lab_result" and data.get("batch"):
             db.update("records", data["batch"], {"status": "tested", "updated_at": now_iso()})
+        if kind == "gas_run":
+            moves = [(("feed", "biomass"), "input", "out", "feedstock_kg"), (("power",), "product", "in", "power_kwh"), (("ash", "char"), "product", "in", "ash_kg"),
+                     (("diesel",), "input", "out", "diesel_l")]
+            ref = f"RUN-{data.get('date', '')}"
+            done = []
+            try:
+                for like, ik, typ, key in moves:
+                    q = num(data.get(key))
+                    it = find_item(db, site_id, kind=ik, like=like) if q > 0 else None
+                    if it:
+                        post(db, it, typ, q, user["id"], f"Gasifier run {data.get('date', '')}", ref, fid, lat, lng)
+                        done.append(it["id"])
+            except HTTPException:
+                db.run("DELETE FROM records WHERE id = ?", rid)
+                for iid in done:  # undo what was posted before the failure
+                    db.run("DELETE FROM movements WHERE item_id = ? AND batch = ? AND at = (SELECT MAX(at) FROM movements WHERE item_id = ? AND batch = ?)", iid, ref, iid, ref)
+                raise
         if kind == "application":
             b = db.one("SELECT * FROM records WHERE id = ?", data.get("batch"))
             if not b:
@@ -1125,13 +1175,16 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
     def people(user: user_dep, db: db_dep):
         if not is_staff(user):
             raise HTTPException(403, "Managers and HR only")
-        rows = db.all("SELECT id, employee_id, name, role, designation, phone, email, manager_id, active FROM users ORDER BY active DESC, name")
+        team = team_ids(db, user)
+        rows = [u for u in db.all("SELECT id, employee_id, name, role, designation, phone, email, manager_id, active FROM users ORDER BY active DESC, name")
+                if team is None or u["id"] in team]
         for u in rows:
             p = profile_data(db, u["id"])
             u["joining_date"] = p.get("joining_date", "")
             u["employment"] = p.get("employment", "")
             u["manager_name"] = user_name(db, u["manager_id"])
             u["sites"] = [x["site_id"] for x in db.all("SELECT site_id FROM user_sites WHERE user_id = ?", u["id"])]
+            u["projects"] = [x["project"] for x in db.all("SELECT project FROM user_projects WHERE user_id = ?", u["id"])]
             u["complete"] = round(sum(1 for f in PROFILE_FIELDS[:15] if p.get(f["key"])) / 15 * 100)
         return {"rows": rows}
 
@@ -1150,6 +1203,9 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
             p = {k: ("•••• " + str(v)[-2:] if v and k in SENSITIVE else v) for k, v in p.items()}
         u["manager_name"] = user_name(db, u["manager_id"])
         u["reports"] = db.all("SELECT id, name, designation FROM users WHERE manager_id = ? AND active = 1", uid)
+        u["sites"] = [x["site_id"] for x in db.all("SELECT site_id FROM user_sites WHERE user_id = ?", uid)]
+        u["projects"] = [x["project"] for x in db.all("SELECT project FROM user_projects WHERE user_id = ?", uid)]
+        u["canAssign"] = user["role"] in ("admin", "hr")
         y = local_today().year
         return {"user": u, "profile": p, "canEdit": user["role"] in ("admin", "hr"), "balances": leave_balances(db, uid, y),
                 "assets": [enrich(db, "asset_issue", x) for x in db.all("SELECT * FROM records WHERE kind = 'asset_issue' AND user_id = ?", uid)],
@@ -1197,10 +1253,105 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
             res = attendance_month(db, uid, month)
             return {"month": month, "user": {"id": uid, "name": user_name(db, uid)}, **res}
         rows = []
-        for u in db.all("SELECT id, name, employee_id, designation FROM users WHERE active = 1 ORDER BY role = 'field' DESC, name"):
+        team = team_ids(db, user)
+        for u in [x for x in db.all("SELECT id, name, employee_id, designation FROM users WHERE active = 1 ORDER BY role = 'field' DESC, name") if team is None or x["id"] in team]:
             res = attendance_month(db, u["id"], month)
             rows.append({**u, "totals": res["totals"], "codes": [d["code"] for d in res["days"]]})
         return {"month": month, "rows": rows, "holidays": holidays(db)}
+
+    # -------------------------------------------------------------- assignments: who works where
+
+    @r.post("/hr/assign")
+    def assign(payload: dict, user: user_dep, db: db_dep):
+        """HR puts a person at sites (they work there) and, for managers, over whole projects (they manage them)."""
+        if user["role"] not in ("admin", "hr"):
+            raise HTTPException(403, "HR only")
+        uid = str(payload.get("userId", ""))
+        u = db.one("SELECT id, name, role FROM users WHERE id = ?", uid)
+        if not u:
+            raise HTTPException(404, "Not found")
+        valid = {s["id"] for s in db.all("SELECT id FROM sites")}
+        sites = [s for s in payload.get("sites") or [] if s in valid]
+        projects = [p for p in payload.get("projects") or [] if p in PROJECTS]
+        if projects and u["role"] == "field":
+            raise HTTPException(422, "Field staff work at sites; only managers manage a whole project")
+        db.run("DELETE FROM user_sites WHERE user_id = ?", uid)
+        db.run("DELETE FROM user_projects WHERE user_id = ?", uid)
+        for s in sites:
+            db.insert("user_sites", {"user_id": uid, "site_id": s})
+        for p in projects:
+            db.insert("user_projects", {"user_id": uid, "project": p})
+        names = [x["name"] for x in db.all("SELECT name FROM sites") if x["name"]]
+        del names
+        db.notify(uid, "Your sites were updated", ", ".join(site_name(db, s) for s in sites) + (f" · manages {', '.join(PROJECTS[p]['name'] for p in projects)}" if projects else ""), "#sites")
+        db.audit(user["id"], "assign", "user", uid, f"sites={len(sites)} projects={projects}")
+        return {"ok": True}
+
+    @r.post("/hr/site-member")
+    def site_member(payload: dict, user: user_dep, db: db_dep):
+        if user["role"] not in ("admin", "hr"):
+            raise HTTPException(403, "HR only")
+        uid, sid = str(payload.get("userId", "")), str(payload.get("siteId", ""))
+        if not db.one("SELECT 1 FROM users WHERE id = ?", uid) or not db.one("SELECT 1 FROM sites WHERE id = ?", sid):
+            raise HTTPException(404, "Not found")
+        db.run("DELETE FROM user_sites WHERE user_id = ? AND site_id = ?", uid, sid)
+        if payload.get("add"):
+            db.insert("user_sites", {"user_id": uid, "site_id": sid})
+            db.notify(uid, f"You now work at {site_name(db, sid)}", "Open Sites to see it", f"#site/{sid}")
+        db.audit(user["id"], "site_member", "site", sid, f"{uid} {'added' if payload.get('add') else 'removed'}")
+        return {"ok": True}
+
+    # -------------------------------------------------------------- one site at a glance
+
+    @r.get("/sites/{sid}/summary")
+    def site_summary(sid: str, user: user_dep, db: db_dep):
+        s = db.one("SELECT * FROM sites WHERE id = ?", sid)
+        if not s or not site_allowed(user, sid):
+            raise HTTPException(404, "Site not found")
+        members = []
+        for x in db.all("SELECT u.id, u.name, u.designation, u.role, u.employee_id FROM user_sites us JOIN users u ON u.id = us.user_id WHERE us.site_id = ? AND u.active = 1", sid):
+            members.append({**x, "how": "works here"})
+        for x in db.all("SELECT u.id, u.name, u.designation, u.role, u.employee_id FROM user_projects up JOIN users u ON u.id = up.user_id WHERE up.project = ? AND u.active = 1", s["project_type"]):
+            if not any(m["id"] == x["id"] for m in members):
+                members.append({**x, "how": f"manages {PROJECTS.get(s['project_type'], {}).get('name', '')}"})
+        on_site = db.all("SELECT a.user_id, a.checkin_at, u.name FROM attendance a JOIN users u ON u.id = a.user_id WHERE a.site_id = ? AND a.checkout_at IS NULL", sid)
+        items = [{**i, "balance": balance(db, i["id"])} for i in db.all("SELECT * FROM register_items WHERE site_id = ? AND active = 1 ORDER BY sort, name", sid)]
+        month = local_today().strftime("%Y-%m")
+
+        def recs(kind, this_month=False):
+            rows = db.all("SELECT * FROM records WHERE kind = ? AND site_id = ?" + (" AND substr(created_at, 1, 7) = ?" if this_month else ""), kind, sid, *([month] if this_month else []))
+            return [json.loads(x["data"]) | {"_status": x["status"], "_id": x["id"]} for x in rows]
+
+        stats: dict[str, Any] = {}
+        if s["project_type"] == "biochar":
+            b = recs("batch", True)
+            stats = {"batches": len(b), "output": sum(num(x.get("output_kg")) for x in b), "feedstock": sum(num(x.get("feedstock_kg")) for x in b),
+                     "applied": sum(num(x.get("qty_kg")) for x in recs("application", True)), "untested": sum(1 for x in recs("batch") if x["_status"] == "produced")}
+        elif s["project_type"] == "gasifier":
+            g = recs("gas_run", True)
+            stats = {"runs": len(g), "kwh": sum(num(x.get("power_kwh")) for x in g), "hours": sum(num(x.get("run_hours")) for x in g),
+                     "down": sum(1 for e in db.all("SELECT status FROM records WHERE kind = 'equipment' AND site_id = ?", sid) if e["status"] != "working")}
+        elif s["project_type"] == "agroforestry":
+            nursery: dict[str, float] = {}
+            for x in recs("nursery"):
+                sign = -1 if x.get("action") == "Died or culled" else 1
+                nursery[x.get("species", "?")] = nursery.get(x.get("species", "?"), 0) + sign * num(x.get("qty"))
+            planted: dict[str, float] = {}
+            for x in recs("sapling"):
+                planted[x.get("species", "?")] = planted.get(x.get("species", "?"), 0) + num(x.get("count"))
+            stock = {sp: nursery.get(sp, 0) - planted.get(sp, 0) for sp in set(nursery) | set(planted)}
+            surv = [num(x.get("alive")) / num(x.get("planted"), 1) * 100 for x in recs("survival") if num(x.get("planted"))]
+            stats = {"nursery": {k: round(v) for k, v in sorted(stock.items())}, "inNursery": round(sum(v for v in stock.values() if v > 0)),
+                     "planted": round(sum(planted.values())), "survival": round(sum(surv) / len(surv)) if surv else None}
+        stats["farmers"] = db.one("SELECT COUNT(*) AS n FROM farmers WHERE site_id = ?", sid)["n"]
+        stats["openIncidents"] = sum(1 for x in recs("incident") if x["_status"] != "closed")
+        tasks = db.all("SELECT t.id, t.title, t.due_date, t.progress, t.priority FROM tasks t JOIN plans p ON p.id = t.plan_id WHERE p.site_id = ? AND t.progress != 'completed' "
+                       "ORDER BY t.due_date IS NULL, t.due_date LIMIT 6", sid)
+        recent = []
+        for x in db.all("SELECT id, kind, title, status, user_id, created_at FROM records WHERE site_id = ? AND kind NOT IN ('profile', 'policy_ack') ORDER BY created_at DESC LIMIT 8", sid):
+            if x["kind"] in KINDS:
+                recent.append({**x, "user_name": user_name(db, x["user_id"]), "label": KINDS[x["kind"]]["one"], "icon": KINDS[x["kind"]]["icon"]})
+        return {"site": s, "project": PROJECTS.get(s["project_type"]), "members": members, "onSite": on_site, "items": items, "stats": stats, "tasks": tasks, "recent": recent}
 
     @r.post("/hr/settings")
     def hr_settings(payload: dict, user: user_dep, db: db_dep):
@@ -1390,7 +1541,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
 
     @r.get("/map")
     def map_data(user: user_dep, db: db_dep):
-        sites = [s for s in db.all("SELECT id, name, project_type, lat, lng, radius_m FROM sites WHERE active = 1") if is_staff(user) or site_allowed(user, s["id"])]
+        sites = [s for s in db.all("SELECT id, name, project_type, subtype, lat, lng, radius_m FROM sites WHERE active = 1 AND project_type != 'office'") if site_allowed(user, s["id"])]
         ids = {s["id"] for s in sites}
         plots = []
         for p in db.all("SELECT p.*, f.name AS farmer_name, f.village, f.site_id, f.id AS fid FROM plots p JOIN farmers f ON f.id = p.farmer_id WHERE p.kml_file IS NOT NULL"):
@@ -1413,7 +1564,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
             for x in db.all("SELECT id, title, lat, lng, site_id, created_at, data FROM records WHERE kind = ? AND lat IS NOT NULL", kind):
                 if x["site_id"] in ids or x["site_id"] is None:
                     pins.append({"kind": kind, "id": x["id"], "title": x["title"], "lat": x["lat"], "lng": x["lng"], "at": x["created_at"]})
-        people = db.all("SELECT a.checkin_lat AS lat, a.checkin_lng AS lng, u.name, s.name AS site FROM attendance a JOIN users u ON u.id = a.user_id JOIN sites s ON s.id = a.site_id WHERE a.checkout_at IS NULL") if is_staff(user) else []
+        people = [p for p in db.all("SELECT a.checkin_lat AS lat, a.checkin_lng AS lng, a.site_id, u.name, s.name AS site FROM attendance a JOIN users u ON u.id = a.user_id JOIN sites s ON s.id = a.site_id WHERE a.checkout_at IS NULL") if p["site_id"] in ids] if is_staff(user) else []
         return {"sites": sites, "plots": plots, "pins": pins, "people": people}
 
     # -------------------------------------------------------------- geofence: left the site while on duty
@@ -1494,7 +1645,8 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
         month = month or local_today().strftime("%Y-%m")
 
         def recs(kind):
-            return [enrich(db, kind, x) for x in db.all("SELECT * FROM records WHERE kind = ? AND substr(created_at, 1, 7) = ?", kind, month)]
+            return [enrich(db, kind, x) for x in db.all("SELECT * FROM records WHERE kind = ? AND substr(created_at, 1, 7) = ?", kind, month)
+                    if x["site_id"] is None or site_allowed(user, x["site_id"])]
 
         batches = recs("batch")
         exp = recs("expense")
