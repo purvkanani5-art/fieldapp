@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en-IN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Kshetralekha · Sajeevan</title>
+    <meta name="description" content="Sajeevan field app: site attendance, travel, registers, farmer documents, team tasks and HR." />
+    <meta name="theme-color" content="#f5f3ec" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Kshetralekha" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="preload" href="./fonts/jakarta.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="./fonts/bricolage.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="splash" class="splash" aria-hidden="true"><div class="in"><img src="./icon.svg" alt="" /><b>Kshetralekha</b><small>by Sajeevan</small></div></div>
+    <div id="app" aria-live="polite"></div>
+    <div id="sheet" hidden></div>
+    <div id="modal" hidden></div>
+    <div id="toast" role="status" aria-live="assertive" hidden></div>
+    <div id="pickers" hidden>
+      <input id="pick-photo" type="file" accept="image/*" />
+      <input id="pick-file" type="file" />
+    </div>
+    <script src="./local/pyhost.js"></script>
+    <script src="./core.js"></script>
+    <script src="./views-field.js"></script>
+    <script src="./views-me.js"></script>
+    <script src="./views-staff.js"></script>
+    <script src="./views-planner.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
