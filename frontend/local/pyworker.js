@@ -40,6 +40,15 @@ async function start() {
   }
   py.FS.mount(py.FS.filesystems.IDBFS, {}, '/kl/data');
   await new Promise((resolve, reject) => py.FS.syncfs(true, (err) => (err ? reject(err) : resolve())));
+  // Demo data from an older layout is rebuilt (new sites, people and registers would be missing otherwise).
+  const DATA_VERSION = '0.4';
+  const verPath = '/kl/data/.data-version';
+  const oldVer = py.FS.analyzePath(verPath).exists ? py.FS.readFile(verPath, { encoding: 'utf8' }) : '';
+  if (oldVer !== DATA_VERSION) {
+    const wipe = (dir) => { for (const n of py.FS.readdir(dir)) { if (n === '.' || n === '..') continue; const p = `${dir}/${n}`; if (py.FS.isDir(py.FS.stat(p).mode)) { wipe(p); py.FS.rmdir(p); } else py.FS.unlink(p); } };
+    wipe('/kl/data');
+    py.FS.writeFile(verPath, DATA_VERSION);
+  }
   const fresh = !py.FS.analyzePath('/kl/data/kshetralekha.sqlite').exists;
   say(fresh ? 'Building the demo data (first time only, about a minute)' : 'Opening your data');
   await py.runPythonAsync(`
