@@ -11,6 +11,18 @@ Views.me = () => {
     <div class="card profile" style="margin-top:14px">${avatar(u.name, 'xl')}<div style="min-width:0"><b>${esc(u.name)}</b><span>${esc(u.designation || ROLE_TEXT[u.role] || u.role)}</span><span class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap">${tag(u.employee_id, 'info')}${tag(ROLE_TEXT[u.role] || u.role, 'ok')}${(u.sites || []).slice(0, 2).map((id) => tag(siteName(id))).join('')}</span></div></div>
     ${u.must_change_pin ? `<div class="banner warn"><b>Change your PIN</b><p>HR gave you a starting PIN. Set your own 6-digit PIN now.</p><button type="button" class="btn small" data-action="changePin" style="margin-top:8px">Change PIN</button></div>` : ''}
     ${group('My documents', docs === null ? spinner() : docs.error ? errorBox(docs.error) : docs.rows.length ? `<div class="card flush">${docs.rows.map((d) => `<div class="lrow-static row"><span class="icon blue">${ic('doc')}</span><span class="tx" style="flex:1"><b>${esc(d.title)}</b><span class="muted" style="font-size:13px;display:block">${esc(d.category)} · ${esc(fmtDate(d.created_at, false))}</span></span>${fileLink(d.file_id)}</div>`).join('')}</div>` : '<div class="card"><p class="empty">Payslips, letters and ID documents appear here when HR uploads them.</p></div>', 'From HR')}
+    ${(() => { const pol = data('m:policy', () => api('/api/m/policy')); const todo = pol && !pol.error ? pol.rows.filter((p) => p.data.must_ack === 'Yes' && !p.acked) : []; return todo.length ? `<div class="banner warn" style="margin-top:14px">${ic('doc')}<div><b>${todo.length} polic${todo.length === 1 ? 'y' : 'ies'} to read and accept</b><p>${todo.map((p) => `<a href="#rec/policy/${esc(p.id)}">${esc(p.title)}</a>`).join(' · ')}</p></div></div>` : ''; })()}
+    ${group('My HR', `<div class="card flush">
+      ${lrow({ href: '#person/me', icon: 'user', tone: 'blue', title: 'My employee record', sub: 'Details, bank and statutory numbers, leave balance, assets, training, goals' })}
+      ${lrow({ href: '#attsum', icon: 'calendar', tone: 'green', title: 'Attendance summary', sub: 'This month: present, late, absent, overtime' })}
+      ${lrow({ href: '#rec/regularisation', icon: 'clock', tone: 'amber', title: 'Attendance corrections', sub: 'Fix a missed check-out; your manager approves' })}
+      ${lrow({ href: '#rec/expense', icon: 'receipt', tone: 'violet', title: 'Expense claims', sub: 'Bills with receipt photos; manager, then HR above ₹2,000' })}
+      ${lrow({ href: '#rec/advance', icon: 'receipt', title: 'Advances & loans', sub: 'Recovered from salary in monthly parts' })}
+      ${lrow({ href: '#rec/asset_issue', icon: 'box', title: 'My assets', sub: 'Phone, tools and safety kit issued to me' })}
+      ${lrow({ href: '#rec/training', icon: 'shield', tone: 'green', title: 'Training & certificates', sub: 'With expiry dates' })}
+      ${lrow({ href: '#rec/goal', icon: 'target', title: 'Goals & reviews', sub: 'Targets set by my manager' })}
+      ${lrow({ href: '#rec/policy', icon: 'doc', title: 'Policies', sub: 'Read and accept' })}
+    </div>`)}
     ${group('Requests & forms', `<div class="card flush">
       ${lrow({ href: '#updates', icon: 'note', title: 'Daily work update', sub: 'Today and the last two weeks' })}
       ${lrow({ href: '#leaves', icon: 'sun', tone: 'blue', title: 'Leave', sub: pendingLeaves ? `${pendingLeaves} request${pendingLeaves === 1 ? '' : 's'} pending` : 'Apply and see past leave' })}
@@ -18,6 +30,9 @@ Views.me = () => {
       ${lrow({ href: '#attendance', icon: 'pin', tone: 'green', title: 'My attendance', sub: 'Check-ins of the last 31 days' })}
       ${lrow({ href: '#trips', icon: 'bike', title: 'My travel claims', sub: 'Approved, pending and rejected' })}
     </div>`)}
+    ${group('Language', `<div class="card"><div class="seg">${[['en', 'English'], ['gu', 'ગુજરાતી'], ['hi', 'हिन्दी']].map(([k, l]) => `<button type="button" data-action="lang" data-lang="${k}" aria-pressed="${lang() === k}">${l}</button>`).join('')}</div><p class="hint" style="margin-top:8px">Prototype: menus, buttons and common words are translated.</p></div>`)}
+    ${group('Security & privacy', `<div class="card flush">${['admin', 'hr', 'manager'].includes(u.role) ? lrow({ href: '#security', icon: 'shield', tone: 'green', title: 'Two-step sign-in', sub: 'Authenticator code after the PIN' }) : ''}${lrow({ href: '#privacy', icon: 'lock', title: 'Privacy & my data', sub: 'What is recorded, for how long, download my data' })}</div>`)}
+    ${group('For reviewers', reviewerNote())}
     ${group('Appearance', `<div class="card"><div class="seg">${[['auto', 'sun', 'Automatic'], ['light', 'sun', 'Light'], ['dark', 'moon', 'Dark']].map(([k, icon, l]) => `<button type="button" data-action="theme" data-theme="${k}" aria-pressed="${theme === k}">${ic(icon)}${l}</button>`).join('')}</div></div>`)}
     ${group('Account', `<div class="card flush">
       ${lrow({ action: 'changePin', icon: 'lock', title: 'Change PIN', sub: '6 digits, known only to you' })}
@@ -39,6 +54,13 @@ Actions.flushOutbox = async () => { await Outbox.flush(); toast(KL.outboxCount ?
 function inboxIcon(n) {
   const t = n.title.toLowerCase();
   if (t.startsWith('task done')) return ['check', 'green'];
+  if (t.startsWith('approval needed')) return ['check', 'amber'];
+  if (t.startsWith('incident')) return ['alert', 'red'];
+  if (t.startsWith('batch')) return ['flame', 'earth'];
+  if (t.startsWith('payslip')) return ['receipt', 'violet'];
+  if (t.startsWith('left site') || t.startsWith('check-out missed')) return ['pin', 'red'];
+  if (t.startsWith('please read')) return ['doc', 'amber'];
+  if (t.startsWith('checklist') || t.startsWith('equipment')) return ['cog', 'red'];
   if (t.startsWith('new task')) return ['kanban', 'violet'];
   if (t.startsWith('comment')) return ['chat', 'blue'];
   if (t.includes('rejected')) return ['alert', 'red'];
@@ -94,18 +116,20 @@ Actions.updateSave = async () => {
 Views.leaves = () => {
   const list = data('leaves:mine', () => api('/api/leaves'));
   const types = KL.boot?.leaveTypes || ['Casual'];
+  const bal = data('hr:balances', () => api('/api/hr/leave-balances'));
   return `${topbar('Leave', '#me')}
+    ${bal && !bal.error ? `<div class="tiles four" style="margin-bottom:14px">${bal.rows.map((b) => `<div class="tile ${b.available === null ? '' : b.available <= 1 ? 'warn' : 'ok'}"><b>${b.available === null ? '∞' : fmtNum(b.available, 1)}</b><span>${esc(b.type)} left${b.available === null ? ' (unpaid)' : ` · ${fmtNum(b.accrued + b.opening, 1)} credited, ${fmtNum(b.used, 1)} used${b.pending ? `, ${fmtNum(b.pending, 1)} pending` : ''}`}</span></div>`).join('')}</div>` : ''}
     <div class="card stack">
       <div class="grid2">${field('From', input('lv-from', F('lv-from', todayISO()), { type: 'date' }))}${field('To', input('lv-to', F('lv-to', todayISO()), { type: 'date' }))}</div>
       <div class="grid2">${field('Type', select('lv-type', F('lv-type', types[0]), types))}${field('Reason', input('lv-reason', F('lv-reason'), { placeholder: 'optional' }))}</div>
       <button type="button" class="btn primary wide" data-action="leaveApply">Apply</button>
     </div>
-    ${group('My leave', list === null ? spinner() : list.error ? errorBox(list.error) : list.rows.length ? `<div class="card flush">${list.rows.map((l) => `<div class="lrow-static row"><span class="tx" style="flex:1"><b>${esc(l.type)} · ${esc(fmtDate(l.from_date, false))}${l.to_date !== l.from_date ? ` to ${esc(fmtDate(l.to_date, false))}` : ''}</b><span class="muted" style="font-size:13px;display:block">${esc(l.reason || '')}${l.decision_note ? ` · ${esc(l.decision_note)}` : ''}</span></span>${statusTag(l.status)}</div>`).join('')}</div>` : '<div class="card"><p class="empty">No leave requests yet.</p></div>')}`;
+    ${group('My leave', list === null ? spinner() : list.error ? errorBox(list.error) : list.rows.length ? `<div class="card flush">${list.rows.map((l) => `<div class="lrow-static row"><span class="tx" style="flex:1"><b>${esc(l.type)} · ${esc(fmtDate(l.from_date, false))}${l.to_date !== l.from_date ? ` to ${esc(fmtDate(l.to_date, false))}` : ''}</b><span class="muted" style="font-size:13px;display:block">${fmtNum(l.days || 0, 1)} working day${l.days === 1 ? '' : 's'}${l.reason ? ` · ${esc(l.reason)}` : ''}${l.decision_note ? ` · ${esc(l.decision_note)}` : ''}${l.status === 'pending' && l.waiting ? ` · with ${esc(l.waiting)}` : ''}</span></span>${statusTag(l.status)}</div>`).join('')}</div>` : '<div class="card"><p class="empty">No leave requests yet.</p></div>')}`;
 };
 Actions.leaveApply = async () => {
   try {
     await api('/api/leaves', { json: { from: F('lv-from', todayISO()), to: F('lv-to', todayISO()), type: F('lv-type', KL.boot.leaveTypes[0]), reason: F('lv-reason', '') } });
-    clearF('lv-reason'); invalidate('leaves'); toast('Leave request sent'); render();
+    clearF('lv-reason'); invalidate('leaves', 'hr:balances'); toast('Leave request sent to your manager'); render();
   } catch (e) { toast(e.message, 'error'); }
 };
 

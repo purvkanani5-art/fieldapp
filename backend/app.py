@@ -27,9 +27,11 @@ from seed import seed_if_empty  # noqa: E402
 from storage import FILES_DIR, store  # noqa: E402
 
 import demo  # noqa: E402
+import demo_modules  # noqa: E402
+import modules  # noqa: E402
 import planner  # noqa: E402
 
-APP_VERSION = "0.2.0"
+APP_VERSION = "0.3.0"
 DEMO = os.environ.get("KL_DEMO", "1") == "1"  # prototype: demo accounts, person switch, reset
 FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
 
@@ -37,8 +39,10 @@ init_db()
 seed_if_empty()
 _db0 = Db()
 planner.init(_db0)
+modules.init(_db0)
 if DEMO:
     demo.seed_activity(_db0)
+    demo_modules.seed(_db0)
 _db0.close()
 
 app = FastAPI(title="Kshetralekha", version=APP_VERSION, docs_url="/api/docs", openapi_url="/api/openapi.json")
@@ -95,7 +99,7 @@ def site_allowed(user: dict, site_id: str) -> bool:
 
 
 def public_user(u: dict) -> dict:
-    return {k: u.get(k) for k in ("id", "employee_id", "name", "role", "designation", "phone", "email", "active", "must_change_pin", "sites", "created_at")}
+    return {k: u.get(k) for k in ("id", "employee_id", "name", "role", "designation", "phone", "email", "active", "must_change_pin", "sites", "created_at", "manager_id", "consent_at")}
 
 
 def parse_float(v, name: str, required: bool = True) -> float | None:
@@ -152,6 +156,7 @@ def doc_no(db: Db) -> str:
 # ------------------------------------------------------------------ planner
 
 app.include_router(planner.make_router(UserDep, DbDep, save_upload=save_upload, is_staff=is_staff))
+app.include_router(modules.make_router(UserDep, DbDep, save_upload=save_upload, save_bytes=save_bytes, is_staff=is_staff, site_allowed=site_allowed, demo=DEMO))
 
 
 # ------------------------------------------------------------------ prototype: demo accounts
@@ -207,6 +212,10 @@ def login(payload: dict, db: DbDep):
     if not user or not user["active"] or not auth.check_pin(pin, user["pin_hash"], user["pin_salt"]):
         auth.record_failure(emp)
         raise HTTPException(401, "Employee ID or PIN is wrong")
+    secret = modules.totp_required(db, user["id"])
+    if secret and not modules.totp_ok(secret, str(payload.get("code", ""))):
+        msg = "Enter the 6-digit code from your authenticator app" if not payload.get("code") else "That code is not right; use the current one"
+        return JSONResponse(status_code=401, content={"detail": msg, "need2fa": True})
     auth.clear_failures(emp)
     device_id = new_id()
     db.insert("devices", {"id": device_id, "user_id": user["id"], "name": device, "created_at": now_iso(), "last_seen": now_iso()})
@@ -231,6 +240,7 @@ def change_pin(payload: dict, user: UserDep, db: DbDep):
 
 @app.get("/api/me")
 def me(user: UserDep, db: DbDep):
+    modules.close_missed_checkouts(db)
     unread = db.one("SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND read = 0", user["id"])["n"]
     open_att = db.one("SELECT a.*, s.name AS site_name FROM attendance a JOIN sites s ON s.id = a.site_id WHERE a.user_id = ? AND a.checkout_at IS NULL ORDER BY checkin_at DESC LIMIT 1", user["id"])
     open_trip = db.one("SELECT * FROM trips WHERE user_id = ? AND status = 'open' ORDER BY start_at DESC LIMIT 1", user["id"])
@@ -238,7 +248,8 @@ def me(user: UserDep, db: DbDep):
     if is_staff(user):
         pending = db.one("SELECT COUNT(*) AS n FROM trips WHERE status = 'submitted'")["n"]
         pending += db.one("SELECT COUNT(*) AS n FROM attendance WHERE status = 'pending'")["n"]
-        pending += db.one("SELECT COUNT(*) AS n FROM leaves WHERE status = 'pending'")["n"]
+        pending += len(modules.waiting_for(db, user))
+        pending += db.one("SELECT COUNT(*) AS n FROM leaves l WHERE status = 'pending' AND NOT EXISTS (SELECT 1 FROM approval_steps s WHERE s.kind = 'leave' AND s.ref_id = l.id)")["n"]
     return {"user": public_user(user), "unread": unread, "openAttendance": open_att, "openTrip": open_trip, "pendingApprovals": pending, "version": APP_VERSION}
 
 
@@ -274,6 +285,8 @@ async def checkin(user: UserDep, db: DbDep, siteId: Annotated[str, Form()], lat:
         raise HTTPException(409, "You are already checked in. Check out first.")
     la, ln, acc = parse_float(lat, "Latitude"), parse_float(lng, "Longitude"), parse_float(accuracy, "Accuracy", False)
     inside, dist = within_fence(la, ln, acc, site)
+    if not inside and site.get("strict"):
+        raise HTTPException(422, f"{site['name']} allows check-in only inside its boundary (strict site). You are {dist:,.0f} m away; move closer.")
     if not inside and not (override or "").strip():
         return JSONResponse(status_code=422, content={"detail": f"You are {dist:,.0f} m from {site['name']} (allowed {site['radius_m']} m). Move closer, or request an exception with a reason.",
                                                       "distance": round(dist), "outside": True})
@@ -703,7 +716,14 @@ def leaves(user: UserDep, db: DbDep, scope: str = "mine"):
     if not (scope == "team" and is_staff(user)):
         sql += " WHERE l.user_id = ?"
         args.append(user["id"])
-    return {"rows": db.all(sql + " ORDER BY l.created_at DESC LIMIT 200", *args)}
+    rows = db.all(sql + " ORDER BY l.created_at DESC LIMIT 200", *args)
+    for lv in rows:
+        st = modules.steps_for(db, "leave", lv["id"])
+        cur = next((s for s in st if s["status"] == "waiting"), None)
+        lv["waiting"] = (cur["approver_name"] or cur["role"]) if cur else ""
+        lv["steps"] = st
+        lv["days"] = modules.leave_days(db, lv["from_date"], lv["to_date"])
+    return {"rows": rows}
 
 
 @app.post("/api/leaves")
@@ -711,10 +731,17 @@ def add_leave(payload: dict, user: UserDep, db: DbDep):
     fd, td = str(payload.get("from", "")), str(payload.get("to", ""))
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", fd) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", td) or td < fd:
         raise HTTPException(422, "Pick valid from and to dates")
-    lid = db.insert("leaves", {"user_id": user["id"], "from_date": fd, "to_date": td, "type": str(payload.get("type", "Casual"))[:30], "reason": str(payload.get("reason", ""))[:500],
+    typ = str(payload.get("type", "Casual"))[:30]
+    days = modules.leave_days(db, fd, td)
+    if days <= 0:
+        raise HTTPException(422, "Those dates are all holidays or weekly offs")
+    bal = next((b for b in modules.leave_balances(db, user["id"], int(fd[:4])) if b["type"] == typ), None)
+    if bal and bal["available"] is not None and typ != "Unpaid" and days > bal["available"] + 1e-9:
+        raise HTTPException(422, f"Only {bal['available']:g} days of {typ} leave left; this request is {days:g} days. Apply for the rest as Unpaid.")
+    lid = db.insert("leaves", {"user_id": user["id"], "from_date": fd, "to_date": td, "type": typ, "reason": str(payload.get("reason", ""))[:500],
                                "status": "pending", "created_at": now_iso()})
-    db.notify_role(("manager", "hr", "admin"), f"Leave request: {user['name']}", f"{payload.get('type')} {fd} to {td}", "#approvals")
-    return {"id": lid}
+    modules.start_chain(db, "leave", lid, user["id"], days, f"Leave · {user['name']} · {typ} {days:g} day(s)", "#approvals")
+    return {"id": lid, "days": days}
 
 
 @app.post("/api/leaves/{leave_id}/decide")
@@ -726,9 +753,13 @@ def leave_decide(leave_id: str, payload: dict, user: UserDep, db: DbDep):
     decision = payload.get("decision")
     if decision not in ("approved", "rejected"):
         raise HTTPException(422, "decision must be approved or rejected")
-    db.update("leaves", leave_id, {"status": decision, "decided_by": user["id"], "decided_at": now_iso(), "decision_note": str(payload.get("note", ""))[:300]})
-    db.notify(lv["user_id"], f"Leave {decision}", f"{lv['from_date']} to {lv['to_date']}", "#me")
-    return {"ok": True}
+    note = str(payload.get("note", ""))[:300]
+    res = modules.decide_chain(db, "leave", leave_id, user, decision, note, lv["user_id"], f"Leave {lv['from_date']} to {lv['to_date']}", "#leaves")
+    if res != "pending":
+        db.update("leaves", leave_id, {"status": res, "decided_by": user["id"], "decided_at": now_iso(), "decision_note": note})
+        if not modules.steps_for(db, "leave", leave_id):
+            db.notify(lv["user_id"], f"Leave {decision}", f"{lv['from_date']} to {lv['to_date']}", "#leaves")
+    return {"ok": True, "status": res}
 
 
 # ------------------------------------------------------------------ inbox, approvals, dashboard
@@ -756,7 +787,16 @@ def approvals(user: UserDep, db: DbDep):
     trips_ = db.all("SELECT t.*, u.name AS user_name, s.name AS site_name FROM trips t JOIN users u ON u.id = t.user_id LEFT JOIN sites s ON s.id = t.site_id WHERE t.status = 'submitted' ORDER BY t.end_at")
     att = db.all("SELECT a.*, u.name AS user_name, s.name AS site_name, s.radius_m FROM attendance a JOIN users u ON u.id = a.user_id JOIN sites s ON s.id = a.site_id WHERE a.status = 'pending' ORDER BY a.checkin_at")
     lv = db.all("SELECT l.*, u.name AS user_name FROM leaves l JOIN users u ON u.id = l.user_id WHERE l.status = 'pending' ORDER BY l.created_at")
-    return {"trips": trips_, "attendance": att, "leaves": lv}
+    mine = {s["ref_id"] for s in modules.waiting_for(db, user) if s["kind"] == "leave"}
+    keep = []
+    for x in lv:
+        st = modules.steps_for(db, "leave", x["id"])
+        if not st or x["id"] in mine:
+            x["steps"] = st
+            x["days"] = modules.leave_days(db, x["from_date"], x["to_date"])
+            x["balance"] = next((b for b in modules.leave_balances(db, x["user_id"]) if b["type"] == x["type"]), None)
+            keep.append(x)
+    return {"trips": trips_, "attendance": att, "leaves": keep}
 
 
 @app.get("/api/dashboard")
@@ -789,7 +829,15 @@ def dashboard(user: UserDep, db: DbDep):
     tasks = db.one("SELECT COUNT(*) AS total, SUM(progress = 'completed') AS done, SUM(progress = 'in_progress') AS doing,"
                    " SUM(progress != 'completed' AND due_date IS NOT NULL AND due_date < ?) AS late FROM tasks", today)
     done_week = db.one("SELECT COUNT(*) AS n FROM tasks WHERE completed_at >= ?", (day0 - __import__("datetime").timedelta(days=7)).astimezone(UTC).isoformat().replace("+00:00", "Z"))["n"]
-    return {"days": days, "tasks": {"total": tasks["total"] or 0, "done": tasks["done"] or 0, "doing": tasks["doing"] or 0, "late": tasks["late"] or 0, "doneWeek": done_week},
+    ops = {
+        "incidentsOpen": db.one("SELECT COUNT(*) AS n FROM records WHERE kind = 'incident' AND status != 'closed'")["n"],
+        "equipmentDown": db.one("SELECT COUNT(*) AS n FROM records WHERE kind = 'equipment' AND status != 'working'")["n"],
+        "batchesMonth": db.one("SELECT COUNT(*) AS n FROM records WHERE kind = 'batch' AND substr(created_at, 1, 7) = ?", today[:7])["n"],
+        "biocharMonth": sum(float(json.loads(r["data"]).get("output_kg") or 0) for r in db.all("SELECT data FROM records WHERE kind = 'batch' AND substr(created_at, 1, 7) = ?", today[:7])),
+        "appliedMonth": sum(float(json.loads(r["data"]).get("qty_kg") or 0) for r in db.all("SELECT data FROM records WHERE kind = 'application' AND substr(created_at, 1, 7) = ?", today[:7])),
+        "expensesPending": db.one("SELECT COUNT(*) AS n FROM records WHERE kind = 'expense' AND status = 'pending'")["n"],
+    }
+    return {"ops": ops, "days": days, "tasks": {"total": tasks["total"] or 0, "done": tasks["done"] or 0, "doing": tasks["doing"] or 0, "late": tasks["late"] or 0, "doneWeek": done_week},
             "onSite": on_site, "todayAttendance": today_att, "fieldTotal": field_total, "stock": stock, "travelMonth": travel, "farmers": farmers_n, "docsWeek": docs_week,
             "updatesToday": updates_today, "openFeedback": open_fb}
 

@@ -96,6 +96,22 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
     is the pure fallback, checked equal to hashlib). anyio.to_thread.run_sync is replaced by an inline call (no
     threads). JS null arrives in Python as JsNull: pass `undefined`. Test: `.cache\kl-pages-test.mjs` (10 checks).
 
+17. **v0.3.0 modules (2026-11-14)**: owner: "prepare it as just prototype, all in one go, with demo data and an
+    option to add data". `backend/modules.py`: KINDS registry (fields, create = all/staff/hr, scope =
+    own/site/all/staff, approval chain key, statuses, photo, geo) over one `records` table (JSON data) with generic
+    endpoints `/api/m/{kind}` (list, get, multipart save, status, check, delete), `/api/m-export/{kind}.csv`,
+    `/api/m-approvals`, `/api/m-steps/{kind}/{id}/decide`, `/api/m-ack/{policy}`. Approval chains in
+    `approval_steps` (settings `approval_chains`; role `manager` = users.manager_id); leave uses the same chain.
+    Special logic: leave balances, attendance_month, close_missed_checkouts (called from /api/me), payroll_rows and
+    payslip_pdf, tally_xml, TOTP for office accounts (login returns 401 {need2fa}), stock postings for batch /
+    application / transfer / dispatch / PO received (`modules.post`), incident and checklist follow-up tasks in the
+    "Safety & maintenance actions" plan, carbon_chain + PDF, map data, left-site alert, consent, my-data export,
+    simulated WhatsApp log (Db.notify is wrapped). Migrations add users.manager_id/consent_at, sites.strict,
+    attendance.flag. `demo_modules.seed` fills every kind. Front end `views-modules.js` (generic list/detail/form +
+    people, attsum, payroll, carbon, map with Leaflet from cdnjs, reports, hrsettings, messages, privacy, security,
+    I18N text-node translation gu/hi, DutyWatch). Owner: native-only parts (push, background location) are NOT
+    built; a "For reviewers" note (reviewerNote()) explains them.
+
 ## Testing
 - `D:\PersonalBooks\.cache\kl-e2e.mjs` (2026-11-14): resets the demo, then manager assigns a photo-proof task →
   worker gets inbox item, ticks checklist, completes with sample photo → manager inbox "Task done" with note and

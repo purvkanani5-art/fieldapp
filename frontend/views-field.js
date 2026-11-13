@@ -73,7 +73,9 @@ function workRows() {
     lrow({ href: '#inbox', icon: 'bell', title: 'Inbox', sub: 'Approvals, replies and alerts', right: unread ? tag(String(unread), 'bad') : '' }),
   ].join('');
 }
-Views.work = () => `<h1 class="large">Work</h1><p class="sub">Everything you record in the field, with photo, time and GPS as proof</p><div class="card flush">${workRows()}</div>`;
+Views.work = () => `<h1 class="large">Work</h1><p class="sub">Everything you record in the field, with photo, time and GPS as proof</p><div class="card flush">${workRows()}</div>
+  ${group('Record now', `<div class="qa">${[['#rec/batch/new', 'flame', 'earth', 'Kiln batch'], ['#rec/checklist_template', 'checklist', 'green', 'Checklist'], ['#rec/incident/new', 'alert', 'red', 'Incident'], ['#rec/maintenance/new', 'cog', 'blue', 'Maintenance'], ['#rec/application/new', 'sprout', 'violet', 'Biochar on farm'], ['#rec/survival/new', 'leaf', '', 'Tree survival'], ['#rec/expense/new', 'receipt', 'amber', 'Expense'], ['#rec/purchase_request/new', 'box', 'earth', 'Purchase']].map(([h, i, t, l]) => `<a href="${h}"><span class="qi ${t}">${ic(i)}</span>${esc(l)}</a>`).join('')}</div>`)}
+  ${group('All registers', `<div class="card flush">${[['hr', 'users', 'blue', 'People', 'My record, attendance, leave, assets, training, policies'], ['money', 'receipt', 'violet', 'Money', 'Expense claims and advances'], ['ops', 'shield', 'red', 'Safety & equipment', 'Checklists, incidents, maintenance'], ['carbon', 'flame', 'earth', 'Production & carbon', 'Batches, farm applications, saplings, survival'], ['supply', 'box', 'amber', 'Purchasing & supply', 'Purchase requests, transfers, dispatch']].map(([g, icon, tone, title, sub]) => lrow({ href: `#hub/${g}`, icon, tone, title, sub })).join('')}${lrow({ href: '#map', icon: 'map', tone: 'green', title: 'Map', sub: 'My sites and farm plots' })}</div>`)}`;
 
 /* ---------------------------------------------------------------- Attendance */
 Views.attendance = () => {
@@ -105,8 +107,10 @@ Views.attendance = () => {
       ${field('Site', select('att-site', chosen, sites.map((s) => [s.id, s.name]), { blank: sites.length === 1 ? '' : 'Choose the site' }))}
       ${site ? `${demoRibbon()}${geoCard(site)}${gpsLine(site)}` : `<p class="hint">Choose the site you have reached.</p>`}
       ${site ? photoBox('checkin', 'Take check-in selfie', 'user', stamp) : ''}
-      ${site && KL.ui.gps && !inside ? field('Request an exception: why are you not inside the site boundary?', textarea('att-reason', F('att-reason'), 'e.g. Working at the far plot, boundary needs widening')) : ''}
-      ${site ? `<button type="button" class="btn primary wide" data-action="checkin" ${KL.ui.photos.checkin && KL.ui.gps ? '' : 'disabled'}>${inside ? 'Check in' : KL.ui.gps ? 'Request check-in exception' : 'Check in'}</button>` : ''}
+      ${site && site.strict && KL.ui.gps && !inside ? `<div class="banner bad">${ic('lock')}<div><b>Strict site: check-in only inside the boundary</b><p>${esc(site.name)} does not allow exceptions. Move inside the ${site.radius_m} m circle.</p></div></div>` : ''}
+      ${site && !site.strict && KL.ui.gps && !inside ? field('Request an exception: why are you not inside the site boundary?', textarea('att-reason', F('att-reason'), 'e.g. Working at the far plot, boundary needs widening')) : ''}
+      ${site ? `<button type="button" class="btn primary wide" data-action="checkin" ${KL.ui.photos.checkin && KL.ui.gps && (inside || !site.strict) ? '' : 'disabled'}>${inside ? 'Check in' : KL.ui.gps && !site.strict ? 'Request check-in exception' : 'Check in'}</button>` : ''}
+      ${site && site.strict ? `<p class="hint">${ic('lock')} Strict site. While you are checked in, the app tells your manager if you leave the boundary.</p>` : ''}
       <p class="hint">Check-in is allowed only within ${site ? site.radius_m : '…'} m of the site. GPS accuracy up to 50 m is allowed on top. The selfie is taken live, not from the gallery.</p>
     </div>`;
   }

@@ -4,13 +4,17 @@ Views.manage = () => {
   const pend = KL.me?.pendingApprovals || 0;
   const rows = [
     lrow({ href: '#planner', icon: 'kanban', tone: 'violet', title: 'Planner', sub: 'Plans, buckets and tasks; assign work and track it to done' }),
+    lrow({ href: '#approvals', icon: 'check', tone: pend ? 'amber' : '', title: 'Approvals', sub: 'Claims, leave, purchases, corrections, trips, exceptions', right: pend ? tag(String(pend), 'warn') : '' }),
     lrow({ href: '#dashboard', icon: 'chart', tone: 'green', title: 'Dashboard', sub: 'Who is on site, stock, travel spend, farmers' }),
-    lrow({ href: '#approvals', icon: 'check', tone: pend ? 'amber' : '', title: 'Approvals', sub: 'Trips, check-in exceptions, leave', right: pend ? tag(String(pend), 'warn') : '' }),
     lrow({ href: '#team', icon: 'users', tone: 'blue', title: 'Team activity', sub: 'Attendance, trips and daily updates of everyone' }),
     ['admin', 'hr'].includes(KL.user.role) ? lrow({ href: '#hrdesk', icon: 'folder', tone: 'amber', title: 'HR desk', sub: 'Complaints, suggestions, employee documents' }) : '',
     ['admin', 'manager', 'hr'].includes(KL.user.role) ? lrow({ href: '#admin', icon: 'cog', title: 'Administration', sub: 'Users, sites, registers, templates, company' }) : '',
   ].join('');
-  return `<h1 class="large">Manage</h1><p class="sub">${esc(KL.user.designation || ROLE_TEXT[KL.user.role] || KL.user.role)}</p><div class="card flush">${rows}</div>`;
+  const mods = [['hr', 'users', 'blue', 'People', 'Employee records, attendance summary, leave balances, payroll, assets, training, goals, policies'],
+    ['money', 'receipt', 'violet', 'Money', 'Expense claims, advances and loans, farmer payments'], ['ops', 'shield', 'red', 'Safety & equipment', 'Checklists, incidents, equipment and maintenance'],
+    ['carbon', 'flame', 'earth', 'Production & carbon', 'Kiln batches, lab results, farm applications, saplings, chain of custody'], ['supply', 'box', 'amber', 'Purchasing & supply', 'Suppliers, purchase requests, transfers, dispatch']];
+  const ops = mods.map(([g, icon, tone, title, sub]) => lrow({ href: `#hub/${g}`, icon, tone, title, sub })).join('') + lrow({ href: '#map', icon: 'map', tone: 'green', title: 'Map', sub: 'Sites, farm plots, applications, incidents, people on site' }) + lrow({ href: '#reports', icon: 'chart', tone: 'blue', title: 'Reports', sub: 'Month summary and CSV downloads for Excel' });
+  return `<h1 class="large">Manage</h1><p class="sub">${esc(KL.user.designation || ROLE_TEXT[KL.user.role] || KL.user.role)}</p><div class="card flush">${rows}</div>${group('Operations', `<div class="card flush">${ops}</div>`)}${['admin', 'hr'].includes(KL.user.role) ? group('HR set-up', `<div class="card flush">${lrow({ href: '#hrsettings', icon: 'cog', title: 'HR settings & integrations', sub: 'Approval chains, leave policy, work hours, WhatsApp, Tally' })}</div>`) : ''}`;
 };
 
 /* ---------------------------------------------------------------- Dashboard */
@@ -44,6 +48,7 @@ Views.dashboardBody = () => {
         <div class="row" style="gap:20px;margin-top:12px;flex-wrap:wrap"><div class="donut" style="background:conic-gradient(var(--brand) 0 ${pct}%, var(--blue) ${pct}% ${pct + (t.total ? Math.round((t.doing / t.total) * 100) : 0)}%, var(--chip) 0)" data-label="${pct}%"></div>
         <div class="legend-list"><span><i style="background:var(--brand)"></i>${t.done} of ${t.total} done</span><span><i style="background:var(--blue)"></i>${t.doing} in progress</span><span><i style="background:var(--red)"></i>${t.late} late</span><span><i style="background:var(--lime)"></i>${t.doneWeek} finished this week</span></div></div></a>
     </div>
+    ${d.ops ? `<div class="tiles auto" style="margin-top:14px"><a class="tile earth" href="#carbon"><div class="ti">${ic('flame')}</div><b>${num(d.ops.biocharMonth, 'd-char')}</b><span>kg biochar this month · ${d.ops.batchesMonth} batches</span></a><a class="tile ok" href="#rec/application"><div class="ti">${ic('sprout')}</div><b>${num(d.ops.appliedMonth, 'd-applied')}</b><span>kg applied on farms</span></a><a class="tile ${d.ops.incidentsOpen ? 'bad' : ''}" href="#rec/incident"><div class="ti">${ic('alert')}</div><b>${num(d.ops.incidentsOpen, 'd-inc')}</b><span>open incidents</span></a><a class="tile ${d.ops.equipmentDown ? 'warn' : ''}" href="#rec/equipment"><div class="ti">${ic('cog')}</div><b>${num(d.ops.equipmentDown, 'd-eq')}</b><span>equipment needing attention</span></a><a class="tile violet" href="#approvals"><div class="ti">${ic('receipt')}</div><b>${num(d.ops.expensesPending, 'd-exp')}</b><span>expense claims waiting</span></a><a class="tile blue" href="#map"><div class="ti">${ic('map')}</div><b>${KL.boot.sites.length}</b><span>sites on the map</span></a></div>` : ''}
     ${low.length ? `<div class="banner bad" style="margin-top:14px">${ic('alert')}<div><b>Low stock</b><p>${low.map((s) => `${esc(s.item)} at ${esc(s.site)}: ${fmtNum(s.balance, 1)} ${esc(s.unit)}`).join(' · ')}</p></div></div>` : ''}
     ${group('On site now', d.onSite.length ? `<div class="card flush">${d.onSite.map((a) => `<div class="lrow-static row">${avatar(a.user_name, 'lg')}<span class="tx" style="flex:1;min-width:0"><b>${esc(a.user_name)}</b><span class="muted" style="font-size:13px;display:block">${esc(a.site_name)} · since ${esc(fmtDate(a.checkin_at).split(', ')[1] || fmtDate(a.checkin_at))} · <span data-since="${esc(a.checkin_at)}">${esc(duration(a.checkin_at))}</span></span></span>${a.status === 'pending' ? tag('exception', 'warn') : tag('on site', 'ok')}</div>`).join('')}</div>` : emptyState('pin', 'Nobody on site right now'), '', '<a href="#team">Team activity</a>')}
     <p class="hint" style="margin-top:12px">${d.updatesToday} daily update${d.updatesToday === 1 ? '' : 's'} today · ${d.openFeedback} open complaint${d.openFeedback === 1 ? '' : 's'} or suggestion${d.openFeedback === 1 ? '' : 's'}</p>`;
@@ -76,11 +81,13 @@ Views.approvals = () => {
       <div class="btns"><button type="button" class="btn danger" data-action="decide" data-kind="attendance" data-id="${esc(x.id)}" data-decision="rejected">Reject</button><button type="button" class="btn primary" data-action="decide" data-kind="attendance" data-id="${esc(x.id)}" data-decision="ok">Accept</button></div>
     </div>`);
   const lv = a.leaves.map((l) => `<div class="card stack">
-      <div class="row between"><div><b>${esc(l.user_name)}</b><p class="hint">${esc(l.type)} · ${esc(fmtDate(l.from_date, false))}${l.to_date !== l.from_date ? ` to ${esc(fmtDate(l.to_date, false))}` : ''}${l.reason ? ` · ${esc(l.reason)}` : ''}</p></div></div>
+      <div class="row between"><div><b>${esc(l.user_name)}</b><p class="hint">${esc(l.type)} · ${esc(fmtDate(l.from_date, false))}${l.to_date !== l.from_date ? ` to ${esc(fmtDate(l.to_date, false))}` : ''} · ${fmtNum(l.days || 0, 1)} working day${l.days === 1 ? '' : 's'}${l.reason ? ` · ${esc(l.reason)}` : ''}</p></div>${l.balance && l.balance.available !== null ? tag(`${fmtNum(l.balance.available, 1)} left after`, l.balance.available < 0 ? 'bad' : 'info') : ''}</div>
+      ${(l.steps || []).length > 1 ? `<p class="hint" style="margin:0">Chain: ${l.steps.map((s) => `${esc(ROLE_TEXT[s.role] || s.role)} ${s.status === 'approved' ? '✓' : s.status === 'waiting' ? '(now)' : ''}`).join(' → ')}</p>` : ''}
       <div class="btns"><button type="button" class="btn danger" data-action="decide" data-kind="leaves" data-id="${esc(l.id)}" data-decision="rejected">Reject</button><button type="button" class="btn primary" data-action="decide" data-kind="leaves" data-id="${esc(l.id)}" data-decision="approved">Approve</button></div>
     </div>`);
   const empty = '<div class="card"><p class="empty">Nothing waiting.</p></div>';
   return `${topbar('Approvals', '#manage')}
+    ${group('Requests (claims, purchases, payments, corrections)', requestApprovals())}
     ${group('Travel claims', trips.length ? `<div class="stack">${trips.join('')}</div>` : empty, String(trips.length))}
     ${group('Check-in exceptions', att.length ? `<div class="stack">${att.join('')}</div>` : empty, String(att.length))}
     ${group('Leave requests', lv.length ? `<div class="stack">${lv.join('')}</div>` : empty, String(lv.length))}`;
@@ -93,7 +100,7 @@ Actions.decide = async (el) => {
   if (reject && !v.note) return toast('Give a reason for rejecting', 'error');
   try {
     await api(`/api/${kind}/${id}/decide`, { json: { decision, note: v.note } });
-    invalidate('approvals', 'dashboard', 'trips', 'attendance', 'leaves'); await refreshMe(); toast(reject ? 'Rejected' : 'Approved'); render();
+    invalidate('approvals', 'dashboard', 'trips', 'attendance', 'leaves'); await refreshMe(); toast(reject ? 'Rejected' : kind === 'leaves' ? 'Approved (sent on if HR also needs to approve)' : 'Approved'); render();
   } catch (e) { toast(e.message, 'error'); }
 };
 

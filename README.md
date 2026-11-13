@@ -76,6 +76,30 @@ from `backend/`, so pushing to `main` publishes. After changing backend files ru
   Managers assign; the person is told in the inbox; when they complete it (with photo and note) the manager is
   told. Field staff see it as **Tasks**.
 - **Inbox**: new tasks, completed tasks, approvals, replies, alerts; badge on the tab.
+- **People (HR)**: employee records (personal, bank, PAN, UAN, ESIC, salary; sensitive fields only for HR and
+  the person), reporting lines and org chart, holiday calendar and shifts, leave policy with balances and monthly
+  accrual (checked when applying), monthly attendance summary (present, half day, late, absent, overtime, missed
+  check-outs closed automatically), attendance corrections, assets issued, training and certificates with expiry,
+  goals and reviews, policies to accept, onboarding and exit checklists, contract labour register.
+- **Approval chains**: every request goes to the person's own manager, then HR or the director when the amount or
+  number of days is above a limit (HR settings). Leave, expense claims, advances, farmer payments, purchase
+  requests and attendance corrections all use it.
+- **Money**: expense claims with receipt photos, advances and loans (recovered in payroll), farmer payments,
+  payroll (pro-rated for loss of pay; PF, ESI, Gujarat professional tax, TDS estimate; payslip PDFs to each
+  person; bank transfer file, salary register and a Tally XML voucher).
+- **Safety & equipment**: recurring checklists (items not OK raise Planner tasks), incident reports (medium and
+  above raise a follow-up task), equipment with service due dates, maintenance and breakdown log.
+- **Production & carbon**: kiln batches that post feedstock out and biochar in to the stock register, lab results,
+  biochar applied to farms (GPS, photo, stock out), sapling distribution and survival checks, and a chain of
+  custody per batch with checks, an illustrative CO2e figure and a PDF.
+- **Purchasing & supply**: suppliers, purchase requests (approve, order with a PO number, receive into stock),
+  transfers between sites, dispatch notes.
+- **Map, reports, settings**: map of sites, farm plots, applications and incidents; monthly report with charts and
+  CSV downloads; strict sites (no check-in exceptions) and an on-duty leave-site alert while the app is open;
+  Gujarati and Hindi labels; two-step sign-in for office accounts; a data-protection notice and "download my
+  data"; WhatsApp/SMS messages are simulated (logged).
+- **Left for the phone app or the live system** (noted in the app under Me → For reviewers): push notifications,
+  background location, Microsoft sign-in and SharePoint, real WhatsApp/SMS sending, live Tally link, hosting.
 - **Manage** (managers, HR, admin): dashboard (on site now, stock, travel spend, farmers), approvals (trips,
   check-in exceptions, leave), team activity, HR desk (reply to complaints, upload employee documents), admin
   (users and PIN resets, sites and geofences, register items, templates, company and rates, audit log).
@@ -90,6 +114,7 @@ can confirm a file is the original.
 
 ```
 backend/   app.py (API + serves the front end), db.py (SQLite schema), auth.py (PIN + tokens), planner.py, demo.py,
+           modules.py (HR, money, operations, carbon), demo_modules.py,
            storage.py (file store, SharePoint stub), geo.py (geofence, KML area), pdfgen.py, seed.py
 frontend/  index.html, styles.css, core.js (API, outbox, GPS, camera, signature), views-*.js (field, me, staff,
            planner), app.js, sw.js, icon.svg + PNG icons, fonts/ (self-hosted, OFL)

@@ -484,10 +484,15 @@ def reset() -> None:
                 child.unlink(missing_ok=True)
     init_db()
     seed_if_empty()
+    import demo_modules
+    import modules
+
     db = Db()
     try:
         planner.init(db)
+        modules.init(db)
         seed_activity(db)
+        demo_modules.seed(db)
     finally:
         db.close()
 

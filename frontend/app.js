@@ -3,8 +3,9 @@
 
 const TABS_FIELD = [['home', 'home', 'Home'], ['work', 'work', 'Work'], ['tasks', 'kanban', 'Tasks'], ['inbox', 'bell', 'Inbox'], ['me', 'user', 'Me']];
 const TABS_STAFF = [['home', 'home', 'Home'], ['planner', 'kanban', 'Planner'], ['manage', 'manage', 'Manage'], ['inbox', 'bell', 'Inbox'], ['me', 'user', 'Me']];
-const TAB_OF = { attendance: 'work', trips: 'work', registers: 'work', farmers: 'work', sign: 'work', updates: 'me', leaves: 'me', feedback: 'me', dashboard: 'manage', approvals: 'manage', team: 'manage', hrdesk: 'manage', admin: 'manage' };
-const STAFF_ROUTES = new Set(['manage', 'dashboard', 'approvals', 'team', 'hrdesk', 'admin']);
+const TAB_OF = { attendance: 'work', trips: 'work', registers: 'work', farmers: 'work', sign: 'work', updates: 'me', leaves: 'me', feedback: 'me', dashboard: 'manage', approvals: 'manage', team: 'manage', hrdesk: 'manage', admin: 'manage',
+  people: 'manage', personedit: 'manage', payroll: 'manage', reports: 'manage', hrsettings: 'manage', messages: 'manage', privacy: 'me', security: 'me' };
+const STAFF_ROUTES = new Set(['manage', 'dashboard', 'approvals', 'team', 'hrdesk', 'admin', 'people', 'personedit', 'payroll', 'reports', 'hrsettings', 'messages']);
 const NEEDS_GPS = new Set(['attendance', 'trips', 'registers', 'sign', 'farmers']);
 
 function route() {
@@ -14,6 +15,7 @@ function route() {
 }
 function tabOf(view) {
   if (view === 'planner' || view === 'tasks') return isStaff() ? 'planner' : 'tasks';
+  if (['hub', 'rec', 'carbon', 'map', 'attsum', 'person'].includes(view)) return isStaff() ? 'manage' : 'work';
   return TAB_OF[view] || view;
 }
 function badgeFor(k) {
@@ -31,10 +33,14 @@ function sideNav(active) {
   const u = KL.user;
   const tabs = isStaff() ? [...TABS_STAFF.slice(0, 2), ['work', 'work', 'Field work'], ...TABS_STAFF.slice(2)] : TABS_FIELD;
   const quick = [['attendance', 'pin', 'Site check-in'], ['trips', 'bike', 'Travel'], ['registers', 'box', 'Site registers'], ['farmers', 'sprout', 'Farmers'], ['updates', 'note', 'Daily update']];
-  const link = ([k, icon, label]) => `<a class="nav ${active === k ? 'on' : ''}" href="#${k}">${ic(icon)}<span>${label}</span>${badgeFor(k)}</a>`;
+  const mods = [['hub/hr', 'users', 'People'], ['hub/money', 'receipt', 'Money'], ['hub/ops', 'shield', 'Safety & equipment'], ['hub/carbon', 'flame', 'Production & carbon'], ['hub/supply', 'box', 'Purchasing & supply'], ['map', 'map', 'Map'], ...(isStaff() ? [['reports', 'chart', 'Reports']] : [])];
+  const cur = location.hash.replace('#', '');
+  const link = ([k, icon, label]) => `<a class="nav ${active === k || (k.includes('/') && cur.startsWith(k)) ? 'on' : ''}" href="#${k}">${ic(icon)}<span>${label}</span>${badgeFor(k)}</a>`;
   return `<aside class="side" aria-label="Navigation">
     <a class="brand" href="#home"><img src="./icon.svg" alt="" /><span><b>Kshetralekha</b><small>${esc(KL.boot?.company?.short || 'Sajeevan')} · field app</small></span></a>
     ${tabs.map(link).join('')}
+    <div class="sep"></div><div class="label">Operations</div>
+    ${mods.map(link).join('')}
     <div class="sep"></div><div class="label">Quick</div>
     ${quick.map(link).join('')}
     <div class="foot-card">${KL.boot?.demo ? `<b style="color:var(--violet);font-size:12px;letter-spacing:.08em">PROTOTYPE</b>` : ''}
@@ -69,23 +75,27 @@ function loginView() {
       ${l.error ? `<div class="banner bad">${ic('alert')}<div><b>${esc(l.error)}</b></div></div>` : ''}
       <label class="field"><span>Employee ID</span><input id="login-emp" class="input" value="${esc(l.emp)}" placeholder="EMP101" autocapitalize="characters" autocomplete="username" data-input="loginEmp" /></label>
       <label class="field"><span>PIN</span><input id="login-pin" class="input pinbox" type="password" inputmode="numeric" value="${esc(l.pin)}" placeholder="••••" autocomplete="current-password" data-input="loginPin" /></label>
+      ${l.need2fa ? `<label class="field"><span>Code from your authenticator app</span><input id="login-code" class="input pinbox" inputmode="numeric" value="${esc(l.code || '')}" placeholder="123456" autocomplete="one-time-code" data-input="loginCode" /></label>` : ''}
       <button type="button" class="btn primary wide ${l.busy ? 'busy' : ''}" data-action="login" ${l.busy ? 'disabled' : ''}>${l.busy ? 'Signing in' : 'Sign in'}</button>
       <p class="hint">Office staff will sign in with Microsoft here once the company tenant is connected. Forgotten PIN: ask HR to reset it.</p>
+      ${demo ? '<p class="hint">Reviewers: this web prototype leaves out what only the phone app can do (push notifications, background location). See Me → For reviewers.</p>' : ''}
     </div>
     <div class="partner"><span>An app of</span><img src="./logo.png" alt="Sajeevan" /></div></div>
   </div>`;
 }
 Inputs.loginEmp = (el) => (KL.ui.login.emp = el.value);
 Inputs.loginPin = (el) => (KL.ui.login.pin = el.value);
+Inputs.loginCode = (el) => (KL.ui.login.code = el.value);
 async function signIn(employeeId, pin) {
   const l = KL.ui.login;
   l.busy = true; l.error = ''; render();
   try {
-    const r = await api('/api/auth/login', { json: { employeeId, pin, device: deviceName() } });
-    l.pin = ''; l.busy = false;
+    const r = await api('/api/auth/login', { json: { employeeId, pin, device: deviceName(), code: l.need2fa ? l.code || '' : undefined } });
+    l.pin = ''; l.busy = false; l.need2fa = false; l.code = '';
     await signedIn(r);
   } catch (e) {
     l.busy = false; l.error = e.status === 0 ? 'No connection. Connect to the internet to sign in the first time.' : e.message;
+    if (e.data && e.data.need2fa) { l.need2fa = true; l.emp = employeeId; l.pin = pin; }
     render();
   }
 }
@@ -101,7 +111,7 @@ async function signedIn(r) {
   Outbox.flush();
 }
 Actions.login = () => signIn(KL.ui.login.emp, KL.ui.login.pin);
-Actions.demoLogin = (el) => signIn(el.dataset.emp, KL.demoInfo?.pin || '1234');
+Actions.demoLogin = (el) => { KL.ui.login.need2fa = false; signIn(el.dataset.emp, KL.demoInfo?.pin || '1234'); };
 function deviceName() {
   const ua = navigator.userAgent;
   return /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android phone' : /Windows/.test(ua) ? 'Windows PC' : /Mac/.test(ua) ? 'Mac' : 'Browser';
@@ -158,6 +168,7 @@ function render() {
     app.innerHTML = `<div class="auth"><div class="panel" style="margin-top:20vh"><div class="card stack" style="text-align:center"><img src="./icon.svg" alt="" style="width:64px;margin:0 auto;border-radius:18px" /><b>Loading your sites and settings…</b>${spinner()}<p class="hint">Needs a connection the first time.</p><div class="btns"><button type="button" class="btn" data-action="retryBoot">Retry</button><button type="button" class="btn ghost" data-action="logout">Sign out</button></div></div></div></div>`;
     return;
   }
+  if (!KL.user.consent_at && KL.boot.demo !== undefined) { app.innerHTML = consentView(); hideSplash(); return; }
   let { name, arg } = route();
   if (name === 'task' && arg) {
     if (KL.ui.sheetTask !== arg) { KL.ui.sheetTask = arg; KL.ui.completing = null; invalidate(`planner:task:${arg}`); locate(); }
@@ -166,6 +177,7 @@ function render() {
   let view = Views[name] ? name : 'home';
   if (STAFF_ROUTES.has(view) && !isStaff()) view = 'home';
   if (view === 'hrdesk' && !['admin', 'hr'].includes(KL.user.role)) view = 'manage';
+  if (['payroll', 'hrsettings', 'personedit'].includes(view) && !['admin', 'hr'].includes(KL.user.role)) view = isStaff() ? 'manage' : 'home';
   if (NEEDS_GPS.has(view)) locate();
   const entering = KL.lastRoute !== location.hash;
   KL.lastRoute = location.hash;
@@ -185,6 +197,9 @@ function render() {
   if (typeof applyPlanFilter === 'function' && F('pl-q', '')) applyPlanFilter();
   loadAuthImages();
   countUp(app);
+  translate(app);
+  const hooks = KL.afterRender.splice(0);
+  for (const h of hooks) { try { h(); } catch (err) { console.error(err); } }
   window.scrollTo(0, scroll);
   renderTaskSheet();
   hideSplash();
@@ -237,5 +252,6 @@ function bindEvents() {
     Outbox.flush();
   }
   setInterval(() => { for (const el of $$('[data-since]')) el.textContent = duration(el.dataset.since); }, 30000);
-  setInterval(async () => { if (document.visibilityState === 'visible' && KL.token) { const before = `${KL.me?.unread}/${KL.me?.pendingApprovals}`; await refreshMe(); if (`${KL.me?.unread}/${KL.me?.pendingApprovals}` !== before) { invalidate('inbox', 'planner'); render(); } } }, 30000);
+  DutyWatch.start();
+  setInterval(async () => { if (document.visibilityState === 'visible' && KL.token) { const before = `${KL.me?.unread}/${KL.me?.pendingApprovals}`; await refreshMe(); if (`${KL.me?.unread}/${KL.me?.pendingApprovals}` !== before) { invalidate('inbox', 'planner', 'm-approvals'); render(); } } }, 30000);
 })();
