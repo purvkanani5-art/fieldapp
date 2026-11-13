@@ -54,12 +54,40 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
 
 12. **Brand / UI (2026-11-12)**: owner rejected the first UI ("make it modern, sustainability startup"). Now: Sajeevan
     logo (`frontend/logo.png`, white made transparent by `scripts/logo-alpha.py`), palette from the logo (leaf
-    #58a870 / deep #2e7a4b, earth #684828, cream/sand background), Plus Jakarta Sans (Google Fonts, system fallback),
+    #58a870 / deep #2e7a4b, earth #684828, cream/sand background), Plus Jakarta Sans (superseded by decision 13),
     line SVG icons (`ICONS` + `ic(name)` in core.js; no emoji), hero greeting card on Home, floating pill tab bar,
     soft shadowed cards, pill buttons, dark mode. Company seeded as Sajeevan Life Pvt Ltd; PDF letterhead in brand green
     with an earth rule. `scripts/deemoji.py` was the one-off emoji → icon migration.
 
+13. **Redesign v0.2.0 (2026-11-14)**: owner: "feel like a real modern app ... fonts, colour, animations, logo, branding".
+    Own mark `frontend/icon.svg` (forest tile, lime sprout over cream field rows; PNG icons rendered from it).
+    Bricolage Grotesque (headings) + Plus Jakarta Sans (text), self-hosted in `frontend/fonts` (OFL) so offline looks
+    the same. Tokens on `:root` in styles.css (forest #0e3b2a / brand #1e7a4c / lime #c6e86a on paper #f5f3ec),
+    light/dark/auto (Me → Appearance). Motion: route-enter stagger only on route change (`main.view.enter`), sheets
+    slide up, skeleton loaders, count-up numbers (`num(n, key)` + `countUp`, once per key per route), success overlay
+    (`celebrate`). Phones: floating tab bar; ≥1040 px: sidebar. `data()` is stale-while-revalidate (`KL.stale`) so
+    screens never flash after `invalidate`.
+14. **Planner (MS Planner model)**: `backend/planner.py` (plans → buckets → tasks; priority urgent/important/medium/low;
+    progress not_started/in_progress/completed; labels by colour named per plan; checklist; assignees; comments;
+    photo_required). Managers/HR/admin create and edit (every field saves at once, as in Planner); assignees move,
+    tick, comment and complete. Assigning notifies the person; completing notifies the creator, the managers of the
+    plan's site and admins (inbox link `#task/{id}` opens the task sheet). Front end `views-planner.js`: hub (plans
+    + my tasks by due group), plan Board (group by bucket/progress/due/person/priority/labels; HTML5 drag and drop
+    between bucket, progress and priority columns), Grid, Charts. Task sheet lives in `#sheet` (prompts use `#modal`
+    above it). Field tabs: Home, Work, Tasks, Inbox, Me; staff: Home, Planner, Manage, Inbox, Me.
+15. **Prototype aids (KL_DEMO=1, default)**: `backend/demo.py` seeds two weeks of realistic activity (attendance,
+    trips, stock, farmers with KML and signed PDFs, leave, updates, 3 plans / ~17 tasks) and `POST /api/demo/reset`
+    rebuilds it (Admin → Reset the demo). Sign-in shows one-tap people (`GET /api/demo`); a "View as" pill (phone)
+    or sidebar button switches person without a PIN (`POST /api/demo/switch`). Demo location (`DemoLoc`, ribbon on
+    GPS screens: At site / Away / Real GPS) so check-in works on a PC. In-app camera (`openCamera`, getUserMedia)
+    with file fallback and, in demo only, drawn sample photos stamped "DEMO SAMPLE PHOTO". Set KL_DEMO=0 for real use.
+
 ## Testing
+- `D:\PersonalBooks\.cache\kl-e2e.mjs` (2026-11-14): resets the demo, then manager assigns a photo-proof task →
+  worker gets inbox item, ticks checklist, completes with sample photo → manager inbox "Task done" with note and
+  proof → field check-in with demo location → desktop drag between buckets (18 checks). `kl-tour.mjs <prefix>`
+  screenshots every screen (phone + desktop) into `.cache\kl-shots`. Run node from `D:\PersonalBooks\tools\node`
+  with PLAYWRIGHT_BROWSERS_PATH=D:\PersonalBooks\.cache\playwright.
 - `scratchpad/kl-reset.sh` (session 31b0f6ef) kills the dev server on 8788, deletes `data/*.sqlite` + `data/files`,
   restarts; `kl-e2e.cjs` is the Playwright suite (Edge, mocked GPS at the Rajkot site; ~40 checks): field day →
   manager approvals → HR desk → field inbox. `kl-sign-debug.cjs`, `kl-debug.cjs` are focused repros.

@@ -6,6 +6,7 @@ import base64
 import hashlib
 import json
 import mimetypes
+import os
 import re
 import sys
 from datetime import UTC, datetime
@@ -25,11 +26,20 @@ from pdfgen import render_document  # noqa: E402
 from seed import seed_if_empty  # noqa: E402
 from storage import FILES_DIR, store  # noqa: E402
 
-APP_VERSION = "0.1.0"
+import demo  # noqa: E402
+import planner  # noqa: E402
+
+APP_VERSION = "0.2.0"
+DEMO = os.environ.get("KL_DEMO", "1") == "1"  # prototype: demo accounts, person switch, reset
 FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
 
 init_db()
 seed_if_empty()
+_db0 = Db()
+planner.init(_db0)
+if DEMO:
+    demo.seed_activity(_db0)
+_db0.close()
 
 app = FastAPI(title="Kshetralekha", version=APP_VERSION, docs_url="/api/docs", openapi_url="/api/openapi.json")
 
@@ -139,6 +149,48 @@ def doc_no(db: Db) -> str:
     return f"KL/{year}/{n:05d}"
 
 
+# ------------------------------------------------------------------ planner
+
+app.include_router(planner.make_router(UserDep, DbDep, save_upload=save_upload, is_staff=is_staff))
+
+
+# ------------------------------------------------------------------ prototype: demo accounts
+
+
+@app.get("/api/demo")
+def demo_info(db: DbDep):
+    """The demo accounts, for the sign-in screen's one-tap buttons (prototype only)."""
+    if not DEMO:
+        return {"demo": False, "people": []}
+    people = db.all("SELECT employee_id, name, role, designation FROM users WHERE active = 1 ORDER BY CASE role WHEN 'admin' THEN 0 WHEN 'manager' THEN 1 WHEN 'hr' THEN 2 ELSE 3 END, employee_id")
+    return {"demo": True, "pin": "1234", "people": people}
+
+
+@app.post("/api/demo/switch")
+def demo_switch(payload: dict, user: UserDep, db: DbDep):
+    """Sign in as another demo account without a PIN, to see the app as a manager or a field worker."""
+    if not DEMO:
+        raise HTTPException(404, "Not available")
+    target = db.one("SELECT * FROM users WHERE employee_id = ? AND active = 1", str(payload.get("employeeId", "")).upper())
+    if not target:
+        raise HTTPException(404, "No such account")
+    device_id = new_id()
+    db.insert("devices", {"id": device_id, "user_id": target["id"], "name": "Demo switch", "created_at": now_iso(), "last_seen": now_iso()})
+    db.audit(user["id"], "demo_switch", "user", target["id"], f"{user['employee_id']} -> {target['employee_id']}")
+    target["sites"] = [r["site_id"] for r in db.all("SELECT site_id FROM user_sites WHERE user_id = ?", target["id"])]
+    return {"token": auth.make_token(target["id"], device_id), "user": public_user(target)}
+
+
+@app.post("/api/demo/reset")
+def demo_reset(user: UserDep):
+    """Wipe everything and rebuild the demo (prototype only; director or manager)."""
+    if not DEMO:
+        raise HTTPException(404, "Not available")
+    require(user, "admin", "manager")
+    demo.reset()
+    return {"ok": True}
+
+
 # ------------------------------------------------------------------ auth
 
 
@@ -202,6 +254,7 @@ def bootstrap(user: UserDep, db: DbDep):
     return {
         "company": db.setting("company"), "travel": db.setting("travel"), "leaveTypes": db.setting("leave_types"),
         "updatePrompts": db.setting("update_prompts"), "sites": sites, "mySites": mine, "items": items, "templates": templates, "people": people,
+        "demo": DEMO,
     }
 
 
@@ -710,8 +763,10 @@ def approvals(user: UserDep, db: DbDep):
 def dashboard(user: UserDep, db: DbDep):
     require(user, "admin", "manager", "hr")
     today = datetime.now().strftime("%Y-%m-%d")
+    day0 = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
+    start_utc = day0.astimezone(UTC).isoformat().replace("+00:00", "Z")  # check-in times are UTC: compare instants
     on_site = db.all("SELECT a.id, a.checkin_at, a.checkin_dist, a.status, u.name AS user_name, s.name AS site_name FROM attendance a JOIN users u ON u.id = a.user_id JOIN sites s ON s.id = a.site_id WHERE a.checkout_at IS NULL ORDER BY a.checkin_at")
-    today_att = db.one("SELECT COUNT(DISTINCT user_id) AS n FROM attendance WHERE substr(checkin_at, 1, 10) = ?", today)["n"]
+    today_att = db.one("SELECT COUNT(DISTINCT user_id) AS n FROM attendance WHERE checkin_at >= ?", start_utc)["n"]
     field_total = db.one("SELECT COUNT(*) AS n FROM users WHERE active = 1 AND role = 'field'")["n"]
     stock = []
     for it in db.all("SELECT i.*, s.name AS site_name FROM register_items i JOIN sites s ON s.id = i.site_id WHERE i.active = 1 ORDER BY s.name, i.sort"):
@@ -723,7 +778,19 @@ def dashboard(user: UserDep, db: DbDep):
     docs_week = db.one("SELECT COUNT(*) AS n FROM documents WHERE created_at >= ?", datetime.fromtimestamp(datetime.now(UTC).timestamp() - 7 * 86400, UTC).isoformat())["n"]
     updates_today = db.one("SELECT COUNT(*) AS n FROM work_updates WHERE date = ?", today)["n"]
     open_fb = db.one("SELECT COUNT(*) AS n FROM feedback WHERE status = 'open'")["n"]
-    return {"onSite": on_site, "todayAttendance": today_att, "fieldTotal": field_total, "stock": stock, "travelMonth": travel, "farmers": farmers_n, "docsWeek": docs_week,
+    days = []
+    for k in range(13, -1, -1):
+        d0 = day0 - __import__("datetime").timedelta(days=k)
+        d1 = d0 + __import__("datetime").timedelta(days=1)
+        a, b = (x.astimezone(UTC).isoformat().replace("+00:00", "Z") for x in (d0, d1))
+        n = db.one("SELECT COUNT(DISTINCT user_id) AS n FROM attendance WHERE checkin_at >= ? AND checkin_at < ?", a, b)["n"]
+        km = db.one("SELECT COALESCE(SUM(km_claimed), 0) AS km FROM trips WHERE end_at >= ? AND end_at < ?", a, b)["km"]
+        days.append({"date": d0.strftime("%Y-%m-%d"), "present": n, "km": km})
+    tasks = db.one("SELECT COUNT(*) AS total, SUM(progress = 'completed') AS done, SUM(progress = 'in_progress') AS doing,"
+                   " SUM(progress != 'completed' AND due_date IS NOT NULL AND due_date < ?) AS late FROM tasks", today)
+    done_week = db.one("SELECT COUNT(*) AS n FROM tasks WHERE completed_at >= ?", (day0 - __import__("datetime").timedelta(days=7)).astimezone(UTC).isoformat().replace("+00:00", "Z"))["n"]
+    return {"days": days, "tasks": {"total": tasks["total"] or 0, "done": tasks["done"] or 0, "doing": tasks["doing"] or 0, "late": tasks["late"] or 0, "doneWeek": done_week},
+            "onSite": on_site, "todayAttendance": today_att, "fieldTotal": field_total, "stock": stock, "travelMonth": travel, "farmers": farmers_n, "docsWeek": docs_week,
             "updatesToday": updates_today, "openFeedback": open_fb}
 
 

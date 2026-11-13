@@ -30,8 +30,16 @@ First run creates `data\kshetralekha.sqlite` with demo data. Sign in with PIN **
 On the phone: open `https://<PC IP>:8788`, accept the certificate warning once, Share → Add to Home Screen.
 Camera and location only work over HTTPS, which is why the script makes a self-signed certificate.
 
-Demo sites are at Rajkot, Junagadh, Surat and Ahmedabad. To test check-in from your desk, open More →
-Administration → Sites, edit a site and use your own coordinates (the form offers your current location).
+### Trying the prototype
+
+- The sign-in screen lists every demo person: tap one to sign in (PIN 1234 also works).
+- The **View as** pill (bottom left on a phone, sidebar on a computer) switches person without a PIN, so you can
+  assign a task as Meera (manager) and complete it as Jignesh (field), then switch back and see the notification.
+- On screens that need GPS a **Prototype location** switch pretends you are *At site* or *Away*, or uses the
+  *Real GPS*. Check-in, trips and registers therefore work on a PC.
+- Where there is no camera, the camera screen offers **Use a sample photo** (stamped "DEMO SAMPLE PHOTO").
+- Admin → **Reset the demo** wipes everything and rebuilds two weeks of sample activity.
+- For real use start the server with `KL_DEMO=0`: no demo people, switch, pretend location or sample photos.
 
 ## What is in it
 
@@ -51,7 +59,12 @@ Administration → Sites, edit a site and use your own coordinates (the form off
   GPS, time and the signature hash. Templates are editable in Admin.
 - **HR self-service** (Me): documents uploaded by HR, daily work update, leave requests, complaints and
   suggestions (optionally anonymous), change PIN.
-- **Inbox**: approvals, replies, alerts; badge on the tab.
+- **Planner** (like Microsoft Planner): a plan per site or project, buckets as columns, task cards with labels,
+  priority, start and due dates, checklist, assignees, comments and an optional "photo as proof". Board grouped
+  by bucket, progress, due date, person, priority or label (drag cards on a computer), Grid and Charts views.
+  Managers assign; the person is told in the inbox; when they complete it (with photo and note) the manager is
+  told. Field staff see it as **Tasks**.
+- **Inbox**: new tasks, completed tasks, approvals, replies, alerts; badge on the tab.
 - **Manage** (managers, HR, admin): dashboard (on site now, stock, travel spend, farmers), approvals (trips,
   check-in exceptions, leave), team activity, HR desk (reply to complaints, upload employee documents), admin
   (users and PIN resets, sites and geofences, register items, templates, company and rates, audit log).
@@ -65,9 +78,10 @@ can confirm a file is the original.
 ## Layout
 
 ```
-backend/   app.py (API + serves the front end), db.py (SQLite schema), auth.py (PIN + tokens),
+backend/   app.py (API + serves the front end), db.py (SQLite schema), auth.py (PIN + tokens), planner.py, demo.py,
            storage.py (file store, SharePoint stub), geo.py (geofence, KML area), pdfgen.py, seed.py
-frontend/  index.html, styles.css, core.js (API, outbox, GPS, camera, signature), views-*.js, app.js, sw.js
+frontend/  index.html, styles.css, core.js (API, outbox, GPS, camera, signature), views-*.js (field, me, staff,
+           planner), app.js, sw.js, icon.svg + PNG icons, fonts/ (self-hosted, OFL)
 data/      kshetralekha.sqlite, files/ (mirrors the future SharePoint folder tree), secret.key, cert/
 scripts/   serve.ps1
 ```

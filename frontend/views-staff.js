@@ -3,13 +3,14 @@
 Views.manage = () => {
   const pend = KL.me?.pendingApprovals || 0;
   const rows = [
+    lrow({ href: '#planner', icon: 'kanban', tone: 'violet', title: 'Planner', sub: 'Plans, buckets and tasks; assign work and track it to done' }),
     lrow({ href: '#dashboard', icon: 'chart', tone: 'green', title: 'Dashboard', sub: 'Who is on site, stock, travel spend, farmers' }),
     lrow({ href: '#approvals', icon: 'check', tone: pend ? 'amber' : '', title: 'Approvals', sub: 'Trips, check-in exceptions, leave', right: pend ? tag(String(pend), 'warn') : '' }),
     lrow({ href: '#team', icon: 'users', tone: 'blue', title: 'Team activity', sub: 'Attendance, trips and daily updates of everyone' }),
     ['admin', 'hr'].includes(KL.user.role) ? lrow({ href: '#hrdesk', icon: 'folder', tone: 'amber', title: 'HR desk', sub: 'Complaints, suggestions, employee documents' }) : '',
     ['admin', 'manager', 'hr'].includes(KL.user.role) ? lrow({ href: '#admin', icon: 'cog', title: 'Administration', sub: 'Users, sites, registers, templates, company' }) : '',
   ].join('');
-  return `<h1 class="large">Manage</h1><p class="sub">${esc(KL.user.designation || KL.user.role)}</p><div class="card flush">${rows}</div>`;
+  return `<h1 class="large">Manage</h1><p class="sub">${esc(KL.user.designation || ROLE_TEXT[KL.user.role] || KL.user.role)}</p><div class="card flush">${rows}</div>`;
 };
 
 /* ---------------------------------------------------------------- Dashboard */
@@ -18,25 +19,41 @@ Views.dashboardBody = () => {
   if (d === null) return spinner();
   if (d.error) return errorBox(d.error);
   const low = d.stock.filter((s) => s.low);
+  const pend = KL.me?.pendingApprovals || 0;
+  const t = d.tasks || { total: 0, done: 0, doing: 0, late: 0, doneWeek: 0 };
+  const pct = t.total ? Math.round((t.done / t.total) * 100) : 0;
+  const days = d.days || [];
+  const top = Math.max(1, d.fieldTotal || 0, ...days.map((x) => x.present));
+  const chart = `<div class="chart">${days.map((x, i) => {
+    const dt = new Date(x.date + 'T00:00:00');
+    const today = i === days.length - 1;
+    return `<div class="bar ${today ? 'today' : ''} ${x.present ? '' : 'zero'}" title="${esc(dt.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }))}: ${x.present} checked in, ${fmtNum(x.km)} km"><i style="height:${Math.max(4, (x.present / top) * 100)}%;animation-delay:${i * 0.03}s"></i><small>${esc(dt.toLocaleDateString('en-IN', { weekday: 'narrow' }))}</small></div>`;
+  }).join('')}</div>`;
   return `
-    <div class="tiles">
-      <div class="tile ok"><b>${d.onSite.length}</b><span>on site now</span></div>
-      <div class="tile"><b>${d.todayAttendance}/${d.fieldTotal}</b><span>field staff checked in today</span></div>
-      <div class="tile ${KL.me?.pendingApprovals ? 'warn' : ''}"><b>${KL.me?.pendingApprovals || 0}</b><span>awaiting approval</span></div>
-      <div class="tile ${low.length ? 'bad' : ''}"><b>${low.length}</b><span>low-stock items</span></div>
-      <div class="tile"><b>${esc(rupees(d.travelMonth.amt))}</b><span>travel approved this month (${fmtNum(d.travelMonth.km)} km)</span></div>
-      <div class="tile"><b>${d.farmers}</b><span>farmers · ${d.docsWeek} signed this week</span></div>
+    <div class="tiles auto" style="margin-top:16px">
+      <a class="tile feature" href="#team"><div class="ti">${ic('pin')}</div><b>${num(d.onSite.length, 'd-onsite')}</b><span>on site now</span></a>
+      <div class="tile"><div class="ti">${ic('users')}</div><b>${num(d.todayAttendance, 'd-att')}<small class="muted" style="font-size:16px">/${d.fieldTotal}</small></b><span>checked in today</span></div>
+      <a class="tile ${pend ? 'warn' : ''}" href="#approvals"><div class="ti">${ic('check')}</div><b>${num(pend, 'd-pend')}</b><span>awaiting approval</span></a>
+      <a class="tile ${low.length ? 'bad' : ''}" href="#dashboard"><div class="ti">${ic('box')}</div><b>${num(low.length, 'd-low')}</b><span>low-stock items</span></a>
+      <div class="tile blue"><div class="ti">${ic('bike')}</div><b>${num(d.travelMonth.amt, 'd-travel', 'rupee')}</b><span>travel approved this month · ${fmtNum(d.travelMonth.km)} km</span></div>
+      <a class="tile violet" href="#farmers"><div class="ti">${ic('sprout')}</div><b>${num(d.farmers, 'd-farmers')}</b><span>farmers · ${d.docsWeek} signed this week</span></a>
     </div>
-    ${d.onSite.length ? `<div class="card flush" style="margin-top:10px">${d.onSite.map((a) => `<div class="lrow-static row"><span class="icon green">${ic('pin')}</span><span class="tx" style="flex:1"><b>${esc(a.user_name)}</b><span class="muted" style="font-size:13px;display:block">${esc(a.site_name)} · since ${esc(fmtDate(a.checkin_at).split(', ')[1] || fmtDate(a.checkin_at))} · ${esc(duration(a.checkin_at))}</span></span>${a.status === 'pending' ? tag('exception', 'warn') : ''}</div>`).join('')}</div>` : ''}
-    ${low.length ? `<div class="banner bad" style="margin-top:10px"><b>Low stock</b><p>${low.map((s) => `${esc(s.item)} at ${esc(s.site)}: ${fmtNum(s.balance, 1)} ${esc(s.unit)}`).join(' · ')}</p></div>` : ''}
-    <p class="hint" style="margin-top:8px">${d.updatesToday} daily update${d.updatesToday === 1 ? '' : 's'} today · ${d.openFeedback} open complaint${d.openFeedback === 1 ? '' : 's'}/suggestion${d.openFeedback === 1 ? '' : 's'} · <a href="#approvals">Approvals</a> · <a href="#team">Team</a></p>`;
+    <div class="cols" style="margin-top:14px">
+      <div class="card"><div class="row between"><b class="card-title">Attendance · 14 days</b><span class="muted" style="font-size:13px;font-weight:700">field staff checked in</span></div>${chart}</div>
+      <a class="card hover" href="#planner" style="text-decoration:none;color:inherit;display:block"><div class="row between"><b class="card-title">Tasks</b><span class="chev">${ic('chevron')}</span></div>
+        <div class="row" style="gap:20px;margin-top:12px;flex-wrap:wrap"><div class="donut" style="background:conic-gradient(var(--brand) 0 ${pct}%, var(--blue) ${pct}% ${pct + (t.total ? Math.round((t.doing / t.total) * 100) : 0)}%, var(--chip) 0)" data-label="${pct}%"></div>
+        <div class="legend-list"><span><i style="background:var(--brand)"></i>${t.done} of ${t.total} done</span><span><i style="background:var(--blue)"></i>${t.doing} in progress</span><span><i style="background:var(--red)"></i>${t.late} late</span><span><i style="background:var(--lime)"></i>${t.doneWeek} finished this week</span></div></div></a>
+    </div>
+    ${low.length ? `<div class="banner bad" style="margin-top:14px">${ic('alert')}<div><b>Low stock</b><p>${low.map((s) => `${esc(s.item)} at ${esc(s.site)}: ${fmtNum(s.balance, 1)} ${esc(s.unit)}`).join(' · ')}</p></div></div>` : ''}
+    ${group('On site now', d.onSite.length ? `<div class="card flush">${d.onSite.map((a) => `<div class="lrow-static row">${avatar(a.user_name, 'lg')}<span class="tx" style="flex:1;min-width:0"><b>${esc(a.user_name)}</b><span class="muted" style="font-size:13px;display:block">${esc(a.site_name)} · since ${esc(fmtDate(a.checkin_at).split(', ')[1] || fmtDate(a.checkin_at))} · <span data-since="${esc(a.checkin_at)}">${esc(duration(a.checkin_at))}</span></span></span>${a.status === 'pending' ? tag('exception', 'warn') : tag('on site', 'ok')}</div>`).join('')}</div>` : emptyState('pin', 'Nobody on site right now'), '', '<a href="#team">Team activity</a>')}
+    <p class="hint" style="margin-top:12px">${d.updatesToday} daily update${d.updatesToday === 1 ? '' : 's'} today · ${d.openFeedback} open complaint${d.openFeedback === 1 ? '' : 's'} or suggestion${d.openFeedback === 1 ? '' : 's'}</p>`;
 };
 Views.dashboard = () => {
   const d = KL.cache.dashboard;
   const stock = d && !d.error ? d.stock : [];
   const bySite = {};
   for (const s of stock) (bySite[s.site] ||= []).push(s);
-  return `${topbar('Dashboard', '#manage', '<button type="button" class="btn small ghost" data-action="refreshDash">↻</button>')}${Views.dashboardBody()}
+  return `${topbar('Dashboard', '#manage', `<button type="button" class="btn icon-only" data-action="refreshDash" aria-label="Refresh">${ic('refresh')}</button>`)}${Views.dashboardBody()}
     ${Object.keys(bySite).length ? group('Stock by site', Object.entries(bySite).map(([site, items]) => `<div class="card" style="margin-top:8px"><b>${esc(site)}</b><div class="kv" style="margin-top:6px">${items.map((i) => `<span>${esc(i.item)}</span><span class="${i.low ? 'muted' : ''}" style="${i.low ? 'color:var(--red)' : ''}">${fmtNum(i.balance, 1)} ${esc(i.unit)}${i.low ? ' · low' : ''}</span>`).join('')}</div></div>`).join('')) : ''}`;
 };
 Actions.refreshDash = () => { invalidate('dashboard'); refreshMe().then(render); render(); };
@@ -140,7 +157,8 @@ Views.admin = (arg) => {
     ${admin || mgr ? lrow({ href: '#admin/templates', icon: 'doc', title: 'Document templates', sub: 'Text and fields of the documents farmers sign' }) : ''}
     ${admin ? lrow({ href: '#admin/company', icon: 'building', title: 'Company & rates', sub: 'Name, address, travel rates, authorised signature' }) : ''}
     ${admin ? lrow({ href: '#admin/audit', icon: 'receipt', title: 'Audit log', sub: 'Who did what, when' }) : ''}
-  </div>`;
+  </div>
+  ${KL.boot.demo && (admin || mgr) ? group('Prototype', `<div class="card flush">${lrow({ action: 'demoReset', icon: 'refresh', tone: 'violet', title: 'Reset the demo', sub: 'Wipe everything and rebuild the sample people, sites, tasks and records' })}</div>`) : ''}`;
 };
 function adminUsers() {
   const users = data('admin:users', () => api('/api/admin/users'));
@@ -248,4 +266,16 @@ function adminAudit() {
   const a = data('admin:audit', () => api('/api/admin/audit'));
   return `${topbar('Audit log', '#admin')}${a === null ? spinner() : a.error ? errorBox(a.error) : `<div class="card flush">${a.rows.map((r) => `<div class="lrow-static"><b>${esc(r.action)}</b> <span class="muted">${esc(r.entity)}${r.detail ? ` · ${esc(r.detail)}` : ''}</span><br/><span class="hint">${esc(r.user_name || 'system')} · ${esc(fmtDate(r.at))}</span></div>`).join('')}</div>`}`;
 }
+Actions.demoReset = async () => {
+  if (!(await modal({ title: 'Reset the demo?', message: 'Every record, photo and task is deleted and the sample data is built again. You stay signed in as yourself.', confirmText: 'Reset', danger: true }))) return;
+  const emp = KL.user.employee_id;
+  try {
+    await api('/api/demo/reset', { json: {} });
+    const r = await api('/api/auth/login', { json: { employeeId: emp, pin: KL.demoInfo?.pin || '1234', device: deviceName() } });
+    await Outbox.all().then((items) => Promise.all(items.map((i) => Outbox.remove(i.id)))).catch(() => {});
+    KL.outboxCount = 0;
+    await signedIn(r);
+    toast('Demo data rebuilt');
+  } catch (e) { toast(e.message, 'error'); }
+};
 async function reloadBoot() { try { KL.boot = await api('/api/bootstrap'); } catch { /* keep */ } }

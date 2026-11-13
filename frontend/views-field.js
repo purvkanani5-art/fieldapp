@@ -1,38 +1,63 @@
 /* Field modules: Home, site check-in / check-out, travel (odometer), site registers, farmers and signed documents. */
 
 /* ---------------------------------------------------------------- Home */
-Views.home = () => {
-  const me = KL.me || {};
+Views.home = () => (isStaff() ? staffHome() : fieldHome());
+
+function heroTop(extra = '') {
   const u = KL.user;
   const now = new Date();
   const greet = now.getHours() < 12 ? 'Good morning' : now.getHours() < 17 ? 'Good afternoon' : 'Good evening';
+  return `<div class="brandline"><img class="mark" src="./icon.svg" alt="" /><span>Kshetralekha</span><a class="who" href="#me" aria-label="Me">${avatar(u.name)}</a></div>
+    <h1>${esc(greet)}, ${esc(firstName(u.name))}</h1>
+    <div class="meta">${esc(now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' }))} · ${esc(u.designation || ROLE_TEXT[u.role] || u.role)}</div>${extra}`;
+}
+function quickActions(items) {
+  return `<div class="qa">${items.map(([href, icon, tone, label, badge]) => `<a href="${href}"><span class="qi ${tone}">${ic(icon)}</span>${esc(label)}${badge ? `<span class="tag bad" style="padding:1px 7px;margin-top:-4px">${badge}</span>` : ''}</a>`).join('')}</div>`;
+}
+function fieldHome() {
+  const me = KL.me || {};
   const att = me.openAttendance;
   const trip = me.openTrip;
   const upd = data('updates:mine', () => api('/api/updates?days=1'));
   const doneToday = upd && !upd.error && upd.rows.some((r) => r.date === todayISO());
-  const statusCards = `
-    <div class="card status-card">${att
-      ? `<div class="big-ic">${ic('pin')}</div><div class="tx"><b>At ${esc(att.site_name)}</b><span>Checked in ${esc(fmtDate(att.checkin_at))} · ${esc(duration(att.checkin_at))}${att.status === 'pending' ? ' · exception awaiting approval' : ''}</span></div><a class="btn small primary" href="#attendance">Check out</a>`
-      : `<div class="big-ic off">${ic('pin')}</div><div class="tx"><b>Not at a site</b><span>Check in with a selfie when you reach</span></div><a class="btn small primary" href="#attendance">Check in</a>`}</div>
-    <div class="card status-card">${trip
-      ? `<div class="big-ic blue">${ic('bike')}</div><div class="tx"><b>Trip in progress</b><span>${esc(trip.vehicle)} · started ${esc(fmtDate(trip.start_at))} at ${esc(fmtNum(trip.start_reading))} km</span></div><a class="btn small primary" href="#trips">End trip</a>`
-      : `<div class="big-ic off">${ic('bike')}</div><div class="tx"><b>No trip running</b><span>Photograph the odometer before you leave</span></div><a class="btn small" href="#trips">Start trip</a>`}</div>
-    <div class="card status-card">${doneToday
-      ? `<div class="big-ic">${ic('check')}</div><div class="tx"><b>Today's update sent</b><span>Tap to change it</span></div><a class="btn small" href="#updates">Edit</a>`
-      : `<div class="big-ic amber">${ic('note')}</div><div class="tx"><b>Daily work update</b><span>A few lines on what you did today</span></div><a class="btn small" href="#updates">Write</a>`}</div>`;
-  const pills = [att ? `${ic('pin')} ${esc(att.site_name)}` : '', trip ? `${ic('bike')} trip running` : '', me.unread ? `${ic('bell')} ${me.unread} new` : ''].filter(Boolean);
+  const my = data('planner:my', () => api('/api/planner/my'));
+  const open = my && !my.error ? my.tasks.filter((t) => t.progress !== 'completed').sort(byDue) : [];
+  const late = open.filter(isLate).length;
+  const now = att
+    ? `<div class="now"><div class="tx"><b>At ${esc(att.site_name)}</b><span>Since ${esc(fmtDate(att.checkin_at).split(', ')[1] || '')}${att.status === 'pending' ? ' · exception awaiting approval' : ''}</span></div><span class="timer" data-since="${esc(att.checkin_at)}">${esc(duration(att.checkin_at))}</span><a class="btn small lime" href="#attendance">Check out</a></div>`
+    : `<div class="now"><div class="tx"><b>Not checked in</b><span>Take a selfie at the site to start your day</span></div><a class="btn small lime" href="#attendance">${ic('pin')} Check in</a></div>`;
+  const pills = [trip ? `${ic('bike')} trip running` : '', open.length ? `${ic('kanban')} ${open.length} open task${open.length === 1 ? '' : 's'}` : '', me.unread ? `${ic('bell')} ${me.unread} new` : ''].filter(Boolean);
+  const tasksBody = my === null ? spinner() : my.error ? errorBox(my.error) : open.length ? `<div class="task-grid">${open.slice(0, 4).map((t) => taskCard(t, { showPlan: true })).join('')}</div>` : emptyState('check', 'All caught up', 'No open tasks. New ones from your manager appear here.');
   return `
-    <div class="hero">
-      <div class="brandline"><img src="./logo.png" alt="Sajeevan" /><span>Kshetralekha</span></div>
-      <h1>${esc(greet)}, ${esc(u.name.split(' ')[0])}</h1>
-      <div class="meta">${esc(now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' }))} · ${esc(u.designation || u.role)}</div>
-      ${pills.length ? `<div class="pills">${pills.map((p) => `<span class="pill">${p}</span>`).join('')}</div>` : ''}
-    </div>
+    <div class="hero">${heroTop(pills.length ? `<div class="pills">${pills.map((p) => `<span class="pill">${p}</span>`).join('')}</div>` : '')}${now}</div>
     ${KL.outboxCount ? `<div class="offline-bar">${KL.outboxCount} item${KL.outboxCount === 1 ? '' : 's'} saved on this phone, waiting for signal</div>` : ''}
-    ${isStaff() ? Views.dashboardBody() : ''}
-    ${group('Right now', `<div class="stack">${statusCards}</div>`)}
-    ${group('My work', `<div class="card flush">${workRows()}</div>`)}`;
-};
+    ${quickActions([['#attendance', 'pin', '', att ? 'Check out' : 'Check in'], ['#trips', 'bike', 'blue', trip ? 'End trip' : 'Start trip'], ['#tasks', 'kanban', 'violet', 'My tasks', late || ''], ['#registers', 'box', 'amber', 'Registers'], ['#farmers', 'sprout', 'earth', 'Farmers'], ['#updates', 'note', '', 'Daily update'], ['#leaves', 'sun', 'blue', 'Leave'], ['#feedback', 'chat', 'red', 'Suggest']])}
+    <div class="cols">
+      ${group('My tasks', tasksBody, '', '<a href="#tasks">See all</a>')}
+      ${group('Today', `<div class="stack">
+        <div class="card status-card">${trip
+          ? `<div class="big-ic blue">${ic('bike')}</div><div class="tx"><b>Trip in progress</b><span>${esc(trip.vehicle)} · from ${esc(fmtNum(trip.start_reading))} km · <span data-since="${esc(trip.start_at)}">${esc(duration(trip.start_at))}</span></span></div><a class="btn small primary" href="#trips">End trip</a>`
+          : `<div class="big-ic off">${ic('bike')}</div><div class="tx"><b>No trip running</b><span>Photograph the odometer before you ride</span></div><a class="btn small" href="#trips">Start</a>`}</div>
+        <div class="card status-card">${doneToday
+          ? `<div class="big-ic">${ic('check')}</div><div class="tx"><b>Today's update sent</b><span>Your manager can see it</span></div><a class="btn small" href="#updates">Edit</a>`
+          : `<div class="big-ic amber">${ic('note')}</div><div class="tx"><b>Daily work update</b><span>A few lines on what you did today</span></div><a class="btn small" href="#updates">Write</a>`}</div>
+      </div>`)}
+    </div>`;
+}
+function staffHome() {
+  const me = KL.me || {};
+  const d = data('dashboard', () => api('/api/dashboard'));
+  const pend = me.pendingApprovals || 0;
+  const ok = d && !d.error;
+  const now = pend
+    ? `<div class="now"><div class="tx"><b>${pend} waiting for you</b><span>Travel claims, check-in exceptions and leave</span></div><a class="btn small lime" href="#approvals">Review</a></div>`
+    : `<div class="now"><div class="tx"><b>No approvals waiting</b><span>${ok ? `${d.todayAttendance} of ${d.fieldTotal} field staff checked in today` : 'Everything is up to date'}</span></div><a class="btn small lime" href="#planner">${ic('kanban')} Planner</a></div>`;
+  const pills = ok ? [`${ic('pin')} ${d.onSite.length} on site now`, `${ic('kanban')} ${d.tasks.total - d.tasks.done} open tasks`, d.tasks.late ? `${ic('alert')} ${d.tasks.late} late` : ''].filter(Boolean) : [];
+  return `
+    <div class="hero">${heroTop(pills.length ? `<div class="pills">${pills.map((p) => `<span class="pill">${p}</span>`).join('')}</div>` : '')}${now}</div>
+    ${quickActions([['#planner', 'kanban', 'violet', 'Planner'], ['#approvals', 'check', 'amber', 'Approvals', pend || ''], ['#team', 'users', 'blue', 'Team'], ['#dashboard', 'chart', '', 'Dashboard'], ['#registers', 'box', 'amber', 'Registers'], ['#farmers', 'sprout', 'earth', 'Farmers'], [['admin', 'hr'].includes(KL.user.role) ? '#hrdesk' : '#admin', ['admin', 'hr'].includes(KL.user.role) ? 'folder' : 'cog', 'blue', ['admin', 'hr'].includes(KL.user.role) ? 'HR desk' : 'Admin'], ['#attendance', 'pin', '', 'Check in']])}
+    ${Views.dashboardBody()}`;
+}
 
 function workRows() {
   const sites = KL.boot ? KL.boot.mySites : [];
@@ -40,6 +65,7 @@ function workRows() {
   const unread = KL.me ? KL.me.unread : 0;
   return [
     lrow({ href: '#attendance', icon: 'pin', tone: 'green', title: 'Site check-in', sub: 'Selfie at the site, in and out' }),
+    lrow({ href: isStaff() ? '#planner' : '#tasks', icon: 'kanban', tone: 'violet', title: isStaff() ? 'Planner' : 'My tasks', sub: 'Tasks assigned to you, checklists, photo proof' }),
     lrow({ href: '#trips', icon: 'bike', tone: 'blue', title: 'Travel allowance', sub: 'Odometer photos, start and end of trip' }),
     hasItems || isStaff() ? lrow({ href: '#registers', icon: 'box', tone: 'amber', title: 'Site registers', sub: 'Diesel, biomass, biochar, feedstock, output' }) : '',
     lrow({ href: '#farmers', icon: 'sprout', tone: 'green', title: 'Farmers & documents', sub: 'Agreements signed on the phone, KML, land records' }),
@@ -47,7 +73,7 @@ function workRows() {
     lrow({ href: '#inbox', icon: 'bell', title: 'Inbox', sub: 'Approvals, replies and alerts', right: unread ? tag(String(unread), 'bad') : '' }),
   ].join('');
 }
-Views.work = () => `<h1 class="large">Work</h1><p class="sub">Everything you record in the field</p><div class="card flush">${workRows()}</div>`;
+Views.work = () => `<h1 class="large">Work</h1><p class="sub">Everything you record in the field, with photo, time and GPS as proof</p><div class="card flush">${workRows()}</div>`;
 
 /* ---------------------------------------------------------------- Attendance */
 Views.attendance = () => {
@@ -61,7 +87,9 @@ Views.attendance = () => {
     const inside = insideSite(site);
     const stamp = [`${KL.user.name} · ${site.name}`, 'Check-out'];
     main = `<div class="card stack">
-      <div class="row between"><div><b>${esc(site.name)}</b><p class="hint">Checked in ${esc(fmtDate(att.checkin_at))} · on site ${esc(duration(att.checkin_at))}</p></div>${statusTag(att.status, 'attendance')}</div>
+      <div class="row between"><div><b>${esc(site.name)}</b><p class="hint">Checked in ${esc(fmtDate(att.checkin_at))} · on site <span data-since="${esc(att.checkin_at)}">${esc(duration(att.checkin_at))}</span></p></div>${statusTag(att.status, 'attendance')}</div>
+      ${demoRibbon()}
+      ${geoCard(siteById(att.site_id))}
       ${gpsLine(site)}
       ${photoBox('checkout', 'Take check-out selfie', 'user', stamp)}
       ${!inside && KL.ui.gps ? field('Why are you checking out from here?', textarea('att-reason', F('att-reason'), 'e.g. Left early for the next site, GPS weak inside the shed')) : ''}
@@ -75,7 +103,7 @@ Views.attendance = () => {
     const stamp = [`${KL.user.name} · ${site ? site.name : 'Site'}`, 'Check-in'];
     main = `<div class="card stack">
       ${field('Site', select('att-site', chosen, sites.map((s) => [s.id, s.name]), { blank: sites.length === 1 ? '' : 'Choose the site' }))}
-      ${site ? gpsLine(site) : `<p class="hint">Choose the site you have reached.</p>`}
+      ${site ? `${demoRibbon()}${geoCard(site)}${gpsLine(site)}` : `<p class="hint">Choose the site you have reached.</p>`}
       ${site ? photoBox('checkin', 'Take check-in selfie', 'user', stamp) : ''}
       ${site && KL.ui.gps && !inside ? field('Request an exception: why are you not inside the site boundary?', textarea('att-reason', F('att-reason'), 'e.g. Working at the far plot, boundary needs widening')) : ''}
       ${site ? `<button type="button" class="btn primary wide" data-action="checkin" ${KL.ui.photos.checkin && KL.ui.gps ? '' : 'disabled'}>${inside ? 'Check in' : KL.ui.gps ? 'Request check-in exception' : 'Check in'}</button>` : ''}
@@ -85,14 +113,14 @@ Views.attendance = () => {
   const rows = hist && !hist.error ? hist.rows : [];
   return `${topbar('Site check-in')}
     ${main}
-    ${group('My attendance', hist === null ? spinner() : hist.error ? errorBox(hist.error) : rows.length ? `<div class="card flush">${rows.map(attRow).join('')}</div>` : `<div class="card"><p class="empty">No check-ins yet.</p></div>`, hist && !hist.error ? `${rows.length} in 31 days` : '')}`;
+    ${group('My attendance', hist === null ? spinner() : hist.error ? errorBox(hist.error) : rows.length ? `<div class="card flush">${rows.map((a) => attRow(a)).join('')}</div>` : `<div class="card"><p class="empty">No check-ins yet.</p></div>`, hist && !hist.error ? `${rows.length} in 31 days` : '')}`;
 };
 function attRow(a, showUser = false) {
   const hours = a.checkout_at ? duration(a.checkin_at, a.checkout_at) : 'on site now';
   return `<div class="lrow-static row">${authImg(a.checkin_file)}<span class="tx" style="flex:1;min-width:0"><b>${esc(showUser ? a.user_name : a.site_name)}</b><span class="muted" style="font-size:13px;display:block">${esc(showUser ? a.site_name + ' · ' : '')}${esc(fmtDate(a.checkin_at))} → ${esc(a.checkout_at ? fmtDate(a.checkout_at).split(', ')[1] || fmtDate(a.checkout_at) : '…')} · ${esc(hours)}${a.checkin_dist > 0 ? ` · ${fmtNum(a.checkin_dist)} m` : ''}</span>${a.override_reason ? `<span class="muted" style="font-size:12px;display:block">${esc(a.override_reason)}</span>` : ''}</span>${statusTag(a.status, 'attendance')}</div>`;
 }
 Actions.locate = () => locate(true);
-Actions.photo = (el) => pickPhoto(el.dataset.slot, { facing: el.dataset.facing, stamp: JSON.parse(el.dataset.stamp || '[]') });
+Actions.photo = (el) => openCamera(el.dataset.slot, { facing: el.dataset.facing, kind: el.dataset.kind, stamp: JSON.parse(el.dataset.stamp || '[]') });
 Actions.checkin = async () => {
   const siteId = F('att-site', KL.boot.mySites.length === 1 ? KL.boot.mySites[0].id : '');
   const site = siteById(siteId);
@@ -105,8 +133,11 @@ Actions.checkin = async () => {
   try {
     const r = await submitEvidence('/api/attendance/checkin', { siteId, lat: g.lat, lng: g.lng, accuracy: g.accuracy, takenAt: p.at, override: inside ? '' : reason }, photoFile('checkin', 'checkin.jpg'), 'Check-in');
     clearPhotos('checkin'); clearF('att-reason');
-    if (!r.queued) toast(r.status === 'pending' ? 'Check-in recorded as an exception, sent to your manager' : `Checked in at ${site.name}`);
-    await refreshMe(); invalidate('attendance'); render();
+    await refreshMe(); invalidate('attendance', 'dashboard'); render();
+    if (!r.queued) {
+      if (r.status === 'pending') toast('Check-in recorded as an exception, sent to your manager');
+      else await celebrate('Checked in', `${site.name} · ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`);
+    }
   } catch (e) { toast(e.message, 'error'); }
 };
 Actions.checkout = async () => {
@@ -121,8 +152,8 @@ Actions.checkout = async () => {
   try {
     const r = await submitEvidence('/api/attendance/checkout', { lat: g.lat, lng: g.lng, accuracy: g.accuracy, takenAt: p.at, override: inside ? '' : reason }, photoFile('checkout', 'checkout.jpg'), 'Check-out');
     clearPhotos('checkout'); clearF('att-reason');
-    if (!r.queued) toast('Checked out');
-    await refreshMe(); invalidate('attendance'); render();
+    await refreshMe(); invalidate('attendance', 'dashboard'); render();
+    if (!r.queued) await celebrate('Checked out', `${duration(att.checkin_at)} at ${att.site_name}. See you tomorrow.`);
   } catch (e) { toast(e.message, 'error'); }
 };
 
@@ -140,7 +171,8 @@ Views.trips = () => {
       return km !== null ? `<div class="banner info"><b>${fmtNum(km, 1)} km this trip</b><p>${esc(rupees(km * (trip.rate_per_km || 0)))} at ${esc(KL.boot.travel.currency)}${trip.rate_per_km}/km, subject to approval</p></div>` : '';
     };
     main = `<div class="card stack">
-      <div><b>${esc(trip.vehicle)} · started ${esc(fmtDate(trip.start_at))}</b><p class="hint">Start reading ${esc(fmtNum(trip.start_reading))} km${trip.purpose ? ` · ${esc(trip.purpose)}` : ''}${trip.site_id ? ` · ${esc(siteName(trip.site_id))}` : ''}</p></div>
+      <div class="status-card"><div class="big-ic blue">${ic('bike')}</div><div class="tx"><b>${esc(trip.vehicle)} · on the road <span data-since="${esc(trip.start_at)}">${esc(duration(trip.start_at))}</span></b><span>Started ${esc(fmtDate(trip.start_at))} at ${esc(fmtNum(trip.start_reading))} km${trip.purpose ? ` · ${esc(trip.purpose)}` : ''}${trip.site_id ? ` · ${esc(siteName(trip.site_id))}` : ''}</span></div></div>
+      ${demoRibbon()}
       ${gpsLine()}
       ${field('Odometer reading now (km)', input('trip-end-reading', F('trip-end-reading'), { type: 'number', inputmode: 'decimal', placeholder: String(Math.round(trip.start_reading)), step: '0.1', min: trip.start_reading }))}
       <div id="preview">${KL.ui.previewFn()}</div>
@@ -155,6 +187,7 @@ Views.trips = () => {
       <div class="grid2">${field('Odometer reading (km)', input('trip-reading', F('trip-reading'), { type: 'number', inputmode: 'decimal', placeholder: 'e.g. 48213', step: '0.1' }))}
       ${field('Site (optional)', select('trip-site', F('trip-site'), (KL.boot?.mySites || []).map((s) => [s.id, s.name]), { blank: 'None' }))}</div>
       ${field('Purpose', input('trip-purpose', F('trip-purpose'), { placeholder: 'e.g. Farmer visits, Vanthali cluster' }))}
+      ${demoRibbon()}
       ${gpsLine()}
       ${photoBox('tripStart', 'Photograph the odometer', 'environment', stamp)}
       <button type="button" class="btn primary wide" data-action="tripStart" ${KL.ui.photos.tripStart && KL.ui.gps ? '' : 'disabled'}>Start trip</button>
@@ -166,7 +199,7 @@ Views.trips = () => {
   const sum = (k) => month.reduce((a, t) => a + (t[k] || 0), 0);
   return `${topbar('Travel allowance')}
     ${main}
-    ${rows.length ? `<div class="tiles" style="margin-top:14px"><div class="tile"><b>${fmtNum(sum('km_claimed'), 0)}</b><span>km approved this month</span></div><div class="tile ok"><b>${esc(rupees(sum('amount')))}</b><span>approved this month</span></div><div class="tile warn"><b>${rows.filter((t) => t.status === 'submitted').length}</b><span>awaiting approval</span></div></div>` : ''}
+    ${rows.length ? `<div class="tiles" style="margin-top:14px"><div class="tile blue"><div class="ti">${ic('bike')}</div><b>${num(sum('km_claimed'), 'trip-km')}</b><span>km approved this month</span></div><div class="tile ok"><div class="ti">${ic('receipt')}</div><b>${num(sum('amount'), 'trip-amt', 'rupee')}</b><span>approved this month</span></div><div class="tile warn"><div class="ti">${ic('clock')}</div><b>${rows.filter((t) => t.status === 'submitted').length}</b><span>awaiting approval</span></div></div>` : ''}
     ${group('My trips', list === null ? spinner() : list.error ? errorBox(list.error) : rows.length ? `<div class="card flush">${rows.map((t) => tripRow(t)).join('')}</div>` : `<div class="card"><p class="empty">No trips yet.</p></div>`)}`;
 };
 function tripRow(t, showUser = false) {
@@ -179,8 +212,8 @@ Actions.tripStart = async () => {
   try {
     const r = await submitEvidence('/api/trips/start', { vehicle: F('trip-vehicle', Object.keys(KL.boot.travel.vehicles)[0]), reading, purpose: F('trip-purpose', ''), siteId: F('trip-site', ''), lat: g.lat, lng: g.lng, takenAt: p.at }, photoFile('tripStart', 'odometer-start.jpg'), 'Trip start');
     clearPhotos('tripStart'); clearF('trip-reading', 'trip-purpose');
-    if (!r.queued) toast('Trip started');
     await refreshMe(); invalidate('trips'); render();
+    if (!r.queued) await celebrate('Trip started', 'Ride safe. Photograph the odometer again when you arrive.');
   } catch (e) { toast(e.message, 'error'); }
 };
 Actions.tripEnd = async () => {
@@ -190,8 +223,8 @@ Actions.tripEnd = async () => {
   try {
     const r = await submitEvidence(`/api/trips/${trip.id}/end`, { reading, lat: g.lat, lng: g.lng, takenAt: p.at }, photoFile('tripEnd', 'odometer-end.jpg'), 'Trip end');
     clearPhotos('tripEnd'); clearF('trip-end-reading');
-    if (!r.queued) toast(`${fmtNum(r.km, 1)} km submitted for approval`);
-    await refreshMe(); invalidate('trips'); render();
+    await refreshMe(); invalidate('trips', 'dashboard'); render();
+    if (!r.queued) await celebrate(`${fmtNum(r.km, 1)} km claimed`, `${rupees(r.amount ?? 0)} sent to your manager for approval.`);
   } catch (e) { toast(e.message, 'error'); }
 };
 
@@ -241,6 +274,7 @@ function registerItemView(siteId, itemId) {
       ${field('Batch / vehicle / ref (optional)', input('mov-batch', F('mov-batch'), { placeholder: type === 'in' ? 'e.g. Truck GJ03 AB 1234' : 'e.g. Kiln run K-27' }))}</div>
       ${field('Note (optional)', input('mov-note', F('mov-note'), { placeholder: 'Supplier, quality, who took it…' }))}
       <div id="preview">${KL.ui.previewFn()}</div>
+      ${demoRibbon()}
       ${gpsLine()}
       ${photoBox('mov', 'Photograph the stock / delivery', 'environment', stamp)}
       <button type="button" class="btn primary wide" data-action="movSave" data-item="${esc(itemId)}" data-site="${esc(siteId)}" ${KL.ui.photos.mov && KL.ui.gps ? '' : 'disabled'}>Save ${esc(type === 'count' ? 'count' : type)}</button>
@@ -262,7 +296,7 @@ Actions.movSave = async (el) => {
   try {
     const r = await submitEvidence('/api/registers/movements', { itemId: el.dataset.item, type, qty: F('mov-qty'), batch: F('mov-batch', ''), note: F('mov-note', ''), lat: g.lat, lng: g.lng, accuracy: g.accuracy, takenAt: p.at }, photoFile('mov', `${item.name}-${type}.jpg`), `${item.name} ${type}`);
     clearPhotos('mov'); clearF('mov-qty', 'mov-batch', 'mov-note');
-    if (!r.queued) toast(r.variance !== null && r.variance !== undefined ? `Count saved · variance ${r.variance > 0 ? '+' : ''}${fmtNum(r.variance, 2)}` : `Saved · stock ${fmtNum(r.balance, 2)} ${item.unit}`);
+    if (!r.queued) toast(r.variance !== null && r.variance !== undefined ? `Count saved · variance ${r.variance > 0 ? '+' : ''}${fmtNum(r.variance, 2)}` : `Saved · stock now ${fmtNum(r.balance, 2)} ${item.unit}`);
     invalidate('registers', 'movements', 'dashboard'); render();
   } catch (e) { toast(e.message, 'error'); }
 };
@@ -273,7 +307,7 @@ Views.farmers = (arg) => {
   const q = F('farmer-q', '');
   const list = data('farmers', () => api('/api/farmers'));
   const rows = list && !list.error ? list.rows.filter((f) => !q || `${f.name} ${f.village} ${f.phone}`.toLowerCase().includes(q.toLowerCase())) : [];
-  return `${topbar('Farmers', '#home', '<button type="button" class="btn small primary" data-action="farmerAdd">+ Add</button>')}
+  return `${topbar('Farmers', '#home', `<button type="button" class="btn small primary" data-action="farmerAdd">${ic('plus')} Add</button>`)}
     <input class="input" placeholder="Search by name, village or phone" value="${esc(q)}" data-input="farmerSearch" />
     ${list === null ? spinner() : list.error ? errorBox(list.error) : `<div class="card flush" style="margin-top:10px">${rows.length ? rows.map((f) => lrow({ href: `#farmers/${f.id}`, icon: 'sprout', tone: 'green', title: f.name, sub: `${esc([f.village, f.taluka].filter(Boolean).join(', '))}${f.phone ? ` · ${esc(f.phone)}` : ''} · ${f.docs} document${f.docs === 1 ? '' : 's'}, ${f.plots} plot${f.plots === 1 ? '' : 's'}` })).join('') : '<p class="empty">No farmers yet. Tap + Add.</p>'}</div>`}`;
 };
@@ -323,6 +357,7 @@ Actions.farmerUpload = async (el) => {
 
 /* ---------------------------------------------------------------- Sign a document */
 Views.sign = (farmerId) => {
+  if (!farmerId) { setTimeout(() => location.replace('#farmers'), 0); return spinner(); }
   const f = data(`farmer:${farmerId}`, () => api(`/api/farmers/${farmerId}`));
   if (f === null) return `${topbar('Sign a document', `#farmers/${farmerId}`)}${spinner()}`;
   if (f.error) return `${topbar('Sign a document', `#farmers/${farmerId}`)}${errorBox(f.error)}`;
@@ -334,7 +369,7 @@ Views.sign = (farmerId) => {
   for (const [k, v] of Object.entries(defaults)) if (KL.ui.forms[`sf-${k}`] === undefined && v !== undefined && v !== null && v !== '') setF(`sf-${k}`, String(v));
   const done = KL.ui.signed;
   if (done && done.farmerId === farmerId) {
-    return `${topbar('Signed', `#farmers/${farmerId}`)}<div class="card stack" style="text-align:center"><div class="big-ic" style="margin:0 auto;width:64px;height:64px;border-radius:22px;background:var(--leaf-tint);color:var(--leaf-deep);display:grid;place-items:center">${ic('check')}</div><b>${esc(done.docNo)}</b><p class="hint">Saved to the farmer's folder with the signature, GPS and time. The company's authorised signature is already on it.</p>${fileLink(done.pdfFile, 'Open the PDF')}<a class="btn primary" href="#farmers/${esc(farmerId)}" data-action="signDone">Back to ${esc(f.name)}</a></div>`;
+    return `${topbar('Signed', `#farmers/${farmerId}`)}<div class="card stack" style="text-align:center"><div class="big-ic" style="margin:0 auto;width:64px;height:64px;border-radius:22px;background:var(--tint);color:var(--brand);display:grid;place-items:center">${ic('check')}</div><b>${esc(done.docNo)}</b><p class="hint">Saved to the farmer's folder with the signature, GPS and time. The company's authorised signature is already on it.</p>${fileLink(done.pdfFile, 'Open the PDF')}<a class="btn primary" href="#farmers/${esc(farmerId)}" data-action="signDone">Back to ${esc(f.name)}</a></div>`;
   }
   return `${topbar('Sign a document', `#farmers/${farmerId}`)}
     <p class="sub">${esc(f.name)}${f.village ? `, ${esc(f.village)}` : ''}</p>
@@ -376,6 +411,7 @@ Actions.signSubmit = async (el) => {
     for (const fl of t.fields) clearF(`sf-${fl.key}`);
     invalidate('farmer', 'farmers', 'dashboard');
     render();
+    celebrate('Document signed', `${r.docNo} is saved to the farmer's folder.`);
   } catch (e) { toast(e.status === 0 ? 'Signing needs a connection (the PDF is made on the server). Try again when online.' : e.message, 'error'); }
 };
 Actions.signDone = () => { KL.ui.signed = null; };

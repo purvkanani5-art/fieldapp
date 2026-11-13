@@ -57,16 +57,18 @@ function toast(msg, kind = 'ok') {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => (el.hidden = true), kind === 'error' ? 4200 : 2600);
 }
-function modal({ title, message = '', html = '', fields = [], confirmText = 'OK', cancelText = 'Cancel', danger = false }) {
+function modal({ title, message = '', html = '', fields = [], confirmText = 'OK', cancelText = 'Cancel', danger = false, wide = false, noButtons = false }) {
   const m = $('#modal');
   return new Promise((resolve) => {
-    m.innerHTML = `<div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div><h2>${esc(title)}</h2>${message ? `<p class="muted">${esc(message)}</p>` : ''}${html}
+    m.innerHTML = `<div class="sheet ${wide ? 'wide' : ''}" role="dialog" aria-modal="true"><div class="grab"></div><h2>${esc(title)}</h2>${message ? `<p class="muted">${esc(message)}</p>` : ''}${html}
       <div class="stack">${fields
         .map((f) => `<label class="field"><span>${esc(f.label)}</span>${f.type === 'textarea' ? `<textarea id="m-${f.key}" class="input" placeholder="${esc(f.placeholder || '')}">${esc(f.value || '')}</textarea>` : f.type === 'select' ? `<select id="m-${f.key}" class="select">${(f.options || []).map((o) => `<option value="${esc(o)}" ${o === f.value ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>` : `<input id="m-${f.key}" class="input" type="${esc(f.type || 'text')}" inputmode="${esc(f.inputmode || '')}" value="${esc(f.value ?? '')}" placeholder="${esc(f.placeholder || '')}" />`}</label>`)
         .join('')}</div>
-      <div class="actions"><button type="button" class="btn" data-modal="cancel">${esc(cancelText)}</button><button type="button" class="btn ${danger ? 'danger' : 'primary'}" data-modal="confirm">${esc(confirmText)}</button></div></div>`;
+      ${noButtons ? '' : `<div class="actions"><button type="button" class="btn" data-modal="cancel">${esc(cancelText)}</button><button type="button" class="btn ${danger ? 'danger' : 'primary'}" data-modal="confirm">${esc(confirmText)}</button></div>`}</div>`;
     m.hidden = false;
-    const finish = (v) => { m.hidden = true; m.innerHTML = ''; m.onclick = null; resolve(v); };
+    const finish = (v) => { m.hidden = true; m.innerHTML = ''; m.onclick = null; KL.closeModal = null; resolve(v); };
+    KL.closeModal = finish;
+    setTimeout(() => { const first = m.querySelector('input, textarea, select'); if (first && fields.length) first.focus(); }, 60);
     m.onclick = (e) => {
       const b = e.target.closest('[data-modal]');
       if (e.target === m || b?.dataset.modal === 'cancel') return finish(null);
@@ -104,23 +106,30 @@ async function api(path, { method, json, form } = {}) {
   return data;
 }
 function logout() {
-  KL.token = ''; KL.user = null; KL.me = null; KL.boot = null; KL.cache = {};
+  KL.token = ''; KL.user = null; KL.me = null; KL.boot = null; KL.cache = {}; KL.stale = {}; KL.ui.sheetTask = null;
   localStorage.removeItem('kl.token'); localStorage.removeItem('kl.user');
   location.hash = '#home';
   render();
 }
-/** Load once, cache, re-render when it arrives. Returns null while loading, {error} on failure. */
+/** Load once, cache, re-render when it arrives. Returns null while loading (or the previous value while
+    refreshing, so screens do not flash), {error} on failure. */
 function data(key, loader) {
   if (KL.cache[key] !== undefined) return KL.cache[key];
+  const token = KL.token;
   if (!KL.loading[key]) {
     KL.loading[key] = true;
-    loader().then((v) => { KL.cache[key] = v; }).catch((e) => { KL.cache[key] = { error: e.message === 'offline' ? 'No connection. Showing nothing until you are back online.' : e.message }; }).finally(() => { delete KL.loading[key]; render(); });
+    loader().then((v) => { if (KL.token === token) KL.cache[key] = v; }).catch((e) => {
+      if (KL.token !== token) return;
+      KL.cache[key] = KL.stale?.[key] && e.message === 'offline' ? KL.stale[key] : { error: e.message === 'offline' ? 'No connection. Showing nothing until you are back online.' : e.message };
+    }).finally(() => { delete KL.loading[key]; if (KL.stale) delete KL.stale[key]; render(); });
   }
-  return null;
+  return KL.stale?.[key] ?? null;
 }
 function invalidate(...keys) {
-  if (!keys.length) { KL.cache = {}; return; }
-  for (const k of keys) for (const c of Object.keys(KL.cache)) if (c === k || c.startsWith(k + ':')) delete KL.cache[c];
+  KL.stale = KL.stale || {};
+  const drop = (c) => { if (KL.cache[c] && !KL.cache[c].error) KL.stale[c] = KL.cache[c]; delete KL.cache[c]; };
+  if (!keys.length) { for (const c of Object.keys(KL.cache)) drop(c); return; }
+  for (const k of keys) for (const c of Object.keys(KL.cache)) if (c === k || c.startsWith(k + ':')) drop(c);
 }
 async function refreshMe() {
   try { KL.me = await api('/api/me'); KL.user = KL.me.user; localStorage.setItem('kl.user', JSON.stringify(KL.user)); } catch { /* offline: keep what we have */ }
@@ -204,7 +213,31 @@ async function submitEvidence(path, fields, files, label) {
 }
 
 /* ---------------------------------------------------------------- GPS */
+/** Prototype only: pretend to be at the site (or away from it), so check-in, trips and registers can be tried on a PC. */
+const DemoLoc = {
+  get mode() { try { return localStorage.getItem('kl.demoLoc') || 'site'; } catch { return 'site'; } },
+  set(m) { try { localStorage.setItem('kl.demoLoc', m); } catch { /* private mode */ } },
+  active() { return Boolean(KL.boot && KL.boot.demo) && this.mode !== 'real'; },
+};
+function demoTargetSite() {
+  const att = KL.me?.openAttendance;
+  return siteById(att?.site_id) || siteById(F('att-site', '')) || siteById(F('trip-site', '')) || (KL.boot?.mySites || [])[0] || (KL.boot?.sites || [])[0] || null;
+}
+function simulatedFix() {
+  const s = demoTargetSite();
+  if (!s) return null;
+  const away = DemoLoc.mode === 'away';
+  const dist = away ? s.radius_m + 420 + Math.random() * 200 : Math.random() * s.radius_m * 0.35;
+  const ang = Math.random() * Math.PI * 2;
+  const dLat = (dist * Math.cos(ang)) / 111320;
+  const dLng = (dist * Math.sin(ang)) / (111320 * Math.cos((s.lat * Math.PI) / 180));
+  return { lat: s.lat + dLat, lng: s.lng + dLng, accuracy: 6 + Math.round(Math.random() * 8), at: new Date().toISOString(), simulated: true };
+}
 function getFix({ timeout = 15000, fresh = false } = {}) {
+  if (DemoLoc.active()) {
+    const f = simulatedFix();
+    if (f) return new Promise((resolve) => setTimeout(() => resolve(f), 550));
+  }
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) return reject(new Error('This phone has no location service'));
     navigator.geolocation.getCurrentPosition(
@@ -229,7 +262,7 @@ function locate(force = false) {
 }
 function gpsLine(site) {
   const g = KL.ui.gps;
-  if (KL.ui.locating && !g) return `<div class="gps wait"><span class="dot"></span><span>Finding your location…</span></div>`;
+  if (KL.ui.locating && !g) return `<div class="gps wait"><span class="dot"></span><span>Finding your location…</span>${DemoLoc.active() ? '<span class="sim">demo</span>' : ''}</div>`;
   if (!g) return `<div class="gps bad"><span class="dot"></span><span>${esc(KL.ui.gpsError || 'Location not found yet.')}</span><button type="button" class="btn small ghost" data-action="locate">Retry</button></div>`;
   let text = `±${Math.round(g.accuracy)} m · ${g.lat.toFixed(5)}, ${g.lng.toFixed(5)}`;
   let cls = 'ok';
@@ -240,7 +273,31 @@ function gpsLine(site) {
     cls = inside ? 'ok' : 'bad';
     text = `${inside ? 'At the site' : 'Not at the site'}: ${fmtNum(d)} m away (allowed ${site.radius_m} m) · GPS ±${Math.round(g.accuracy)} m`;
   }
-  return `<div class="gps ${cls}"><span class="dot"></span><span>${esc(text)}</span><button type="button" class="btn small ghost" data-action="locate" aria-label="Refresh location">${ic('refresh')}</button></div>`;
+  return `<div class="gps ${cls}"><span class="dot"></span><span>${esc(text)}</span>${g.simulated ? '<span class="sim">demo</span>' : ''}<button type="button" class="btn small ghost" data-action="locate" aria-label="Refresh location">${ic('refresh')}</button></div>`;
+}
+/** A small map of the geofence with you on it. */
+function geoCard(site) {
+  if (!site) return '';
+  const g = KL.ui.gps;
+  let me = '';
+  let legend = `<span>${esc(site.name)}</span>${tag(KL.ui.locating ? 'Locating…' : 'No fix yet', 'warn')}`;
+  if (g) {
+    const d = distanceM(g.lat, g.lng, site.lat, site.lng);
+    const k = 60 / site.radius_m; // the fence circle is 60 px in radius
+    const dy = (g.lat - site.lat) * 111320, dx = (g.lng - site.lng) * 111320 * Math.cos((site.lat * Math.PI) / 180);
+    const len = Math.hypot(dx, dy) * k, cap = 70;
+    const f = len > cap ? cap / len : 1;
+    const inside = insideSite(site);
+    me = `<span class="me ${inside ? '' : 'out'}" style="left:calc(50% + ${(dx * k * f).toFixed(1)}px);top:calc(50% - ${(dy * k * f).toFixed(1)}px)"></span>`;
+    legend = `<span>${esc(site.name)} · ${site.radius_m} m fence</span>${tag(inside ? 'Inside' : `${fmtNum(d)} m away`, inside ? 'ok' : 'bad')}`;
+  }
+  return `<div class="geo-card"><div class="grid"></div><div class="fence"></div><div class="site"></div>${me}<div class="legend">${legend}</div></div>`;
+}
+/** Prototype switch: pretend location (at the site, away) or the real GPS. */
+function demoRibbon() {
+  if (!KL.boot?.demo) return '';
+  const m = DemoLoc.mode;
+  return `<div class="demo-ribbon">${ic('compass')}<span>Prototype location</span><div class="seg">${[['site', 'At site'], ['away', 'Away'], ['real', 'Real GPS']].map(([k, l]) => `<button type="button" data-action="demoLoc" data-mode="${k}" aria-pressed="${m === k}">${l}</button>`).join('')}</div></div>`;
 }
 function insideSite(site) {
   const g = KL.ui.gps;
@@ -250,6 +307,137 @@ function insideSite(site) {
 
 /* ---------------------------------------------------------------- camera */
 /** Open the camera (file input with capture) and return a stamped, compressed JPEG. Must be called from a tap. */
+function stampLines(stamp, sample) {
+  const at = new Date();
+  const g = KL.ui.gps;
+  return { at, g, lines: [...(sample ? ['DEMO SAMPLE PHOTO'] : []), ...stamp, at.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }), g ? `GPS ${g.lat.toFixed(5)}, ${g.lng.toFixed(5)} (±${Math.round(g.accuracy)} m)` : 'GPS not available'] };
+}
+function setPhoto(slot, blob, at, gps, sample = false) {
+  if (KL.ui.photos[slot]) URL.revokeObjectURL(KL.ui.photos[slot].url);
+  KL.ui.photos[slot] = { blob, url: URL.createObjectURL(blob), at: at.toISOString(), gps, sample };
+}
+/** Full-screen camera inside the app (getUserMedia); falls back to a photo file, and in the prototype to a sample photo. */
+function openCamera(slot, { facing = 'environment', stamp = [], kind = '' } = {}) {
+  closeCamera();
+  const demo = Boolean(KL.boot && KL.boot.demo);
+  const selfie = facing === 'user';
+  const el = document.createElement('div');
+  el.className = 'cam'; el.id = 'cam';
+  el.innerHTML = `<div class="cam-top"><button type="button" class="round" data-cam="close" aria-label="Close">${ic('x')}</button><b>${selfie ? 'Selfie' : 'Evidence photo'}</b><button type="button" class="round" data-cam="flip" aria-label="Switch camera">${ic('flip')}</button></div>
+    <video playsinline autoplay muted></video><div class="frame ${selfie ? '' : 'rect'}"></div><div class="flash"></div>
+    <div class="note">${selfie ? 'Keep your face in the oval.' : 'Fill the frame.'} Time and GPS are stamped on the photo.</div>
+    <div class="cam-bar"><button type="button" class="round" data-cam="file" aria-label="Choose a photo file">${ic('image')}</button><button type="button" class="shutter" data-cam="shoot" aria-label="Take the photo"></button><button type="button" class="round" data-cam="sample" aria-label="Use a sample photo" ${demo ? '' : 'style="visibility:hidden"'}>${ic('sparkle')}</button></div>`;
+  document.body.appendChild(el);
+  const state = { facing, stream: null };
+  KL.cam = state;
+  const video = el.querySelector('video');
+  const noCam = () => {
+    if (!el.isConnected || el.querySelector('.nocam')) return;
+    video.remove(); el.querySelector('.frame')?.remove(); el.querySelector('.note')?.remove();
+    const box = document.createElement('div');
+    box.className = 'nocam';
+    box.innerHTML = `<div style="width:76px;height:76px;border-radius:26px;background:rgba(255,255,255,.1);display:grid;place-items:center;margin:0 auto">${ic('camera')}</div><h2 style="font-size:24px">No camera available</h2><p>This device has no camera, or the browser was not allowed to use it.${demo ? ' In the prototype you can use a sample photo to see the whole flow.' : ''}</p><div class="btns" style="justify-content:center;max-width:360px;margin:6px auto 0">${demo ? '<button type="button" class="btn lime" data-cam="sample">Use a sample photo</button>' : ''}<button type="button" class="btn" data-cam="file" style="background:rgba(255,255,255,.12);color:#fff">Choose a photo file</button></div>`;
+    el.insertBefore(box, el.querySelector('.cam-bar'));
+    const sh = el.querySelector('.shutter');
+    sh.disabled = true; sh.style.opacity = '.3';
+  };
+  const start = async () => {
+    if (state.stream) state.stream.getTracks().forEach((t) => t.stop());
+    video.style.transform = state.facing === 'user' ? 'scaleX(-1)' : ''; // preview mirrored like a mirror; the saved photo is not
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error('no camera');
+      state.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: state.facing, width: { ideal: 1280 }, height: { ideal: 1280 } }, audio: false });
+      if (!el.isConnected) { state.stream.getTracks().forEach((t) => t.stop()); return; }
+      video.srcObject = state.stream;
+    } catch { noCam(); }
+  };
+  const finish = async (source, sample) => {
+    try {
+      const { at, g, lines } = stampLines(stamp, sample);
+      const out = await stampImage(source, lines, false); // never mirror: evidence photos show what the camera saw
+      setPhoto(slot, out.blob, at, g, sample);
+      closeCamera();
+      render();
+    } catch (e) { toast('Could not take the photo: ' + e.message, 'error'); }
+  };
+  el.onclick = (e) => {
+    const b = e.target.closest('[data-cam]');
+    if (!b || b.disabled) return;
+    const what = b.dataset.cam;
+    if (what === 'close') return closeCamera();
+    if (what === 'flip') { state.facing = state.facing === 'user' ? 'environment' : 'user'; return start(); }
+    if (what === 'file') { closeCamera(); return pickPhoto(slot, { facing, stamp }); }
+    if (what === 'sample') return finish(samplePhoto(kind || (selfie ? 'selfie' : 'field')), true);
+    if (what === 'shoot') {
+      if (!video.videoWidth) return;
+      const fl = el.querySelector('.flash');
+      fl.classList.add('on'); setTimeout(() => fl.classList.remove('on'), 80);
+      const c = document.createElement('canvas');
+      c.width = video.videoWidth; c.height = video.videoHeight;
+      c.getContext('2d').drawImage(video, 0, 0);
+      finish(c, false);
+    }
+  };
+  start();
+}
+function closeCamera() {
+  if (KL.cam?.stream) KL.cam.stream.getTracks().forEach((t) => t.stop());
+  KL.cam = null;
+  $('#cam')?.remove();
+}
+/** Drawn stand-in photos for the prototype (selfie, odometer, stock, field), so every flow can be tried without a camera. */
+function samplePhoto(kind) {
+  const portrait = kind === 'selfie';
+  const c = document.createElement('canvas');
+  c.width = portrait ? 900 : 1280; c.height = portrait ? 1200 : 900;
+  const x = c.getContext('2d');
+  const W = c.width, H = c.height;
+  const lin = (y0, y1, a, b) => { const g = x.createLinearGradient(0, y0, 0, y1); g.addColorStop(0, a); g.addColorStop(1, b); return g; };
+  const rr = (X, Y, w, h, r) => { x.beginPath(); if (x.roundRect) x.roundRect(X, Y, w, h, r); else x.rect(X, Y, w, h); };
+  if (kind === 'odometer') {
+    x.fillStyle = lin(0, H, '#20262b', '#0b0e10'); x.fillRect(0, 0, W, H);
+    x.strokeStyle = '#3a444c'; x.lineWidth = 26; x.beginPath(); x.arc(W / 2, H * 0.62, 360, Math.PI * 1.05, Math.PI * 1.95); x.stroke();
+    x.strokeStyle = '#e8eef2'; x.lineWidth = 6;
+    for (let i = 0; i <= 12; i++) { const a = Math.PI * (1.05 + (0.9 * i) / 12); x.beginPath(); x.moveTo(W / 2 + Math.cos(a) * 320, H * 0.62 + Math.sin(a) * 320); x.lineTo(W / 2 + Math.cos(a) * 350, H * 0.62 + Math.sin(a) * 350); x.stroke(); }
+    x.strokeStyle = '#ff5a36'; x.lineWidth = 10; x.beginPath(); x.moveTo(W / 2, H * 0.62); x.lineTo(W / 2 + Math.cos(Math.PI * 1.32) * 300, H * 0.62 + Math.sin(Math.PI * 1.32) * 300); x.stroke();
+    const reading = String(Math.round(Number(F('trip-end-reading')) || Number(F('trip-reading')) || 48213)).padStart(6, '0');
+    rr(W / 2 - 300, H * 0.68, 600, 150, 18); x.fillStyle = '#0d1a12'; x.fill(); x.strokeStyle = '#4c5a52'; x.lineWidth = 4; x.stroke();
+    x.fillStyle = '#b9f27a'; x.font = '700 104px ui-monospace, Consolas, monospace'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText(reading.split('').join(' '), W / 2 - 20, H * 0.68 + 78);
+    x.font = '700 40px system-ui'; x.fillText('km', W / 2 + 250, H * 0.68 + 84);
+  } else if (kind === 'selfie') {
+    x.fillStyle = lin(0, H, '#bfe0f2', '#f2ead2'); x.fillRect(0, 0, W, H);
+    x.fillStyle = '#6aa65a'; x.fillRect(0, H * 0.62, W, H);
+    x.fillStyle = '#3f7d3c'; for (let i = 0; i < 9; i++) { x.beginPath(); x.ellipse(i * 120 + 30, H * 0.62, 90, 50, 0, Math.PI, 0); x.fill(); }
+    x.fillStyle = '#1e7a4c'; x.beginPath(); x.ellipse(W / 2, H * 1.02, 330, 330, 0, Math.PI, 0); x.fill();
+    x.fillStyle = '#c99573'; x.fillRect(W / 2 - 55, H * 0.52, 110, 110);
+    x.beginPath(); x.ellipse(W / 2, H * 0.42, 160, 200, 0, 0, Math.PI * 2); x.fill();
+    x.fillStyle = '#2b1d14'; x.beginPath(); x.ellipse(W / 2, H * 0.31, 170, 110, 0, Math.PI, 0); x.fill();
+    x.fillStyle = '#f2c94c'; x.beginPath(); x.ellipse(W / 2, H * 0.29, 200, 120, 0, Math.PI, 0); x.fill(); x.fillRect(W / 2 - 230, H * 0.285, 460, 26);
+    x.fillStyle = '#2b1d14'; x.beginPath(); x.arc(W / 2 - 60, H * 0.43, 14, 0, 7); x.arc(W / 2 + 60, H * 0.43, 14, 0, 7); x.fill();
+    x.strokeStyle = '#7a3e2a'; x.lineWidth = 8; x.lineCap = 'round'; x.beginPath(); x.arc(W / 2, H * 0.47, 60, 0.2 * Math.PI, 0.8 * Math.PI); x.stroke();
+    x.fillStyle = '#fff'; x.font = '800 64px system-ui'; x.textAlign = 'center'; x.fillText(initials(KL.user?.name || ''), W / 2, H * 0.86);
+  } else if (kind === 'stock') {
+    x.fillStyle = lin(0, H, '#cfe6f5', '#efe6cf'); x.fillRect(0, 0, W, H);
+    x.fillStyle = '#9a7b55'; x.fillRect(0, H * 0.7, W, H);
+    for (let row = 0; row < 4; row++) for (let i = 0; i < 6 - row; i++) {
+      const bx = 180 + row * 75 + i * 150, by = H * 0.7 - (row + 1) * 105;
+      rr(bx, by, 140, 98, 30); x.fillStyle = row % 2 ? '#f4efe3' : '#ebe3d0'; x.fill(); x.strokeStyle = '#b9ad93'; x.lineWidth = 3; x.stroke();
+      x.fillStyle = '#1e7a4c'; x.font = '800 22px system-ui'; x.textAlign = 'center'; x.fillText('BIOCHAR', bx + 70, by + 56);
+    }
+  } else {
+    x.fillStyle = lin(0, H, '#bcdcf0', '#f6efd9'); x.fillRect(0, 0, W, H);
+    x.fillStyle = '#8a6a3f'; x.fillRect(0, H * 0.55, W, H);
+    x.strokeStyle = '#6e5230'; x.lineWidth = 10;
+    for (let i = -6; i < 14; i++) { x.beginPath(); x.moveTo(W / 2, H * 0.55); x.lineTo(W / 2 + i * 160, H); x.stroke(); }
+    for (let i = 0; i < 7; i++) {
+      const sx = 160 + i * 160, sy = H * 0.8 - (i % 2) * 40;
+      x.strokeStyle = '#3f7d3c'; x.lineWidth = 8; x.beginPath(); x.moveTo(sx, sy); x.lineTo(sx, sy - 90); x.stroke();
+      x.fillStyle = '#5fb04f'; x.beginPath(); x.ellipse(sx - 26, sy - 90, 34, 16, -0.6, 0, 7); x.ellipse(sx + 26, sy - 105, 34, 16, 0.6, 0, 7); x.fill();
+    }
+  }
+  return c;
+}
 function pickPhoto(slot, { facing = 'environment', stamp = [] } = {}) {
   const input = $('#pick-photo');
   input.setAttribute('capture', facing);
@@ -258,11 +446,9 @@ function pickPhoto(slot, { facing = 'environment', stamp = [] } = {}) {
     const file = input.files && input.files[0];
     if (!file) return;
     try {
-      const at = new Date();
-      const g = KL.ui.gps;
-      const lines = [...stamp, at.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }), g ? `GPS ${g.lat.toFixed(5)}, ${g.lng.toFixed(5)} (±${Math.round(g.accuracy)} m)` : 'GPS not available'];
+      const { at, g, lines } = stampLines(stamp, false);
       const out = await stampImage(file, lines, false); // never mirror: evidence photos must show what the camera saw
-      KL.ui.photos[slot] = { blob: out.blob, url: URL.createObjectURL(out.blob), at: at.toISOString(), gps: g };
+      setPhoto(slot, out.blob, at, g);
       render();
     } catch (e) {
       toast('Could not read the photo: ' + e.message, 'error');
@@ -295,6 +481,7 @@ async function stampImage(file, lines, mirror = false) {
   return { blob, width: w, height: h };
 }
 function loadBitmap(file) {
+  if (file instanceof HTMLCanvasElement) return Promise.resolve(file);
   if (window.createImageBitmap) return createImageBitmap(file, { imageOrientation: 'from-image' }).catch(() => loadImageEl(file));
   return loadImageEl(file);
 }
@@ -309,9 +496,12 @@ function loadImageEl(file) {
 }
 function photoBox(slot, label, facing = 'environment', stamp = []) {
   const p = KL.ui.photos[slot];
+  const kind = slot.startsWith('trip') ? 'odometer' : facing === 'user' ? 'selfie' : slot === 'mov' ? 'stock' : 'field';
+  const attrs = `data-action="photo" data-slot="${esc(slot)}" data-facing="${esc(facing)}" data-kind="${kind}" data-stamp="${esc(JSON.stringify(stamp))}"`;
+  if (!p) return `<button type="button" class="photo" ${attrs} style="width:100%;cursor:pointer;font:inherit"><span class="ph"><span class="ring">${ic('camera')}</span>${esc(label)}<small class="muted" style="font-weight:600">Time and GPS are stamped on the photo</small></span></button>`;
   return `<div class="stack">
-    <div class="photo">${p ? `<img src="${p.url}" alt="${esc(label)}" />` : `<div class="ph">${ic('camera')}${esc(label)}</div>`}</div>
-    <button type="button" class="btn ${p ? '' : 'primary'} wide" data-action="photo" data-slot="${esc(slot)}" data-facing="${esc(facing)}" data-stamp="${esc(JSON.stringify(stamp))}">${ic('camera')}${p ? 'Retake photo' : label}</button>
+    <div class="photo has"><img src="${p.url}" alt="${esc(label)}" /><span class="stamp-chip">${ic('shield')} ${p.sample ? 'Sample · ' : ''}stamped ${esc(new Date(p.at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }))}</span></div>
+    <button type="button" class="btn small" ${attrs}>${ic('camera')} Retake</button>
   </div>`;
 }
 function photoFile(slot, name) {
@@ -369,11 +559,12 @@ function signaturePad(canvas) {
 
 /* ---------------------------------------------------------------- UI pieces */
 function topbar(title, back = '#home', right = '') {
-  return `<div class="topbar"><a class="back" href="${esc(back)}" aria-label="Back">${ic('back')}Back</a><h1>${esc(title)}</h1>${right ? `<div class="right">${right}</div>` : ''}</div>`;
+  return `<div class="topbar"><a class="back" href="${esc(back)}" aria-label="Back">${ic('back')}<span class="lbl">Back</span></a><h1>${esc(title)}</h1>${right ? `<div class="right">${right}</div>` : ''}</div>`;
 }
-function group(title, body, note = '') {
-  return `<section class="group"><div class="gh"><h2>${esc(title)}</h2>${note ? `<span class="note">${note}</span>` : ''}</div>${body}</section>`;
+function group(title, body, note = '', link = '') {
+  return `<section class="group"><div class="gh"><h2>${esc(title)}</h2>${link || (note ? `<span class="note">${note}</span>` : '')}</div>${body}</section>`;
 }
+const emptyState = (icon, title, text = '') => `<div class="card empty-state"><div class="art">${ic(icon)}</div><b>${esc(title)}</b>${text ? `<span>${esc(text)}</span>` : ''}</div>`;
 function lrow({ href, action, data = {}, icon = 'dot', tone = '', title, sub, right = '', chev = true }) {
   const attrs = Object.entries(data).map(([k, v]) => `data-${k}="${esc(v)}"`).join(' ');
   const inner = `<span class="icon ${tone}">${icon.startsWith('<') ? icon : ic(icon)}</span><span class="tx"><b>${esc(title)}</b>${sub ? `<span class="wrap">${sub}</span>` : ''}</span>${right}${chev ? `<span class="chev">${ic('chevron')}</span>` : ''}`;
@@ -383,13 +574,13 @@ function lrow({ href, action, data = {}, icon = 'dot', tone = '', title, sub, ri
 }
 const tag = (text, tone = '') => `<span class="tag ${tone}">${esc(text)}</span>`;
 function statusTag(status, kind = '') {
-  const map = { ok: ['At site', 'ok'], pending: ['Awaiting approval', 'warn'], rejected: ['Rejected', 'bad'], open: ['In progress', 'info'], submitted: ['Awaiting approval', 'warn'], approved: ['Approved', 'ok'], closed: ['Closed', ''], in_progress: ['In progress', 'info'] };
+  const map = { ok: ['At site', 'ok'], pending: ['Awaiting approval', 'warn'], rejected: ['Rejected', 'bad'], open: ['In progress', 'info'], submitted: ['Awaiting approval', 'warn'], approved: ['Approved', 'ok'], closed: ['Closed', ''], in_progress: ['In progress', 'info'], not_started: ['Not started', ''], completed: ['Completed', 'ok'] };
   let [t, tone] = map[status] || [status, ''];
   if (kind === 'attendance' && status === 'pending') t = 'Exception, awaiting approval';
   return tag(t, tone);
 }
-const spinner = (text = 'Loading…') => `<p class="spinner">${esc(text)}</p>`;
-const errorBox = (msg) => `<div class="banner bad"><b>Could not load</b><p>${esc(msg)}</p></div>`;
+const spinner = (text = 'Loading…') => `<div class="spinner" role="status"><span class="sr-only">${esc(text)}</span><div class="skel"></div><div class="skel" style="opacity:.65"></div><div class="skel" style="opacity:.35"></div></div>`;
+const errorBox = (msg) => `<div class="banner bad">${ic('alert')}<div><b>Could not load</b><p>${esc(msg)}</p></div></div>`;
 function field(label, control) { return `<label class="field"><span>${esc(label)}</span>${control}</label>`; }
 function input(id, value, { type = 'text', placeholder = '', inputmode = '', step = '', min = '' } = {}) {
   return `<input id="${esc(id)}" class="input" type="${type}" value="${esc(value ?? '')}" placeholder="${esc(placeholder)}" ${inputmode ? `inputmode="${inputmode}"` : ''} ${step ? `step="${step}"` : ''} ${min !== '' ? `min="${min}"` : ''} data-input="form" data-key="${esc(id)}" autocomplete="off" />`;
@@ -411,11 +602,66 @@ Inputs.form = (el) => {
   const box = $('#preview');
   if (box && KL.ui.previewFn) box.innerHTML = KL.ui.previewFn();
 };
-Changes.form = (el) => { setF(el.dataset.key, el.value); render(); };
+Changes.form = (el) => {
+  setF(el.dataset.key, el.value);
+  if (DemoLoc.active() && ['att-site', 'trip-site'].includes(el.dataset.key)) { KL.ui.gps = null; locate(true); return; } // the pretend location follows the chosen site
+  render();
+};
 
 const siteById = (id) => (KL.boot ? KL.boot.sites.find((s) => s.id === id) : null);
 const siteName = (id) => siteById(id)?.name || 'Unassigned';
 const personName = (id) => (KL.boot ? KL.boot.people.find((p) => p.id === id)?.name : '') || '';
+const AV_COLORS = ['#1e7a4c', '#2f64b0', '#6b4fcf', '#b9700f', '#c2412e', '#0f766e', '#7a5230', '#a32863'];
+function initials(name) {
+  const p = String(name || '').trim().split(/\s+/).filter(Boolean);
+  return ((p[0]?.[0] || '?') + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase();
+}
+function avatar(name, size = '') {
+  let h = 0;
+  for (const ch of String(name || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return `<span class="avatar ${size}" style="background:${AV_COLORS[h % AV_COLORS.length]}" title="${esc(name)}">${esc(initials(name))}</span>`;
+}
+const personById = (id) => (KL.boot ? KL.boot.people.find((p) => p.id === id) : null);
+const ROLE_TEXT = { admin: 'Director', manager: 'Manager', hr: 'HR', field: 'Field staff' };
+const firstName = (n) => String(n || '').split(' ')[0];
+
+/** A number that counts up the first time it appears on a screen. */
+const num = (n, key, fmt = '') => `<span data-count="${Number(n) || 0}" data-ck="${esc(key)}" data-fmt="${fmt}">${fmt === 'rupee' ? rupees(n) : fmtNum(n)}</span>`;
+function countUp(root = document) {
+  KL.seenCounts = KL.seenCounts || new Set();
+  for (const el of $$('[data-count]', root)) {
+    const key = el.dataset.ck;
+    if (!key || KL.seenCounts.has(key)) continue;
+    KL.seenCounts.add(key);
+    const end = Number(el.dataset.count);
+    if (!end || matchMedia('(prefers-reduced-motion: reduce)').matches) continue;
+    const fmt = el.dataset.fmt === 'rupee' ? rupees : (v) => fmtNum(v);
+    const t0 = performance.now(), dur = 800;
+    const step = (t) => { const k = Math.min(1, (t - t0) / dur); el.textContent = fmt(Math.round(end * (1 - (1 - k) ** 3))); if (k < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  }
+}
+/** Full-screen tick with falling leaves after something important is done. */
+function celebrate(title, text = '') {
+  return new Promise((resolve) => {
+    const el = document.createElement('div');
+    el.className = 'success';
+    const leaves = Array.from({ length: 16 }, (_, i) => `<i class="leaf" style="left:${(Math.random() * 100).toFixed(1)}%;--dx:${(Math.random() * 140 - 70).toFixed(0)}px;--rot:${(Math.random() * 540).toFixed(0)}deg;animation-delay:${(Math.random() * 0.6).toFixed(2)}s;background:${['#3fa66b', '#c6e86a', '#1e7a4c', '#9bd45a'][i % 4]}"></i>`).join('');
+    el.innerHTML = `${leaves}<div class="box" role="alertdialog" aria-label="${esc(title)}"><svg class="tickmark" viewBox="0 0 92 92"><circle cx="46" cy="46" r="42"/><path d="M28 47l12 12 24-26"/></svg><h2>${esc(title)}</h2><p>${esc(text)}</p><button type="button" class="btn primary wide">Done</button></div>`;
+    document.body.appendChild(el);
+    let gone = false;
+    const done = () => { if (gone) return; gone = true; el.style.transition = 'opacity .2s'; el.style.opacity = '0'; setTimeout(() => { el.remove(); resolve(); }, 200); };
+    el.onclick = done;
+    setTimeout(done, 2800);
+  });
+}
+function applyTheme() {
+  let t = 'auto';
+  try { t = localStorage.getItem('kl.theme') || 'auto'; } catch { /* private mode */ }
+  if (t === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
+  const dark = t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0c120f' : '#f5f3ec');
+}
 const PROJECT_ICON = { biochar: 'flame', agroforestry: 'tree', gasifier: 'cog', office: 'building', other: 'pin' };
 
 /* ---------------------------------------------------------------- line icons (24-unit grid, stroked) */
@@ -469,5 +715,19 @@ const ICONS = {
   dot: '<circle cx="12" cy="12" r="3"/>',
   inbox: '<path d="M3.5 13.5V18a1.5 1.5 0 0 0 1.5 1.5h14a1.5 1.5 0 0 0 1.5-1.5v-4.5"/><path d="M3.5 13.5h5l1.5 2.5h4l1.5-2.5h5"/><path d="M6.5 13.5 8 5.5h8l1.5 8"/>',
   scale: '<rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M8 9a5.5 5.5 0 0 1 8 0"/><path d="M12 12l2-3"/>',
+  x: '<path d="M6 6l12 12M18 6 6 18"/>',
+  flip: '<path d="M4 8.5h3l1.6-2.5h6.8L17 8.5h3a1.5 1.5 0 0 1 1.5 1.5v8.5A1.5 1.5 0 0 1 20 20H4a1.5 1.5 0 0 1-1.5-1.5V10A1.5 1.5 0 0 1 4 8.5z"/><path d="M9 14a3 3 0 0 1 5.3-1.9M15 14a3 3 0 0 1-5.3 1.9M14.6 10.6v1.6H13M9.4 17.4v-1.6H11"/>',
+  sparkle: '<path d="M12 3.5l1.8 5 5 1.8-5 1.8-1.8 5-1.8-5-5-1.8 5-1.8z"/><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>',
+  kanban: '<rect x="3.5" y="4" width="4.6" height="15" rx="1.6"/><rect x="9.7" y="4" width="4.6" height="9.5" rx="1.6"/><rect x="15.9" y="4" width="4.6" height="12" rx="1.6"/>',
+  list: '<path d="M9 6.5h11M9 12h11M9 17.5h11"/><path d="M4.5 6.5h.6M4.5 12h.6M4.5 17.5h.6"/>',
+  pie: '<path d="M11 4a8.5 8.5 0 1 0 9 9h-9z"/><path d="M14 3.5a7 7 0 0 1 6.5 6.5H14z"/>',
+  flag: '<path d="M5.5 21V4.5"/><path d="M5.5 4.5h11l-2 4 2 4h-11"/>',
+  trash: '<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/><path d="M10 11v5M14 11v5"/>',
+  checklist: '<path d="M4 6.5l1.5 1.5L8 5.5M4 12.5 5.5 14 8 11.5M4 18.5 5.5 20 8 17.5"/><path d="M11 7h9M11 13h9M11 19h9"/>',
+  swap: '<path d="M7 4 3.5 7.5 7 11M3.5 7.5h13M17 13l3.5 3.5L17 20M20.5 16.5h-13"/>',
+  moon: '<path d="M19.5 14.5A8 8 0 0 1 9.5 4.5a8 8 0 1 0 10 10z"/>',
+  target: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".8"/>',
+  play: '<path d="M8 5.5v13l10.5-6.5z"/>',
+  more: '<circle cx="5.5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="18.5" cy="12" r="1"/>',
 };
 const ic = (name) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ICONS.dot}</svg>`;

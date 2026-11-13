@@ -5,7 +5,10 @@ Views.me = () => {
   const docs = data('hrdocs:mine', () => api('/api/hr/documents'));
   const leaves = data('leaves:mine', () => api('/api/leaves'));
   const pendingLeaves = leaves && !leaves.error ? leaves.rows.filter((l) => l.status === 'pending').length : 0;
-  return `<h1 class="large">Me</h1><p class="sub">${esc(u.name)} · ${esc(u.employee_id)} · ${esc(u.designation || u.role)}</p>
+  let theme = 'auto';
+  try { theme = localStorage.getItem('kl.theme') || 'auto'; } catch { /* private mode */ }
+  return `<h1 class="large">Me</h1>
+    <div class="card profile" style="margin-top:14px">${avatar(u.name, 'xl')}<div style="min-width:0"><b>${esc(u.name)}</b><span>${esc(u.designation || ROLE_TEXT[u.role] || u.role)}</span><span class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap">${tag(u.employee_id, 'info')}${tag(ROLE_TEXT[u.role] || u.role, 'ok')}${(u.sites || []).slice(0, 2).map((id) => tag(siteName(id))).join('')}</span></div></div>
     ${u.must_change_pin ? `<div class="banner warn"><b>Change your PIN</b><p>HR gave you a starting PIN. Set your own 6-digit PIN now.</p><button type="button" class="btn small" data-action="changePin" style="margin-top:8px">Change PIN</button></div>` : ''}
     ${group('My documents', docs === null ? spinner() : docs.error ? errorBox(docs.error) : docs.rows.length ? `<div class="card flush">${docs.rows.map((d) => `<div class="lrow-static row"><span class="icon blue">${ic('doc')}</span><span class="tx" style="flex:1"><b>${esc(d.title)}</b><span class="muted" style="font-size:13px;display:block">${esc(d.category)} · ${esc(fmtDate(d.created_at, false))}</span></span>${fileLink(d.file_id)}</div>`).join('')}</div>` : '<div class="card"><p class="empty">Payslips, letters and ID documents appear here when HR uploads them.</p></div>', 'From HR')}
     ${group('Requests & forms', `<div class="card flush">
@@ -15,12 +18,13 @@ Views.me = () => {
       ${lrow({ href: '#attendance', icon: 'pin', tone: 'green', title: 'My attendance', sub: 'Check-ins of the last 31 days' })}
       ${lrow({ href: '#trips', icon: 'bike', title: 'My travel claims', sub: 'Approved, pending and rejected' })}
     </div>`)}
+    ${group('Appearance', `<div class="card"><div class="seg">${[['auto', 'sun', 'Automatic'], ['light', 'sun', 'Light'], ['dark', 'moon', 'Dark']].map(([k, icon, l]) => `<button type="button" data-action="theme" data-theme="${k}" aria-pressed="${theme === k}">${ic(icon)}${l}</button>`).join('')}</div></div>`)}
     ${group('Account', `<div class="card flush">
       ${lrow({ action: 'changePin', icon: 'lock', title: 'Change PIN', sub: '6 digits, known only to you' })}
       ${lrow({ action: 'flushOutbox', icon: 'upload', title: 'Send saved items now', sub: KL.outboxCount ? `${KL.outboxCount} waiting` : 'Nothing waiting' })}
       ${lrow({ action: 'logout', icon: 'logout', tone: 'red', title: 'Sign out', sub: 'On this phone' })}
     </div>
-    <p class="hint" style="margin-top:10px;text-align:center">Kshetralekha prototype v${esc(KL.me?.version || '')} · ${esc(KL.boot?.company?.name || '')}</p>`)}`;
+    <div class="foot"><img src="./logo.png" alt="Sajeevan" />Kshetralekha prototype v${esc(KL.me?.version || '')} · ${esc(KL.boot?.company?.name || '')}</div>`)}`;
 };
 Actions.changePin = async () => {
   const v = await modal({ title: 'Change PIN', fields: [{ key: 'old', label: 'Current PIN', type: 'password', inputmode: 'numeric' }, { key: 'new', label: 'New PIN (6 digits)', type: 'password', inputmode: 'numeric' }, { key: 'again', label: 'New PIN again', type: 'password', inputmode: 'numeric' }], confirmText: 'Change' });
@@ -32,13 +36,30 @@ Actions.logout = async () => { if (await modal({ title: 'Sign out?', message: 'S
 Actions.flushOutbox = async () => { await Outbox.flush(); toast(KL.outboxCount ? `${KL.outboxCount} still waiting` : 'Everything sent'); render(); };
 
 /* ---------------------------------------------------------------- Inbox */
+function inboxIcon(n) {
+  const t = n.title.toLowerCase();
+  if (t.startsWith('task done')) return ['check', 'green'];
+  if (t.startsWith('new task')) return ['kanban', 'violet'];
+  if (t.startsWith('comment')) return ['chat', 'blue'];
+  if (t.includes('rejected')) return ['alert', 'red'];
+  if (t.includes('approved') || t.includes(' ok')) return ['check', 'green'];
+  if (t.includes('trip') || t.includes('travel')) return ['bike', 'blue'];
+  if (t.includes('leave')) return ['sun', 'amber'];
+  if (t.includes('check-in') || t.includes('exception')) return ['pin', 'amber'];
+  if (t.includes('document') || t.includes('payslip')) return ['doc', 'earth'];
+  return ['bell', ''];
+}
 Views.inbox = () => {
   const box = data('inbox', () => api('/api/inbox'));
   if (box && !box.error && box.rows.some((n) => !n.read)) {
-    api('/api/inbox/read', { json: {} }).then(() => { if (KL.me) KL.me.unread = 0; const tab = $('.tabbar .badge'); if (tab) tab.remove(); }).catch(() => {});
+    api('/api/inbox/read', { json: {} }).then(() => { if (KL.me) KL.me.unread = 0; for (const b of $$('.tabbar .badge, .side .badge')) if (b.closest('a[href="#inbox"]')) b.remove(); }).catch(() => {});
   }
-  return `<h1 class="large">Inbox</h1><p class="sub">Approvals, replies and alerts</p>
-    ${box === null ? spinner() : box.error ? errorBox(box.error) : box.rows.length ? `<div class="card flush">${box.rows.map((n) => lrow({ href: n.link || '#home', icon: n.read ? '•' : 'bell', tone: n.read ? '' : 'green', title: n.title, sub: `${esc(n.body)}${n.body ? ' · ' : ''}${esc(timeAgo(n.created_at))}`, chev: Boolean(n.link) })).join('')}</div>` : '<div class="card"><p class="empty">Nothing yet.</p></div>'}`;
+  const rows = box && !box.error ? box.rows : [];
+  return `<h1 class="large">Inbox</h1><p class="sub">Tasks, approvals, replies and alerts</p>
+    ${box === null ? spinner() : box.error ? errorBox(box.error) : rows.length ? `<div class="card flush">${rows.map((n) => {
+      const [icon, tone] = inboxIcon(n);
+      return lrow({ href: n.link || '#inbox', icon, tone, title: n.title, sub: `${esc(n.body)}${n.body ? ' · ' : ''}${esc(timeAgo(n.created_at))}`, right: n.read ? '' : '<span class="unread-dot" aria-label="New"></span>', chev: Boolean(n.link) });
+    }).join('')}</div>` : emptyState('inbox', 'Nothing yet', 'Approvals, new tasks and replies arrive here.')}`;
 };
 
 /* ---------------------------------------------------------------- Daily update */
