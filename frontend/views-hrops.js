@@ -265,7 +265,7 @@ Views.survey = (id) => {
   const res = s.results;
   const results = res ? (res.hidden ? `<div class="card"><p class="hint">${res.n} answer${res.n === 1 ? '' : 's'} so far. Results show from ${s.minResponses} answers so nobody can be identified.</p></div>`
     : `<div class="stack">${res.questions.map((r, i) => `<div class="card"><b class="card-title">${i + 1}. ${esc(r.q.text)}</b>${r.q.type === 'enps' ? `${enpsGauge(r.enps)}${Object.keys(r.byProject || {}).length ? `<div class="kv" style="margin-top:10px">${Object.entries(r.byProject).map(([p, v]) => `<span>${esc(p)}</span><span>${v > 0 ? '+' : ''}${v}</span>`).join('')}</div>` : ''}`
-      : r.q.type === 'rating' ? `<div class="row" style="gap:14px;margin-top:8px"><b style="font-size:28px;font-family:var(--display)">${fmtNum(r.avg, 1)}</b><span class="hint">average of 5 · ${r.n} answers</span></div><div class="stack" style="margin-top:8px;gap:6px">${r.dist.map((v, k) => `<div class="row" style="gap:8px"><small style="width:12px">${k + 1}</small><div class="progress" style="flex:1"><i style="width:${r.n ? (v / r.n) * 100 : 0}%"></i></div><small class="muted" style="width:20px">${v}</small></div>`).join('')}</div>`
+      : r.q.type === 'rating' ? `<div class="row" style="gap:14px;margin-top:8px"><b style="font-size:28px;font-family:var(--font)">${fmtNum(r.avg, 1)}</b><span class="hint">average of 5 · ${r.n} answers</span></div><div class="stack" style="margin-top:8px;gap:6px">${r.dist.map((v, k) => `<div class="row" style="gap:8px"><small style="width:12px">${k + 1}</small><div class="progress" style="flex:1"><i style="width:${r.n ? (v / r.n) * 100 : 0}%"></i></div><small class="muted" style="width:20px">${v}</small></div>`).join('')}</div>`
         : r.q.type === 'choice' ? `<div class="stack" style="margin-top:8px;gap:6px">${Object.entries(r.counts).map(([o, v]) => `<div><div class="row between" style="font-size:14px;font-weight:700"><span>${esc(o)}</span><span>${v}</span></div><div class="progress"><i style="width:${r.n ? (v / r.n) * 100 : 0}%"></i></div></div>`).join('')}</div>`
           : r.comments.filter(Boolean).length ? `<div class="stack" style="margin-top:8px;gap:6px">${r.comments.filter(Boolean).map((c) => `<p class="quote">${esc(c)}</p>`).join('')}</div>` : '<p class="hint">No comments.</p>'}</div>`).join('')}</div>`) : '';
   return `${topbar(s.title, '#surveys', s.canManage && !s.closed ? `<button type="button" class="btn small" data-action="svClose" data-id="${esc(id)}">Close</button>` : '')}
@@ -378,11 +378,28 @@ function complaintsDesk(fb, onlyPosh = false) {
   const cats = KL.cache['hr:posh']?.categories || {};
   const rows = fb.rows.filter((r) => (onlyPosh ? r.category === 'posh' : r.category !== 'posh'));
   if (!rows.length) return `<div class="card"><p class="empty">${onlyPosh ? 'No POSH complaints.' : 'Nothing yet.'}</p></div>`;
-  return `<div class="stack">${rows.map((r) => `<div class="card"><div class="row between"><b>${ic(r.type === 'complaint' ? 'alert' : 'bulb')} ${esc(r.type === 'complaint' ? 'Complaint' : 'Suggestion')} · ${esc(r.user_name || 'Anonymous')}</b>${statusTag(r.status)}</div>
-    <small class="muted">${esc(cats[r.category] || '')}${r.category ? ' · ' : ''}${esc(fmtDate(r.created_at))}${r.tracked ? ' · sender has a tracking code' : ''}</small>
-    <p class="hint" style="white-space:pre-wrap;margin:6px 0">${esc(r.text)}</p>${fbThread(r.thread) || (r.response ? `<div class="banner info"><b>Reply</b><p>${esc(r.response)}</p></div>` : '')}
-    <button type="button" class="btn small" data-action="fbRespond" data-id="${esc(r.id)}" style="margin-top:8px">${ic('chat')} ${r.thread.length ? 'Reply again' : 'Reply'}</button></div>`).join('')}</div>`;
+  const ageDays = (r) => Math.floor((Date.now() - new Date(r.created_at).getTime()) / 86400000);
+  return dataTable({ id: onlyPosh ? 'posh' : 'tickets', rows, pageSize: 15, placeholder: 'Search tickets', search: (r) => `${r.text} ${r.user_name || ''} ${cats[r.category] || ''}`,
+    filters: [{ key: 'st', label: 'Status', options: [['open', 'Open'], ['in_progress', 'In progress'], ['closed', 'Closed']], match: (r, v) => r.status === v },
+      ...(onlyPosh ? [] : [{ key: 'ty', label: 'Type', options: [['complaint', 'Complaints'], ['suggestion', 'Suggestions']], match: (r, v) => r.type === v }])],
+    columns: [{ key: 'text', label: 'Ticket', render: (r) => `<b>${esc(r.type === 'complaint' ? 'Complaint' : 'Suggestion')}</b> <span class="muted">${esc(String(r.text).slice(0, 80))}${String(r.text).length > 80 ? '…' : ''}</span>` },
+      { key: 'user_name', label: 'From', render: (r) => esc(r.user_name || 'Anonymous') },
+      { key: 'category', label: 'Category', phone: false, render: (r) => esc(cats[r.category] || '–') },
+      { key: 'age', label: 'Age', align: 'right', value: (r) => ageDays(r), render: (r) => `${ageDays(r)} d` },
+      { key: 'status', label: 'Status', render: (r) => statusTag(r.status) }],
+    actions: (r) => `<button type="button" class="btn small" data-action="fbOpen" data-id="${esc(r.id)}">Open</button>`,
+    phoneRow: (r) => `<div class="lrow-static"><div class="row between"><b>${esc(r.type === 'complaint' ? 'Complaint' : 'Suggestion')} · ${esc(r.user_name || 'Anonymous')}</b>${statusTag(r.status)}</div><p class="hint" style="margin:4px 0 8px">${esc(String(r.text).slice(0, 140))}</p><button type="button" class="btn small" data-action="fbOpen" data-id="${esc(r.id)}">Open</button></div>` });
 }
+/** A ticket: the full text, the conversation, then reply. */
+Actions.fbOpen = async (el) => {
+  const all = KL.cache['feedback:all'];
+  const r = all && !all.error ? all.rows.find((x) => x.id === el.dataset.id) : null;
+  if (!r) return;
+  const cats = KL.cache['hr:posh']?.categories || {};
+  const ok = await modal({ title: `${r.type === 'complaint' ? 'Complaint' : 'Suggestion'} · ${r.user_name || 'Anonymous'}`, wide: true, confirmText: r.thread.length ? 'Reply again' : 'Reply', cancelText: 'Close',
+    html: `<p class="hint">${esc(cats[r.category] || '')}${r.category ? ' · ' : ''}${esc(fmtDate(r.created_at))}${r.tracked ? ' · the sender has a tracking code' : ''} · ${statusTag(r.status)}</p><p style="white-space:pre-wrap">${esc(r.text)}</p>${fbThread(r.thread) || '<p class="hint">No reply yet.</p>'}` });
+  if (ok) Actions.fbRespond(el);
+};
 Actions.fbRespond = async (el) => {
   const v = await modal({ title: 'Reply', fields: [{ key: 'response', label: 'Your reply (the sender sees it, also when anonymous through the tracking code)', type: 'textarea' }, { key: 'status', label: 'Status', type: 'select', options: ['in_progress', 'closed'], value: 'in_progress' }], confirmText: 'Send' });
   if (!v) return;

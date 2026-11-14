@@ -9,6 +9,8 @@ const KL = {
   loading: {},
   ui: { login: { emp: '', pin: '' }, gps: null, gpsError: '', photos: {}, forms: {} },
   afterRender: [],
+  lastSync: Number(localStorage.getItem('kl.lastSync') || 0),
+  tables: {},
   imgUrls: {},
 };
 const Views = {};
@@ -29,7 +31,8 @@ function fmtDate(iso, withTime = true) {
   if (!iso) return '–';
   const d = new Date(iso.length === 10 ? iso + 'T00:00:00' : iso);
   if (Number.isNaN(d.getTime())) return iso;
-  const date = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  const thisYear = d.getFullYear() === new Date().getFullYear();
+  const date = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', ...(withTime && iso.length > 10 && thisYear ? {} : { year: 'numeric' }) });
   return withTime && iso.length > 10 ? `${date}, ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}` : date;
 }
 function timeAgo(iso) {
@@ -103,6 +106,8 @@ async function api(path, { method, json, form } = {}) {
   try { data = text ? JSON.parse(text) : null; } catch { data = { detail: text }; }
   if (res.status === 401 && KL.token && !path.startsWith('/api/auth/')) { logout(); throw new ApiError('Signed out', 401, data); }
   if (!res.ok) throw new ApiError((data && (data.detail || data.message)) || `Error ${res.status}`, res.status, data);
+  KL.lastSync = Date.now();
+  try { localStorage.setItem('kl.lastSync', String(KL.lastSync)); } catch { /* private mode */ }
   return data;
 }
 function logout() {
@@ -157,6 +162,7 @@ const Outbox = {
     item.createdAt = new Date().toISOString();
     await new Promise((resolve, reject) => { const t = db.transaction('outbox', 'readwrite'); t.objectStore('outbox').put(item); t.oncomplete = resolve; t.onerror = () => reject(t.error); });
     KL.outboxCount = (KL.outboxCount || 0) + 1;
+    KL.outboxItems = [...(KL.outboxItems || []), { id: item.id, label: item.label, path: item.path, createdAt: item.createdAt }];
     return item.id;
   },
   async remove(id) {
@@ -188,7 +194,9 @@ const Outbox = {
           }
         }
       }
-      KL.outboxCount = (await this.all()).length;
+      const left = await this.all();
+      KL.outboxCount = left.length;
+      KL.outboxItems = left.map((x) => ({ id: x.id, label: x.label, path: x.path, createdAt: x.createdAt }));
       if (sent) { toast(`Sent ${sent} saved item${sent === 1 ? '' : 's'}`); invalidate(); render(); }
     } finally {
       this.flushing = false;
@@ -274,6 +282,21 @@ function gpsLine(site) {
     text = `${inside ? 'At the site' : 'Not at the site'}: ${fmtNum(d)} m away (allowed ${site.radius_m} m) · GPS ±${Math.round(g.accuracy)} m`;
   }
   return `<div class="gps ${cls}"><span class="dot"></span><span>${esc(text)}</span>${g.simulated ? '<span class="sim">demo</span>' : ''}<button type="button" class="btn small ghost" data-action="locate" aria-label="Refresh location">${ic('refresh')}</button></div>`;
+}
+/** Where you are relative to the site, in words, first thing on the check-in screen. */
+function siteStatus(site, att = null) {
+  const g = KL.ui.gps;
+  if (!site) return '';
+  if (!g) return `<div class="ci-status wait"><span class="ci-dot" aria-hidden="true"></span><div><b>${KL.ui.locating ? 'Finding your location…' : 'Location not found yet'}</b><span>${esc(site.name)} · allowed within ${site.radius_m} m</span></div></div>`;
+  const d = distanceM(g.lat, g.lng, site.lat, site.lng);
+  const inside = insideSite(site);
+  return `<div class="ci-status ${inside ? 'ok' : 'bad'}" role="status"><span class="ci-dot" aria-hidden="true"></span><div><b>${inside ? `Inside ${esc(site.name)}` : `Outside ${esc(site.name)}`}</b><span>${fmtNum(d)} m from the centre · allowed ${site.radius_m} m · GPS ±${Math.round(g.accuracy)} m${att ? ` · checked in ${esc((fmtDate(att.checkin_at).split(', ')[1]) || '')}` : ''}</span></div>${tag(inside ? 'At site' : 'Away', inside ? 'ok' : 'bad')}</div>`;
+}
+/** Items saved on this phone and not yet sent, optionally only those for one API path prefix. */
+function queuedList(prefix = '') {
+  const items = (KL.outboxItems || []).filter((x) => !prefix || String(x.path || '').startsWith(prefix));
+  if (!items.length) return '';
+  return `<div class="card flush queued" role="status">${items.map((x) => `<div class="lrow-static row"><span class="icon amber">${ic('upload')}</span><span class="tx" style="flex:1"><b>${esc(x.label || 'Saved item')}</b><span class="muted" style="font-size:14px;display:block">Saved ${esc(timeAgo(x.createdAt))}</span></span>${statusTag('queued')}</div>`).join('')}</div>`;
 }
 /** A small map of the geofence with you on it. */
 function geoCard(site) {
@@ -558,13 +581,41 @@ function signaturePad(canvas) {
 }
 
 /* ---------------------------------------------------------------- UI pieces */
+/** Page header: back (phones), breadcrumb (desktop), title, one primary action on the right, sync state. */
 function topbar(title, back = '#home', right = '') {
-  return `<div class="topbar"><a class="back" href="${esc(back)}" aria-label="Back">${ic('back')}<span class="lbl">Back</span></a><h1>${esc(title)}</h1>${right ? `<div class="right">${right}</div>` : ''}</div>`;
+  const sec = KL.ui.section;
+  const crumbs = sec && sec.href !== back ? `<a href="${esc(sec.href)}">${esc(sec.label)}</a><span aria-hidden="true">/</span>` : '';
+  const pl = crumbLabel(back);
+  const parent = back && back !== '#home' && pl && (!sec || sec.href !== back) ? `<a href="${esc(back)}">${esc(pl)}</a><span aria-hidden="true">/</span>` : '';
+  return `<header class="topbar page-head">
+    <div class="ph-crumbs"><a class="back" href="${esc(back)}" aria-label="Back">${ic('back')}</a><nav class="crumbs" aria-label="Breadcrumb">${crumbs}${parent}<span aria-current="page">${esc(title)}</span></nav>${syncChip()}</div>
+    <div class="ph-row"><h1>${esc(title)}</h1>${right ? `<div class="right">${right}</div>` : ''}</div>
+  </header>`;
+}
+/** A readable name for the screen a back link goes to (for the breadcrumb). */
+function crumbLabel(href) {
+  const h = String(href || '').replace(/^#/, '');
+  const [name, a, b] = h.split('/');
+  const fixed = { people: 'Directory', hr: 'People', me: 'Me', attsum: 'Attendance', admin: 'Administration', manage: 'Manage', sites: 'Sites', mysite: 'My site', planner: 'Planner', tasks: 'My tasks',
+    inbox: 'Inbox', monthend: 'Month end', hrreg: 'Registers', changes: 'Change log', hrdesk: 'HR desk', notices: 'Notices', surveys: 'Surveys', approvals: 'Approvals', team: 'Team activity',
+    hrsettings: 'HR settings', reports: 'Reports', farmers: 'Farmers', registers: 'Registers', trips: 'Travel', leaves: 'Leave', updates: 'Daily update', carbon: 'Carbon chain', map: 'Map', feedback: 'Complaints' };
+  if (name === 'rec' && a) { const k = typeof kindDef === 'function' ? kindDef(a) : null; return b ? (k ? k.one : 'Record') : (k ? k.label : 'Records'); }
+  if (name === 'site' && a) return siteById(a)?.name || 'Site';
+  if (name === 'person' && a) return a === 'me' ? 'My record' : personName(a) || 'Employee';
+  if (name === 'hub' && a) return { hr: 'People', money: 'Money', ops: 'Safety & equipment', carbon: 'Production & carbon', supply: 'Purchasing & supply' }[a] || 'People';
+  return fixed[name] || '';
+}
+/** Sync state: offline, items waiting on the phone, or when the server was last reached. */
+function syncChip() {
+  const waiting = KL.outboxCount || 0;
+  if (!navigator.onLine) return `<span class="sync-chip bad" role="status">${ic('alert')}Offline${waiting ? ` · ${waiting} saved on phone` : ''}</span>`;
+  if (waiting) return `<button type="button" class="sync-chip warn" data-action="flushOutbox" role="status">${ic('upload')}${waiting} saved on phone · will sync</button>`;
+  return `<span class="sync-chip" role="status" title="Last reached the server">${ic('check')}${KL.lastSync ? `Synced ${esc(timeAgo(new Date(KL.lastSync).toISOString()))}` : 'Synced'}</span>`;
 }
 function group(title, body, note = '', link = '') {
   return `<section class="group"><div class="gh"><h2>${esc(title)}</h2>${link || (note ? `<span class="note">${note}</span>` : '')}</div>${body}</section>`;
 }
-const emptyState = (icon, title, text = '') => `<div class="card empty-state"><div class="art">${ic(icon)}</div><b>${esc(title)}</b>${text ? `<span>${esc(text)}</span>` : ''}</div>`;
+const emptyState = (icon, title, text = '', action = '') => `<div class="card empty-state"><div class="art">${ic(icon)}</div><b>${esc(title)}</b>${text ? `<span>${esc(text)}</span>` : ''}${action ? `<div class="es-action">${action}</div>` : ''}</div>`;
 function lrow({ href, action, data = {}, icon = 'dot', tone = '', title, sub, right = '', chev = true }) {
   const attrs = Object.entries(data).map(([k, v]) => `data-${k}="${esc(v)}"`).join(' ');
   const inner = `<span class="icon ${tone}">${icon.startsWith('<') ? icon : ic(icon)}</span><span class="tx"><b>${esc(title)}</b>${sub ? `<span class="wrap">${sub}</span>` : ''}</span>${right}${chev ? `<span class="chev">${ic('chevron')}</span>` : ''}`;
@@ -573,15 +624,29 @@ function lrow({ href, action, data = {}, icon = 'dot', tone = '', title, sub, ri
   return `<div class="lrow-static row">${inner}</div>`;
 }
 const tag = (text, tone = '') => `<span class="tag ${tone}">${esc(text)}</span>`;
+/** The one status vocabulary (design-system/MASTER.md): same word and colour on every screen. */
+const STATUS = { ok: ['At site', 'ok'], pending: ['Pending', 'warn'], rejected: ['Rejected', 'bad'], open: ['Open', 'info'], submitted: ['Pending', 'warn'], approved: ['Approved', 'ok'],
+  closed: ['Closed', ''], in_progress: ['In progress', 'info'], not_started: ['Not started', ''], completed: ['Done', 'ok'], locked: ['Locked', 'ok'], draft: ['Draft', 'info'],
+  late: ['Late', 'warn'], absent: ['Absent', 'bad'], present: ['Present', 'ok'], leave: ['On leave', 'info'], offline: ['Offline', 'bad'], queued: ['Saved on phone', 'warn'],
+  synced: ['Synced', 'ok'], overdue: ['Overdue', 'bad'], done: ['Done', 'ok'], produced: ['Produced', 'info'], tested: ['Tested', 'ok'], applied: ['Applied', 'ok'],
+  issued: ['Issued', 'info'], returned: ['Returned', ''], lost: ['Lost', 'bad'], settled: ['Settled', 'ok'], ordered: ['Ordered', 'info'], received: ['Received', 'ok'],
+  investigating: ['Investigating', 'warn'], working: ['Working', 'ok'], 'needs service': ['Needs service', 'warn'], breakdown: ['Breakdown', 'bad'],
+  'on track': ['On track', 'ok'], 'at risk': ['At risk', 'warn'], 'in progress': ['In progress', 'info'] };
 function statusTag(status, kind = '') {
-  const map = { ok: ['At site', 'ok'], pending: ['Awaiting approval', 'warn'], rejected: ['Rejected', 'bad'], open: ['In progress', 'info'], submitted: ['Awaiting approval', 'warn'], approved: ['Approved', 'ok'], closed: ['Closed', ''], in_progress: ['In progress', 'info'], not_started: ['Not started', ''], completed: ['Completed', 'ok'] };
+  const map = STATUS;
   let [t, tone] = map[status] || [status, ''];
-  if (kind === 'attendance' && status === 'pending') t = 'Exception, awaiting approval';
-  return tag(t, tone);
+  if (kind === 'attendance' && status === 'pending') t = 'Exception pending';
+  return `<span class="tag status ${tone}">${esc(t)}</span>`;
 }
-const spinner = (text = 'Loading…') => `<div class="spinner" role="status"><span class="sr-only">${esc(text)}</span><div class="skel"></div><div class="skel" style="opacity:.65"></div><div class="skel" style="opacity:.35"></div></div>`;
-const errorBox = (msg) => `<div class="banner bad">${ic('alert')}<div><b>Could not load</b><p>${esc(msg)}</p></div></div>`;
-function field(label, control) { return `<label class="field"><span>${esc(label)}</span>${control}</label>`; }
+const spinner = (text = 'Loading…') => `<div class="spinner" role="status" aria-live="polite"><span class="sr-only">${esc(text)}</span><div class="skel line w60"></div><div class="skel"></div><div class="skel"></div><div class="skel short"></div></div>`;
+const errorBox = (msg) => navigator.onLine
+  ? `<div class="banner bad" role="alert">${ic('alert')}<div><b>Could not load this</b><p>${esc(msg)}</p><button type="button" class="btn small" style="margin-top:8px" data-action="retryLoad">Try again</button></div></div>`
+  : `<div class="banner warn" role="status">${ic('alert')}<div><b>You are offline</b><p>This screen needs a connection. Anything you save is kept on the phone and sent when the signal is back.</p></div></div>`;
+Actions.retryLoad = () => { invalidate(); render(); };
+/** Form field: label above, optional helper text and required marker. */
+function field(label, control, { help = '', required = false } = {}) {
+  return `<label class="field"><span>${esc(label)}${required ? '<i class="req" aria-hidden="true">*</i><span class="sr-only"> (required)</span>' : ''}</span>${control}${help ? `<small class="help">${esc(help)}</small>` : ''}</label>`;
+}
 function input(id, value, { type = 'text', placeholder = '', inputmode = '', step = '', min = '' } = {}) {
   return `<input id="${esc(id)}" class="input" type="${type}" value="${esc(value ?? '')}" placeholder="${esc(placeholder)}" ${inputmode ? `inputmode="${inputmode}"` : ''} ${step ? `step="${step}"` : ''} ${min !== '' ? `min="${min}"` : ''} data-input="form" data-key="${esc(id)}" autocomplete="off" />`;
 }
@@ -611,7 +676,7 @@ Changes.form = (el) => {
 const siteById = (id) => (KL.boot ? KL.boot.sites.find((s) => s.id === id) : null);
 const siteName = (id) => siteById(id)?.name || 'Unassigned';
 const personName = (id) => (KL.boot ? KL.boot.people.find((p) => p.id === id)?.name : '') || '';
-const AV_COLORS = ['#1e7a4c', '#2f64b0', '#6b4fcf', '#b9700f', '#c2412e', '#0f766e', '#7a5230', '#a32863'];
+const AV_COLORS = ['#3E5C50', '#4B5A6B', '#5B5368', '#6B5446', '#46606A', '#55603F', '#6A4E5A', '#3F566E']; // muted, white initials ≥ 6.6:1
 function initials(name) {
   const p = String(name || '').trim().split(/\s+/).filter(Boolean);
   return ((p[0]?.[0] || '?') + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase();
@@ -625,36 +690,111 @@ const personById = (id) => (KL.boot ? KL.boot.people.find((p) => p.id === id) : 
 const ROLE_TEXT = { admin: 'Director', manager: 'Manager', hr: 'HR', field: 'Field staff' };
 const firstName = (n) => String(n || '').split(' ')[0];
 
-/** A number that counts up the first time it appears on a screen. */
-const num = (n, key, fmt = '') => `<span data-count="${Number(n) || 0}" data-ck="${esc(key)}" data-fmt="${fmt}">${fmt === 'rupee' ? rupees(n) : fmtNum(n)}</span>`;
-function countUp(root = document) {
-  KL.seenCounts = KL.seenCounts || new Set();
-  for (const el of $$('[data-count]', root)) {
-    const key = el.dataset.ck;
-    if (!key || KL.seenCounts.has(key)) continue;
-    KL.seenCounts.add(key);
-    const end = Number(el.dataset.count);
-    if (!end || matchMedia('(prefers-reduced-motion: reduce)').matches) continue;
-    const fmt = el.dataset.fmt === 'rupee' ? rupees : (v) => fmtNum(v);
-    const t0 = performance.now(), dur = 800;
-    const step = (t) => { const k = Math.min(1, (t - t0) / dur); el.textContent = fmt(Math.round(end * (1 - (1 - k) ** 3))); if (k < 1) requestAnimationFrame(step); };
-    requestAnimationFrame(step);
-  }
-}
-/** Full-screen tick with falling leaves after something important is done. */
+/** A figure (kept as a function so screens need no change; numbers no longer animate). */
+const num = (n, key, fmt = '') => `<span class="num">${fmt === 'rupee' ? rupees(n) : fmtNum(n)}</span>`;
+function countUp() { /* numbers are shown as they are: no count-up animation */ }
+/** Quiet confirmation after something important is saved: a small card at the top that goes by itself. */
 function celebrate(title, text = '') {
   return new Promise((resolve) => {
+    for (const old of $$('.success')) old.remove();
     const el = document.createElement('div');
     el.className = 'success';
-    const leaves = Array.from({ length: 16 }, (_, i) => `<i class="leaf" style="left:${(Math.random() * 100).toFixed(1)}%;--dx:${(Math.random() * 140 - 70).toFixed(0)}px;--rot:${(Math.random() * 540).toFixed(0)}deg;animation-delay:${(Math.random() * 0.6).toFixed(2)}s;background:${['#3fa66b', '#c6e86a', '#1e7a4c', '#9bd45a'][i % 4]}"></i>`).join('');
-    el.innerHTML = `${leaves}<div class="box" role="alertdialog" aria-label="${esc(title)}"><svg class="tickmark" viewBox="0 0 92 92"><circle cx="46" cy="46" r="42"/><path d="M28 47l12 12 24-26"/></svg><h2>${esc(title)}</h2><p>${esc(text)}</p><button type="button" class="btn primary wide">Done</button></div>`;
+    el.setAttribute('role', 'status');
+    el.innerHTML = `<div class="box"><span class="ok-ic">${ic('check')}</span><div><h2>${esc(title)}</h2>${text ? `<p>${esc(text)}</p>` : ''}</div><button type="button" class="btn ghost icon-only small" aria-label="Dismiss">${ic('x')}</button></div>`;
     document.body.appendChild(el);
     let gone = false;
-    const done = () => { if (gone) return; gone = true; el.style.transition = 'opacity .2s'; el.style.opacity = '0'; setTimeout(() => { el.remove(); resolve(); }, 200); };
+    const done = () => { if (gone) return; gone = true; el.classList.add('out'); setTimeout(() => { el.remove(); resolve(); }, 160); };
     el.onclick = done;
-    setTimeout(done, 2800);
+    setTimeout(done, 3200);
   });
 }
+
+/* ---------------------------------------------------------------- data table (sort, filter, search, pages, density; list rows on phones) */
+/** cfg: { id, columns: [{ key, label, align, sort, value(r), render(r), phone:false }], rows, rowHref(r), filters: [{ key, label, options:[[v,l]], match(r,v) }],
+    search(r) -> text, pageSize, empty, phoneRow(r) -> html, toolbar (extra html), actions(r) -> html }
+    State lives in KL.ui.tbl[id]; typing in the search box re-draws only the table body. */
+function dataTable(cfg) {
+  KL.tables[cfg.id] = cfg;
+  const st = tblState(cfg.id);
+  const filters = (cfg.filters || []).map((f) => `<label class="dt-filter"><span class="sr-only">${esc(f.label)}</span><select class="select" data-change="tblFilter" data-id="${esc(cfg.id)}" data-key="${esc(f.key)}"><option value="">${esc(f.label)}: all</option>${f.options.map(([v, l]) => `<option value="${esc(v)}" ${st.f[f.key] === String(v) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`).join('');
+  const search = cfg.search ? `<label class="dt-search">${ic('search')}<span class="sr-only">Search</span><input class="input" type="search" placeholder="${esc(cfg.placeholder || 'Search')}" value="${esc(st.q)}" data-input="tblSearch" data-id="${esc(cfg.id)}" /></label>` : '';
+  const tools = search || filters || cfg.toolbar ? `<div class="dt-tools">${search}${filters}${cfg.toolbar || ''}<button type="button" class="btn ghost small dt-density" data-action="tblDensity" data-id="${esc(cfg.id)}" aria-pressed="${st.dense}" title="Compact rows">${ic('list')}<span class="sr-only">Compact rows</span></button></div>` : '';
+  return `<div class="dt" data-dt="${esc(cfg.id)}">${tools}<div class="dt-body" id="dt-${esc(cfg.id)}">${tblBody(cfg)}</div></div>`;
+}
+function tblState(id) { KL.ui.tbl = KL.ui.tbl || {}; return (KL.ui.tbl[id] = KL.ui.tbl[id] || { sort: '', dir: 1, page: 0, q: '', f: {}, dense: false }); }
+function tblRows(cfg) {
+  const st = tblState(cfg.id);
+  let rows = cfg.rows || [];
+  const q = st.q.trim().toLowerCase();
+  if (q && cfg.search) rows = rows.filter((r) => String(cfg.search(r)).toLowerCase().includes(q));
+  for (const f of cfg.filters || []) { const v = st.f[f.key]; if (v) rows = rows.filter((r) => f.match(r, v)); }
+  const col = cfg.columns.find((c) => c.key === st.sort);
+  if (col) {
+    const val = col.value || ((r) => r[col.key]);
+    rows = [...rows].sort((a, b) => { const x = val(a), y = val(b); return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x ?? '').localeCompare(String(y ?? ''), 'en-IN', { numeric: true })) * st.dir; });
+  }
+  return rows;
+}
+function tblBody(cfg) {
+  const st = tblState(cfg.id);
+  const all = tblRows(cfg);
+  const size = cfg.pageSize || 25;
+  const pages = Math.max(1, Math.ceil(all.length / size));
+  st.page = Math.min(st.page, pages - 1);
+  const rows = all.slice(st.page * size, st.page * size + size);
+  if (!all.length) return cfg.empty || `<div class="dt-empty"><p class="empty">${(cfg.rows || []).length ? 'Nothing matches. Clear the search or filters.' : 'Nothing here yet.'}</p></div>`;
+  const head = cfg.columns.map((c) => {
+    const on = st.sort === c.key;
+    const label = esc(c.label);
+    return `<th scope="col" class="${c.align === 'right' ? 'r' : ''} ${c.phone === false ? 'np' : ''}" ${on ? `aria-sort="${st.dir > 0 ? 'ascending' : 'descending'}"` : ''}>${c.sort === false ? label : `<button type="button" class="th-sort ${on ? 'on' : ''}" data-action="tblSort" data-id="${esc(cfg.id)}" data-key="${esc(c.key)}">${label}<span class="arr" aria-hidden="true">${on ? (st.dir > 0 ? '↑' : '↓') : '↕'}</span></button>`}</th>`;
+  }).join('');
+  const body = rows.map((r) => {
+    const href = cfg.rowHref ? cfg.rowHref(r) : '';
+    const cells = cfg.columns.map((c, i) => {
+      const v = c.render ? c.render(r) : esc(r[c.key] ?? '–');
+      const inner = i === 0 && href ? `<a href="${esc(href)}" class="dt-link">${v}</a>` : v;
+      return `<td class="${c.align === 'right' ? 'r' : ''} ${c.phone === false ? 'np' : ''}">${inner}</td>`;
+    }).join('');
+    return `<tr ${href ? `data-href="${esc(href)}"` : ''}>${cells}${cfg.actions ? `<td class="r dt-act">${cfg.actions(r)}</td>` : ''}</tr>`;
+  }).join('');
+  const table = `<div class="dt-scroll"><table class="dt-table ${st.dense ? 'dense' : ''}"><thead><tr>${head}${cfg.actions ? '<th scope="col" class="r"><span class="sr-only">Actions</span></th>' : ''}</tr></thead><tbody>${body}</tbody></table></div>`;
+  const list = cfg.phoneRow ? `<div class="dt-list card flush">${rows.map(cfg.phoneRow).join('')}</div>` : '';
+  const pager = pages > 1 ? `<div class="dt-pager"><span class="muted">${st.page * size + 1}–${Math.min(all.length, st.page * size + size)} of ${all.length}</span><div class="btns"><button type="button" class="btn small" data-action="tblPage" data-id="${esc(cfg.id)}" data-step="-1" ${st.page === 0 ? 'disabled' : ''}>Previous</button><button type="button" class="btn small" data-action="tblPage" data-id="${esc(cfg.id)}" data-step="1" ${st.page >= pages - 1 ? 'disabled' : ''}>Next</button></div></div>` : `<div class="dt-pager"><span class="muted">${all.length} ${all.length === 1 ? 'row' : 'rows'}</span></div>`;
+  return `<div class="${cfg.phoneRow ? 'dt-has-list' : ''}">${table}${list}</div>${pager}`;
+}
+function tblRedraw(id) { const cfg = KL.tables[id]; const box = document.getElementById(`dt-${id}`); if (cfg && box) { box.innerHTML = tblBody(cfg); translate(box); loadAuthImages(); } }
+Actions.tblSort = (el) => { const st = tblState(el.dataset.id); if (st.sort === el.dataset.key) st.dir = -st.dir; else { st.sort = el.dataset.key; st.dir = 1; } tblRedraw(el.dataset.id); };
+Actions.tblPage = (el) => { const st = tblState(el.dataset.id); st.page = Math.max(0, st.page + Number(el.dataset.step)); tblRedraw(el.dataset.id); };
+Actions.tblDensity = (el) => { const st = tblState(el.dataset.id); st.dense = !st.dense; el.setAttribute('aria-pressed', String(st.dense)); tblRedraw(el.dataset.id); };
+Changes.tblFilter = (el) => { const st = tblState(el.dataset.id); st.f[el.dataset.key] = el.value; st.page = 0; tblRedraw(el.dataset.id); };
+Inputs.tblSearch = (el) => { const st = tblState(el.dataset.id); st.q = el.value; st.page = 0; tblRedraw(el.dataset.id); };
+
+/* ---------------------------------------------------------------- KPI tile with a sparkline, timeline */
+function sparkline(values, { w = 120, h = 32, label = '' } = {}) {
+  const v = (values || []).map((x) => Number(x) || 0);
+  if (v.length < 2) return '';
+  const max = Math.max(...v), min = Math.min(...v), span = max - min || 1;
+  const pts = v.map((x, i) => `${((i / (v.length - 1)) * (w - 4) + 2).toFixed(1)},${(h - 3 - ((x - min) / span) * (h - 6)).toFixed(1)}`).join(' ');
+  const last = pts.split(' ').pop().split(',');
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="${esc(label || `Trend: ${v.map((x) => fmtNum(x)).join(', ')}`)}"><polyline points="${pts}" /><circle cx="${last[0]}" cy="${last[1]}" r="2.5" /></svg>`;
+}
+/** kpi({ label, value, sub, spark: [..], tone: ok|warn|bad|'' , href }) */
+function kpi({ label, value, sub = '', spark = null, tone = '', href = '' }) {
+  const inner = `<span class="k-label">${esc(label)}</span><b class="k-value ${tone}">${value}</b>${sub ? `<span class="k-sub">${sub}</span>` : ''}${spark ? sparkline(spark, { label: `${label}, last ${spark.length} months` }) : ''}`;
+  return href ? `<a class="kpi" href="${esc(href)}">${inner}</a>` : `<div class="kpi">${inner}</div>`;
+}
+/** timeline([{ title, sub, time, tone, href }]) */
+function timeline(items) {
+  if (!items.length) return '';
+  return `<ol class="timeline">${items.map((t) => `<li class="${esc(t.tone || '')}"><span class="dot" aria-hidden="true"></span><div class="t-body">${t.href ? `<a href="${esc(t.href)}"><b>${esc(t.title)}</b></a>` : `<b>${esc(t.title)}</b>`}${t.sub ? `<span>${t.sub}</span>` : ''}</div>${t.time ? `<time>${esc(t.time)}</time>` : ''}</li>`).join('')}</ol>`;
+}
+
+/* ---------------------------------------------------------------- drawer: record details beside the list on desktop, full screen on phones */
+function drawerShell(html, closeHref) {
+  return `<div class="drawer-scrim" data-action="drawerClose" data-href="${esc(closeHref)}"></div><aside class="drawer" role="dialog" aria-modal="true" aria-label="Details"><button type="button" class="btn ghost icon-only drawer-x" data-action="drawerClose" data-href="${esc(closeHref)}" aria-label="Close">${ic('x')}</button><div class="drawer-body">${html}</div></aside>`;
+}
+Actions.drawerClose = (el) => { location.hash = el.dataset.href || '#home'; };
+
 function applyTheme() {
   let t = 'auto';
   try { t = localStorage.getItem('kl.theme') || 'auto'; } catch { /* private mode */ }

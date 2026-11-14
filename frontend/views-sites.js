@@ -132,7 +132,7 @@ const SITE_BODY = {
   nursery(s, sum) {
     const n = sum.stats.nursery || {};
     const entries = Object.entries(n);
-    return `${group('In the nursery now', entries.length ? `<div class="card"><div class="kv">${entries.map(([sp, q]) => `<span>${esc(sp)}</span><span style="${q < 0 ? 'color:var(--red)' : ''}">${fmtNum(q)} plants</span>`).join('')}</div><p class="hint" style="margin-top:8px">Sown and received, less died and planted out (planting comes from the Plantation tab).</p></div>` : '<div class="card"><p class="hint">Nothing in the nursery yet.</p></div>')}
+    return `${group('In the nursery now', entries.length ? `<div class="card"><div class="kv">${entries.map(([sp, q]) => `<span>${esc(sp)}</span><span style="${q < 0 ? 'color:var(--danger)' : ''}">${fmtNum(q)} plants</span>`).join('')}</div><p class="hint" style="margin-top:8px">Sown and received, less died and planted out (planting comes from the Plantation tab).</p></div>` : '<div class="card"><p class="hint">Nothing in the nursery yet.</p></div>')}
       ${recMini('nursery', s, { title: 'Nursery register', limit: 8, newLabel: 'Entry' })}`;
   },
   plantation(s) {

@@ -1,50 +1,9 @@
 /* Field modules: Home, site check-in / check-out, travel (odometer), site registers, farmers and signed documents. */
 
 /* ---------------------------------------------------------------- Home */
-Views.home = () => (isStaff() ? staffHome() : fieldHome());
 
-function heroTop(extra = '') {
-  const u = KL.user;
-  const now = new Date();
-  const greet = now.getHours() < 12 ? 'Good morning' : now.getHours() < 17 ? 'Good afternoon' : 'Good evening';
-  return `<div class="brandline"><img class="mark" src="./icon.svg" alt="" /><span>Kshetralekha</span><a class="who" href="#me" aria-label="Me">${avatar(u.name)}</a></div>
-    <h1>${esc(greet)}, ${esc(firstName(u.name))}</h1>
-    <div class="meta">${esc(now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' }))} · ${esc(u.designation || ROLE_TEXT[u.role] || u.role)}</div>${extra}`;
-}
 function quickActions(items) {
   return `<div class="qa">${items.map(([href, icon, tone, label, badge]) => `<a href="${href}"><span class="qi ${tone}">${ic(icon)}</span>${esc(label)}${badge ? `<span class="tag bad" style="padding:1px 7px;margin-top:-4px">${badge}</span>` : ''}</a>`).join('')}</div>`;
-}
-function fieldHome() {
-  const me = KL.me || {};
-  const att = me.openAttendance;
-  const trip = me.openTrip;
-  const upd = data('updates:mine', () => api('/api/updates?days=1'));
-  const doneToday = upd && !upd.error && upd.rows.some((r) => r.date === todayISO());
-  const my = data('planner:my', () => api('/api/planner/my'));
-  const open = my && !my.error ? my.tasks.filter((t) => t.progress !== 'completed').sort(byDue) : [];
-  const late = open.filter(isLate).length;
-  const now = att
-    ? `<div class="now"><div class="tx"><b>At ${esc(att.site_name)}</b><span>Since ${esc(fmtDate(att.checkin_at).split(', ')[1] || '')}${att.status === 'pending' ? ' · exception awaiting approval' : ''}</span></div><span class="timer" data-since="${esc(att.checkin_at)}">${esc(duration(att.checkin_at))}</span><a class="btn small lime" href="#attendance">Check out</a></div>`
-    : `<div class="now"><div class="tx"><b>Not checked in</b><span>Take a selfie at the site to start your day</span></div><a class="btn small lime" href="#attendance">${ic('pin')} Check in</a></div>`;
-  const pills = [trip ? `${ic('bike')} trip running` : '', open.length ? `${ic('kanban')} ${open.length} open task${open.length === 1 ? '' : 's'}` : '', me.unread ? `${ic('bell')} ${me.unread} new` : ''].filter(Boolean);
-  const tasksBody = my === null ? spinner() : my.error ? errorBox(my.error) : open.length ? `<div class="task-grid">${open.slice(0, 4).map((t) => taskCard(t, { showPlan: true })).join('')}</div>` : emptyState('check', 'All caught up', 'No open tasks. New ones from your manager appear here.');
-  return `
-    <div class="hero">${heroTop(pills.length ? `<div class="pills">${pills.map((p) => `<span class="pill">${p}</span>`).join('')}</div>` : '')}${now}</div>
-    ${KL.outboxCount ? `<div class="offline-bar">${KL.outboxCount} item${KL.outboxCount === 1 ? '' : 's'} saved on this phone, waiting for signal</div>` : ''}
-    ${mySiteCards()}
-    ${hrBanners()}
-    ${quickActions([['#attendance', 'pin', '', att ? 'Check out' : 'Check in'], ['#trips', 'bike', 'blue', trip ? 'End trip' : 'Start trip'], ['#updates', 'note', '', 'Daily update'], ['#leaves', 'sun', 'amber', 'Leave'], ['#tasks', 'kanban', 'violet', 'My tasks', late || '']].slice(0, 4))}
-    <div class="cols">
-      ${group('My tasks', tasksBody, '', '<a href="#tasks">See all</a>')}
-      ${group('Today', `<div class="stack">
-        <div class="card status-card">${trip
-          ? `<div class="big-ic blue">${ic('bike')}</div><div class="tx"><b>Trip in progress</b><span>${esc(trip.vehicle)} · from ${esc(fmtNum(trip.start_reading))} km · <span data-since="${esc(trip.start_at)}">${esc(duration(trip.start_at))}</span></span></div><a class="btn small primary" href="#trips">End trip</a>`
-          : `<div class="big-ic off">${ic('bike')}</div><div class="tx"><b>No trip running</b><span>Photograph the odometer before you ride</span></div><a class="btn small" href="#trips">Start</a>`}</div>
-        <div class="card status-card">${doneToday
-          ? `<div class="big-ic">${ic('check')}</div><div class="tx"><b>Today's update sent</b><span>Your manager can see it</span></div><a class="btn small" href="#updates">Edit</a>`
-          : `<div class="big-ic amber">${ic('note')}</div><div class="tx"><b>Daily work update</b><span>A few lines on what you did today</span></div><a class="btn small" href="#updates">Write</a>`}</div>
-      </div>`)}
-    </div>`;
 }
 function mySiteCards() {
   const list = (KL.boot?.mySites || []).filter((s) => s.project_type !== 'office');
@@ -52,22 +11,6 @@ function mySiteCards() {
   const pm = KL.boot.projects || {};
   return `<div class="my-sites">${list.map((s) => { const p = pm[s.project_type] || {}; const tabs = (SITE_TABS[s.project_type] || SITE_TABS.agroforestry)(s).slice(1, 4); return `<div class="my-site pj-${esc(s.project_type)}"><a class="ms-head" href="#site/${esc(s.id)}"><span class="pj-ic">${ic(p.icon || 'pin')}</span><span class="tx"><b>${esc(s.name)}</b><small>${esc(p.name || '')}${subtypeText(s) ? ` · ${esc(subtypeText(s))}` : ''}</small></span><span class="chev">${ic('chevron')}</span></a><div class="ms-tabs">${tabs.map(([k, icon, label]) => `<a href="#site/${esc(s.id)}/${k}">${ic(icon)}${esc(label)}</a>`).join('')}</div></div>`; }).join('')}</div>`;
 }
-function staffHome() {
-  const me = KL.me || {};
-  const d = data('dashboard', () => api('/api/dashboard'));
-  const pend = me.pendingApprovals || 0;
-  const ok = d && !d.error;
-  const now = pend
-    ? `<div class="now"><div class="tx"><b>${pend} waiting for you</b><span>Travel claims, check-in exceptions and leave</span></div><a class="btn small lime" href="#approvals">Review</a></div>`
-    : `<div class="now"><div class="tx"><b>No approvals waiting</b><span>${ok ? `${d.todayAttendance} of ${d.fieldTotal} field staff checked in today` : 'Everything is up to date'}</span></div><a class="btn small lime" href="#planner">${ic('kanban')} Planner</a></div>`;
-  const pills = ok ? [`${ic('pin')} ${d.onSite.length} on site now`, `${ic('kanban')} ${d.tasks.total - d.tasks.done} open tasks`, d.tasks.late ? `${ic('alert')} ${d.tasks.late} late` : ''].filter(Boolean) : [];
-  return `
-    <div class="hero">${heroTop(pills.length ? `<div class="pills">${pills.map((p) => `<span class="pill">${p}</span>`).join('')}</div>` : '')}${now}</div>
-    ${hrBanners()}
-    ${quickActions([['#sites', 'pin', 'green', 'Sites'], ['#approvals', 'check', 'amber', 'Approvals', pend || ''], ['#hr', 'users', 'blue', 'People'], ['#planner', 'kanban', 'violet', 'Planner'], ['#team', 'clock', '', 'Team today'], ['#reports', 'chart', 'earth', 'Reports'], ['#map', 'map', 'green', 'Map'], ['#admin', 'cog', '', 'Admin']])}
-    ${Views.dashboardBody()}`;
-}
-
 function workRows() {
   const sites = KL.boot ? KL.boot.mySites : [];
   const hasItems = KL.boot && sites.some((s) => KL.boot.items.some((i) => i.site_id === s.id));
@@ -97,7 +40,7 @@ Views.attendance = () => {
     const site = siteById(att.site_id) || { name: att.site_name, lat: att.checkin_lat, lng: att.checkin_lng, radius_m: 150 };
     const inside = insideSite(site);
     const stamp = [`${KL.user.name} · ${site.name}`, 'Check-out'];
-    main = `<div class="card stack">
+    main = `${siteStatus(site, att)}<div class="card stack">
       <div class="row between"><div><b>${esc(site.name)}</b><p class="hint">Checked in ${esc(fmtDate(att.checkin_at))} · on site <span data-since="${esc(att.checkin_at)}">${esc(duration(att.checkin_at))}</span></p></div>${statusTag(att.status, 'attendance')}</div>
       ${demoRibbon()}
       ${geoCard(siteById(att.site_id))}
@@ -112,7 +55,7 @@ Views.attendance = () => {
     const site = siteById(chosen);
     const inside = insideSite(site);
     const stamp = [`${KL.user.name} · ${site ? site.name : 'Site'}`, 'Check-in'];
-    main = `<div class="card stack">
+    main = `${siteStatus(site)}<div class="card stack">
       ${field('Site', select('att-site', chosen, sites.map((s) => [s.id, s.name]), { blank: sites.length === 1 ? '' : 'Choose the site' }))}
       ${site ? `${demoRibbon()}${geoCard(site)}${gpsLine(site)}` : `<p class="hint">Choose the site you have reached.</p>`}
       ${site ? photoBox('checkin', 'Take check-in selfie', 'user', stamp) : ''}
@@ -125,6 +68,7 @@ Views.attendance = () => {
   }
   const rows = hist && !hist.error ? hist.rows : [];
   return `${topbar('Site check-in')}
+    ${queuedList('/api/attendance') ? group('Waiting to send', queuedList('/api/attendance'), 'Sent automatically when the signal is back') : ''}
     ${main}
     ${group('My attendance', hist === null ? spinner() : hist.error ? errorBox(hist.error) : rows.length ? `<div class="card flush">${rows.map((a) => attRow(a)).join('')}</div>` : `<div class="card"><p class="empty">No check-ins yet.</p></div>`, hist && !hist.error ? `${rows.length} in 31 days` : '')}`;
 };
@@ -385,7 +329,7 @@ Views.sign = (farmerId) => {
   for (const [k, v] of Object.entries(defaults)) if (KL.ui.forms[`sf-${k}`] === undefined && v !== undefined && v !== null && v !== '') setF(`sf-${k}`, String(v));
   const done = KL.ui.signed;
   if (done && done.farmerId === farmerId) {
-    return `${topbar('Signed', `#farmers/${farmerId}`)}<div class="card stack" style="text-align:center"><div class="big-ic" style="margin:0 auto;width:64px;height:64px;border-radius:22px;background:var(--tint);color:var(--brand);display:grid;place-items:center">${ic('check')}</div><b>${esc(done.docNo)}</b><p class="hint">Saved to the farmer's folder with the signature, GPS and time. The company's authorised signature is already on it.</p>${fileLink(done.pdfFile, 'Open the PDF')}<a class="btn primary" href="#farmers/${esc(farmerId)}" data-action="signDone">Back to ${esc(f.name)}</a></div>`;
+    return `${topbar('Signed', `#farmers/${farmerId}`)}<div class="card stack" style="text-align:center"><div class="big-ic" style="margin:0 auto;width:64px;height:64px;border-radius:22px;background:var(--accent-tint);color:var(--accent);display:grid;place-items:center">${ic('check')}</div><b>${esc(done.docNo)}</b><p class="hint">Saved to the farmer's folder with the signature, GPS and time. The company's authorised signature is already on it.</p>${fileLink(done.pdfFile, 'Open the PDF')}<a class="btn primary" href="#farmers/${esc(farmerId)}" data-action="signDone">Back to ${esc(f.name)}</a></div>`;
   }
   return `${topbar('Sign a document', `#farmers/${farmerId}`)}
     <p class="sub">${esc(f.name)}${f.village ? `, ${esc(f.village)}` : ''}</p>

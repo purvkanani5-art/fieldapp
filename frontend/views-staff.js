@@ -45,8 +45,8 @@ Views.dashboardBody = () => {
     <div class="cols" style="margin-top:14px">
       <div class="card"><div class="row between"><b class="card-title">Attendance · 14 days</b><span class="muted" style="font-size:13px;font-weight:700">field staff checked in</span></div>${chart}</div>
       <a class="card hover" href="#planner" style="text-decoration:none;color:inherit;display:block"><div class="row between"><b class="card-title">Tasks</b><span class="chev">${ic('chevron')}</span></div>
-        <div class="row" style="gap:20px;margin-top:12px;flex-wrap:wrap"><div class="donut" style="background:conic-gradient(var(--brand) 0 ${pct}%, var(--blue) ${pct}% ${pct + (t.total ? Math.round((t.doing / t.total) * 100) : 0)}%, var(--chip) 0)" data-label="${pct}%"></div>
-        <div class="legend-list"><span><i style="background:var(--brand)"></i>${t.done} of ${t.total} done</span><span><i style="background:var(--blue)"></i>${t.doing} in progress</span><span><i style="background:var(--red)"></i>${t.late} late</span><span><i style="background:var(--lime)"></i>${t.doneWeek} finished this week</span></div></div></a>
+        <div class="row" style="gap:20px;margin-top:12px;flex-wrap:wrap"><div class="donut" style="background:conic-gradient(var(--accent) 0 ${pct}%, var(--info) ${pct}% ${pct + (t.total ? Math.round((t.doing / t.total) * 100) : 0)}%, var(--surface-2) 0)" data-label="${pct}%"></div>
+        <div class="legend-list"><span><i style="background:var(--accent)"></i>${t.done} of ${t.total} done</span><span><i style="background:var(--info)"></i>${t.doing} in progress</span><span><i style="background:var(--danger)"></i>${t.late} late</span><span><i style="background:var(--accent-tint)"></i>${t.doneWeek} finished this week</span></div></div></a>
     </div>
     ${d.ops ? `<div class="tiles auto" style="margin-top:14px"><a class="tile earth" href="#carbon"><div class="ti">${ic('flame')}</div><b>${num(d.ops.biocharMonth, 'd-char')}</b><span>kg biochar this month · ${d.ops.batchesMonth} batches</span></a><a class="tile ok" href="#rec/application"><div class="ti">${ic('sprout')}</div><b>${num(d.ops.appliedMonth, 'd-applied')}</b><span>kg applied on farms</span></a><a class="tile ${d.ops.incidentsOpen ? 'bad' : ''}" href="#rec/incident"><div class="ti">${ic('alert')}</div><b>${num(d.ops.incidentsOpen, 'd-inc')}</b><span>open incidents</span></a><a class="tile ${d.ops.equipmentDown ? 'warn' : ''}" href="#rec/equipment"><div class="ti">${ic('cog')}</div><b>${num(d.ops.equipmentDown, 'd-eq')}</b><span>equipment needing attention</span></a><a class="tile violet" href="#approvals"><div class="ti">${ic('receipt')}</div><b>${num(d.ops.expensesPending, 'd-exp')}</b><span>expense claims waiting</span></a><a class="tile blue" href="#map"><div class="ti">${ic('map')}</div><b>${KL.boot.sites.length}</b><span>sites on the map</span></a></div>` : ''}
     ${low.length ? `<div class="banner bad" style="margin-top:14px">${ic('alert')}<div><b>Low stock</b><p>${low.map((s) => `${esc(s.item)} at ${esc(s.site)}: ${fmtNum(s.balance, 1)} ${esc(s.unit)}`).join(' · ')}</p></div></div>` : ''}
@@ -59,39 +59,11 @@ Views.dashboard = () => {
   const bySite = {};
   for (const s of stock) (bySite[s.site] ||= []).push(s);
   return `${topbar('Dashboard', '#manage', `<button type="button" class="btn icon-only" data-action="refreshDash" aria-label="Refresh">${ic('refresh')}</button>`)}${Views.dashboardBody()}
-    ${Object.keys(bySite).length ? group('Stock by site', Object.entries(bySite).map(([site, items]) => `<div class="card" style="margin-top:8px"><b>${esc(site)}</b><div class="kv" style="margin-top:6px">${items.map((i) => `<span>${esc(i.item)}</span><span class="${i.low ? 'muted' : ''}" style="${i.low ? 'color:var(--red)' : ''}">${fmtNum(i.balance, 1)} ${esc(i.unit)}${i.low ? ' · low' : ''}</span>`).join('')}</div></div>`).join('')) : ''}`;
+    ${Object.keys(bySite).length ? group('Stock by site', Object.entries(bySite).map(([site, items]) => `<div class="card" style="margin-top:8px"><b>${esc(site)}</b><div class="kv" style="margin-top:6px">${items.map((i) => `<span>${esc(i.item)}</span><span class="${i.low ? 'muted' : ''}" style="${i.low ? 'color:var(--danger)' : ''}">${fmtNum(i.balance, 1)} ${esc(i.unit)}${i.low ? ' · low' : ''}</span>`).join('')}</div></div>`).join('')) : ''}`;
 };
 Actions.refreshDash = () => { invalidate('dashboard'); refreshMe().then(render); render(); };
 
 /* ---------------------------------------------------------------- Approvals */
-Views.approvals = () => {
-  const a = data('approvals', () => api('/api/approvals'));
-  if (a === null) return `${topbar('Approvals', '#manage')}${spinner()}`;
-  if (a.error) return `${topbar('Approvals', '#manage')}${errorBox(a.error)}`;
-  const trips = a.trips.map((t) => `<div class="card stack">
-      <div class="row between"><div><b>${esc(t.user_name)}</b><p class="hint">${esc(t.vehicle)} · ${esc(fmtDate(t.start_at))} → ${esc(fmtDate(t.end_at))}${t.site_name ? ` · ${esc(t.site_name)}` : ''}${t.purpose ? ` · ${esc(t.purpose)}` : ''}</p></div><b class="big mono">${esc(rupees(t.amount))}</b></div>
-      <div class="kv"><span>Odometer</span><span>${fmtNum(t.start_reading)} → ${fmtNum(t.end_reading)} km</span><span>Claimed</span><span>${fmtNum(t.km_claimed, 1)} km × ${esc(KL.boot.travel.currency)}${t.rate_per_km}</span><span>Straight line between GPS points</span><span>${t.km_straight !== null ? `${fmtNum(t.km_straight, 1)} km${t.km_straight && t.km_claimed / Math.max(t.km_straight, 0.1) > 3 ? ' ⚠' : ''}` : '–'}</span></div>
-      <div class="grid2">${authImg(t.start_file, 'thumb lg')}${authImg(t.end_file, 'thumb lg')}</div>
-      <div class="btns"><button type="button" class="btn danger" data-action="decide" data-kind="trips" data-id="${esc(t.id)}" data-decision="rejected">Reject</button><button type="button" class="btn primary" data-action="decide" data-kind="trips" data-id="${esc(t.id)}" data-decision="approved">Approve</button></div>
-    </div>`);
-  const att = a.attendance.map((x) => `<div class="card stack">
-      <div class="row between"><div><b>${esc(x.user_name)}</b><p class="hint">${esc(x.site_name)} · ${esc(fmtDate(x.checkin_at))}${x.checkout_at ? ` → ${esc(fmtDate(x.checkout_at).split(', ')[1] || '')}` : ''}</p></div>${tag(`${fmtNum(x.checkin_dist)} m away`, 'warn')}</div>
-      <p class="hint">Allowed ${x.radius_m} m. Reason: <b>${esc(x.override_reason || '–')}</b></p>
-      <div class="grid2">${authImg(x.checkin_file, 'thumb lg')}${x.checkout_file ? authImg(x.checkout_file, 'thumb lg') : ''}</div>
-      <div class="btns"><button type="button" class="btn danger" data-action="decide" data-kind="attendance" data-id="${esc(x.id)}" data-decision="rejected">Reject</button><button type="button" class="btn primary" data-action="decide" data-kind="attendance" data-id="${esc(x.id)}" data-decision="ok">Accept</button></div>
-    </div>`);
-  const lv = a.leaves.map((l) => `<div class="card stack">
-      <div class="row between"><div><b>${esc(l.user_name)}</b><p class="hint">${esc(l.type)} · ${esc(fmtDate(l.from_date, false))}${l.to_date !== l.from_date ? ` to ${esc(fmtDate(l.to_date, false))}` : ''} · ${fmtNum(l.days || 0, 1)} working day${l.days === 1 ? '' : 's'}${l.reason ? ` · ${esc(l.reason)}` : ''}</p></div>${l.balance && l.balance.available !== null ? tag(`${fmtNum(l.balance.available, 1)} left after`, l.balance.available < 0 ? 'bad' : 'info') : ''}</div>
-      ${(l.steps || []).length > 1 ? `<p class="hint" style="margin:0">Chain: ${l.steps.map((s) => `${esc(ROLE_TEXT[s.role] || s.role)} ${s.status === 'approved' ? '✓' : s.status === 'waiting' ? '(now)' : ''}`).join(' → ')}</p>` : ''}
-      <div class="btns"><button type="button" class="btn danger" data-action="decide" data-kind="leaves" data-id="${esc(l.id)}" data-decision="rejected">Reject</button><button type="button" class="btn primary" data-action="decide" data-kind="leaves" data-id="${esc(l.id)}" data-decision="approved">Approve</button></div>
-    </div>`);
-  const empty = '<div class="card"><p class="empty">Nothing waiting.</p></div>';
-  return `${topbar('Approvals', '#hr')}
-    ${group('Requests (claims, purchases, payments, corrections)', requestApprovals())}
-    ${group('Travel claims', trips.length ? `<div class="stack">${trips.join('')}</div>` : empty, String(trips.length))}
-    ${group('Check-in exceptions', att.length ? `<div class="stack">${att.join('')}</div>` : empty, String(att.length))}
-    ${group('Leave requests', lv.length ? `<div class="stack">${lv.join('')}</div>` : empty, String(lv.length))}`;
-};
 Actions.decide = async (el) => {
   const { kind, id, decision } = el.dataset;
   const reject = decision === 'rejected';
@@ -113,7 +85,7 @@ Views.team = () => {
   let body = '';
   if (tab === 'attendance') body = att === null ? spinner() : att.error ? errorBox(att.error) : att.rows.length ? `<div class="card flush">${att.rows.map((a) => attRow(a, true)).join('')}</div>` : '<div class="card"><p class="empty">No check-ins in 7 days.</p></div>';
   if (tab === 'trips') body = trips === null ? spinner() : trips.error ? errorBox(trips.error) : trips.rows.length ? `<div class="card flush">${trips.rows.filter((t) => t.status !== 'open').map((t) => tripRow(t, true)).join('')}</div>` : '<div class="card"><p class="empty">No trips yet.</p></div>';
-  if (tab === 'updates') body = upd === null ? spinner() : upd.error ? errorBox(upd.error) : upd.rows.length ? `<div class="card flush">${upd.rows.map((r) => `<div class="lrow-static"><b>${esc(r.user_name)} · ${esc(fmtDate(r.date, false))}${r.hours ? ` · ${r.hours} h` : ''}${r.site_name ? ` · ${esc(r.site_name)}` : ''}</b><p class="hint" style="white-space:pre-wrap;margin-top:2px">${esc(r.summary)}</p>${r.blockers ? `<p class="hint" style="color:var(--amber)">Blocker: ${esc(r.blockers)}</p>` : ''}</div>`).join('')}</div>` : '<div class="card"><p class="empty">No updates in 7 days.</p></div>';
+  if (tab === 'updates') body = upd === null ? spinner() : upd.error ? errorBox(upd.error) : upd.rows.length ? `<div class="card flush">${timeline(upd.rows.map((r) => ({ title: `${r.user_name} · ${fmtDate(r.date, false)}${r.hours ? ` · ${r.hours} h` : ''}${r.site_name ? ` · ${r.site_name}` : ''}`, sub: `${esc(r.summary)}${r.blockers ? `<br><b class="bad-text">Blocker:</b> ${esc(r.blockers)}` : ''}`, tone: r.blockers ? 'warn' : '' })))}</div>` : emptyState('note', 'No updates in 7 days');
   return `${topbar('Team activity', '#hr')}
     <div class="seg">${[['attendance', 'Attendance'], ['trips', 'Trips'], ['updates', 'Updates']].map(([k, l]) => `<button type="button" data-action="teamTab" data-tab="${k}" aria-pressed="${tab === k}">${l}</button>`).join('')}</div>
     <div style="margin-top:10px">${body}</div>`;
