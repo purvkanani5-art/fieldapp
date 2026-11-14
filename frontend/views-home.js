@@ -1,7 +1,7 @@
 /* Role home dashboards (field staff, manager, HR, director) and the unified approvals queue.
    Uses the existing APIs only; see docs/ui-redesign-plan.md §5. */
 
-Views.home = () => (KL.user.role === 'field' ? fieldDash() : KL.user.role === 'manager' ? managerDash() : KL.user.role === 'hr' ? hrDash() : directorDash());
+Views.home = () => (KL.user.role === 'manager' ? managerDash() : KL.user.role === 'hr' ? hrDash() : directorDash());
 
 function dashHead(sub = '') {
   const u = KL.user;
@@ -11,39 +11,6 @@ function dashHead(sub = '') {
     <div><h1>${esc(greet)}, ${esc(firstName(u.name))}</h1><p class="meta">${esc(now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))} · ${esc(u.designation || ROLE_TEXT[u.role] || u.role)}${sub ? ` · ${sub}` : ''}</p></div></header>`;
 }
 const lastMonth = () => prevMonth();
-
-/* ---------------------------------------------------------------- field staff */
-function fieldDash() {
-  const me = KL.me || {};
-  const att = me.openAttendance;
-  const trip = me.openTrip;
-  const upd = data('updates:mine', () => api('/api/updates?days=1'));
-  const doneToday = upd && !upd.error && upd.rows.some((r) => r.date === todayISO());
-  const my = data('planner:my', () => api('/api/planner/my'));
-  const open = my && !my.error ? my.tasks.filter((t) => t.progress !== 'completed').sort(byDue) : [];
-  const late = open.filter(isLate).length;
-  const leaves = data('leaves:mine', () => api('/api/leaves'));
-  const pendLeave = leaves && !leaves.error ? leaves.rows.filter((l) => l.status === 'pending') : [];
-  const today = att
-    ? `<div class="today"><span class="big-ic" aria-hidden="true">${ic('pin')}</span><div class="t-state"><b>Checked in at ${esc(att.site_name)}</b><span>Since ${esc((fmtDate(att.checkin_at).split(', ')[1]) || '')}${att.status === 'pending' ? ' · exception pending' : ''}</span></div><span class="timer" data-since="${esc(att.checkin_at)}">${esc(duration(att.checkin_at))}</span><a class="btn primary" href="#attendance">${ic('pin')} Check out</a></div>`
-    : `<div class="today"><div class="t-state"><b>Not checked in</b><span>Take a selfie at the site to start your day.</span></div><a class="btn primary" href="#attendance">${ic('pin')} Check in</a></div>`;
-  const pending = [
-    ...pendLeave.map((l) => ({ title: `Leave ${fmtDate(l.from_date, false)}${l.to_date !== l.from_date ? ` to ${fmtDate(l.to_date, false)}` : ''}`, sub: `${esc(l.type)} · waiting for approval`, tone: 'warn', href: '#leaves' })),
-    ...(trip ? [{ title: 'Trip running', sub: `${esc(trip.vehicle)} · from ${fmtNum(trip.start_reading)} km`, tone: 'info', href: '#trips' }] : []),
-    ...(doneToday ? [] : [{ title: 'Daily update not written yet', sub: 'A few lines on what you did today', tone: 'neutral', href: '#updates' }]),
-  ];
-  const tasksBody = my === null ? spinner() : my.error ? errorBox(my.error) : open.length ? `<div class="task-grid">${open.slice(0, 4).map((t) => taskCard(t, { showPlan: true })).join('')}</div>` : emptyState('check', 'No open tasks', 'New tasks from your manager appear here.');
-  return `${dashHead()}
-    <section class="card" aria-label="Today">${today}</section>
-    ${KL.outboxCount ? `<div class="banner warn" style="margin-top:12px">${ic('upload')}<div><b>${KL.outboxCount} saved on this phone</b><p>They are sent automatically when the signal is back.</p></div></div>` : ''}
-    ${quickActions([['#attendance', 'pin', '', att ? 'Check out' : 'Check in'], ['#updates', 'note', '', 'Daily update'], ['#leaves', 'sun', '', 'Leave'], ['#rec/expense', 'receipt', '', 'Expense'], ['#trips', 'bike', '', trip ? 'End trip' : 'Travel'], ['#tasks', 'kanban', '', 'My tasks', late || '']])}
-    ${hrBanners()}
-    ${mySiteCards()}
-    <div class="cols">
-      ${group('Today\'s tasks', tasksBody, '', '<a href="#tasks">All tasks</a>')}
-      ${group('Pending', pending.length ? `<div class="card flush">${timeline(pending)}</div>` : '<div class="card"><p class="empty">Nothing waiting on you.</p></div>')}
-    </div>`;
-}
 
 /* ---------------------------------------------------------------- manager */
 function managerDash() {

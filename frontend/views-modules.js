@@ -737,6 +737,16 @@ const I18N = {
     'Submit for approval': 'मंज़ूरी के लिए भेजें', 'Attendance summary': 'हाज़िरी सारांश', 'Leave balances': 'छुट्टी शेष', 'Notice board': 'सूचना पट्ट', 'Month end': 'महीने का अंत', 'Crew attendance': 'टीम हाज़िरी', 'My employee record': 'मेरा कर्मचारी रिकॉर्ड', Policies: 'नीतियाँ', Checklists: 'चेकलिस्ट', Equipment: 'उपकरण' },
 };
 /* labels added in the 2026 redesign (navigation groups, dashboards, tables, profile tabs) */
+Object.assign(I18N.gu, { Requests: 'અરજીઓ', Site: 'સાઇટ', 'To do': 'કરવાનું', 'Add new': 'નવું ઉમેરો', 'Add entry': 'નોંધ ઉમેરો', 'New request': 'નવી અરજી', 'My details': 'મારી વિગતો',
+  'My attendance': 'મારી હાજરી', 'Payslips and documents': 'પગાર સ્લિપ અને દસ્તાવેજો', 'Notices and surveys': 'સૂચનાઓ અને સર્વે', 'Help and complaints': 'મદદ અને ફરિયાદ', Settings: 'સેટિંગ્સ',
+  'You have not checked in': 'તમે ચેક ઇન નથી કર્યું', 'Today at the site': 'આજે સાઇટ પર', 'Your sites': 'તમારી સાઇટ્સ', 'Stock in or out': 'સ્ટોક આવક અથવા જાવક', 'Kiln batch': 'ભઠ્ઠી બેચ',
+  'Daily safety check': 'દૈનિક સલામતી તપાસ', 'Report incident': 'ઘટનાની જાણ', 'Crew attendance': 'ટીમ હાજરી', 'Nursery entry': 'નર્સરી નોંધ', 'Saplings planted': 'વાવેલા રોપા', 'Generation run': 'વીજ ઉત્પાદન',
+  'Complaint or idea': 'ફરિયાદ અથવા સૂચન', 'Attendance correction': 'હાજરી સુધારો', Advance: 'એડવાન્સ', Messages: 'સંદેશા', 'More': 'વધુ' });
+Object.assign(I18N.hi, { Requests: 'अर्ज़ियाँ', Site: 'साइट', 'To do': 'करना है', 'Add new': 'नया जोड़ें', 'Add entry': 'एंट्री जोड़ें', 'New request': 'नई अर्ज़ी', 'My details': 'मेरी जानकारी',
+  'My attendance': 'मेरी हाज़िरी', 'Payslips and documents': 'वेतन पर्ची और दस्तावेज़', 'Notices and surveys': 'सूचनाएँ और सर्वे', 'Help and complaints': 'मदद और शिकायत', Settings: 'सेटिंग्स',
+  'You have not checked in': 'आपने चेक इन नहीं किया', 'Today at the site': 'आज साइट पर', 'Your sites': 'आपकी साइटें', 'Stock in or out': 'स्टॉक आवक या जावक', 'Kiln batch': 'भट्ठी बैच',
+  'Daily safety check': 'दैनिक सुरक्षा जाँच', 'Report incident': 'घटना की सूचना', 'Crew attendance': 'टीम हाज़िरी', 'Nursery entry': 'नर्सरी एंट्री', 'Saplings planted': 'लगाए गए पौधे', 'Generation run': 'बिजली उत्पादन',
+  'Complaint or idea': 'शिकायत या सुझाव', 'Attendance correction': 'हाज़िरी सुधार', Advance: 'एडवांस', Messages: 'संदेश', 'More': 'और' });
 Object.assign(I18N.gu, { 'My work': 'મારું કામ', 'People & HR': 'કર્મચારીઓ અને HR', Operations: 'કામગીરી', Admin: 'વહીવટ', 'Check-in': 'ચેક-ઇન', Expenses: 'ખર્ચ', Expense: 'ખર્ચ',
   Travel: 'મુસાફરી', Directory: 'કર્મચારી યાદી', Registers: 'રજિસ્ટર', 'Change log': 'ફેરફાર નોંધ', 'HR desk': 'HR ડેસ્ક', Notices: 'સૂચનાઓ', Surveys: 'સર્વે', Administration: 'વહીવટ',
   'HR settings': 'HR સેટિંગ્સ', 'Carbon chain': 'કાર્બન સાંકળ', Purchasing: 'ખરીદી', 'Team activity': 'ટીમની પ્રવૃત્તિ', Attendance: 'હાજરી', 'Waiting for you': 'તમારી રાહ જોતું',

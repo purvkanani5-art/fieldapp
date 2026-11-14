@@ -150,6 +150,16 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
     Role homes and the unified approvals queue in `views-home.js`. Summary: `docs/ui-redesign/README.md`.
     Test `kl-e2e6.mjs` (27). Old colour names (--brand, --forest, --lime ...) are gone; use the new tokens.
 
+21. **Field-staff app (2026-11-14)**: owner found the redesign too busy for field staff; approved a clickable mockup
+    (claude.ai artifact WrEWQNVckuGH7TG7YzbWQR) and asked to build it for all field staff and all three projects,
+    and to put sites inside each project. `views-fieldapp.js`: tabs Today · Site · big + · Requests · Me (app.js
+    TABS_FIELD_ALL, FIELD_TAB, body.field-ui = 17 px type, 52-60 px buttons); app bar with bell (#inbox) and avatar.
+    Today = green attendance card + To do (late tasks, crew muster, notices, due tasks, surveys, update; max 4).
+    Site = 3 numbers per project, Add entry sheet with project tiles (`siteAddTiles`), "All site records" → the
+    old tabs. Requests (#requests) = leave + expense + advance + correction with status. Me = 6 rows; #settings
+    holds language, theme, PIN, privacy, reviewer note. `projectGroups()` = project panel with its sites inside,
+    used by everyone's Sites page and the sidebar tree. Managers/HR/director screens unchanged. Test: kl-e2e7 (18).
+
 ## Testing
 - `D:\PersonalBooks\.cache\kl-e2e.mjs` (2026-11-14): resets the demo, then manager assigns a photo-proof task →
   worker gets inbox item, ticks checklist, completes with sample photo → manager inbox "Task done" with note and

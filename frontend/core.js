@@ -584,7 +584,7 @@ function signaturePad(canvas) {
 /** Page header: back (phones), breadcrumb (desktop), title, one primary action on the right, sync state. */
 function topbar(title, back = '#home', right = '') {
   const sec = KL.ui.section;
-  const crumbs = sec && sec.href !== back ? `<a href="${esc(sec.href)}">${esc(sec.label)}</a><span aria-hidden="true">/</span>` : '';
+  const crumbs = sec && sec.href !== back && sec.label !== title ? `<a href="${esc(sec.href)}">${esc(sec.label)}</a><span aria-hidden="true">/</span>` : '';
   const pl = crumbLabel(back);
   const parent = back && back !== '#home' && pl && (!sec || sec.href !== back) ? `<a href="${esc(back)}">${esc(pl)}</a><span aria-hidden="true">/</span>` : '';
   return `<header class="topbar page-head">

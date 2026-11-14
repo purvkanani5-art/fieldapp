@@ -14,14 +14,10 @@ const subtypeText = (s) => (s.project_type === 'biochar' ? projectsMeta().biocha
 /* ---------------------------------------------------------------- all my projects and sites */
 Views.sites = () => {
   const sites = mySites();
-  if (!sites.length) return `<h1 class="large">Sites</h1>${emptyState('pin', 'No site assigned to you', 'You can use HR, the Planner and your inbox. HR adds you to a site or project when you work at one.')}`;
-  const groups = Object.entries(projectsMeta()).map(([key, p]) => [key, p, sites.filter((s) => s.project_type === key)]).filter(([, , list]) => list.length);
-  return `<h1 class="large">Sites</h1><p class="sub">${KL.user.all_sites ? 'Every project and site' : KL.user.projects?.length ? `Projects you manage: ${KL.user.projects.map((p) => esc(projectsMeta()[p]?.name || p)).join(', ')}` : 'The sites you work at'}</p>
-    ${groups.map(([key, p, list]) => `<section class="project-block">
-      <div class="project-head pj-${esc(key)}"><span class="pj-ic">${ic(p.icon)}</span><div><b>${esc(p.name)}</b><small>${esc(p.blurb)}</small></div><span class="count">${list.length} site${list.length === 1 ? '' : 's'}</span></div>
-      <div class="site-list">${list.map((s) => `<a class="site-card" href="#site/${esc(s.id)}"><span class="tx"><b>${esc(s.name)}</b><small>${esc([subtypeText(s), s.address].filter(Boolean).join(' · '))}</small></span>${s.strict ? tag('strict', 'bad') : ''}<span class="chev">${ic('chevron')}</span></a>`).join('')}</div>
-    </section>`).join('')}
-    <a class="btn wide" style="margin-top:16px" href="#map">${ic('map')} See them on the map</a>`;
+  if (!sites.length) return `${topbar('Sites', '#home')}${emptyState('pin', 'No site assigned to you', 'You can use HR, the Planner and your inbox. HR adds you to a site or project when you work at one.')}`;
+  return `${topbar('Sites', '#home', `<a class="btn small" href="#map">${ic('map')} Map</a>`)}
+    <p class="sub">${KL.user.all_sites ? 'Every project and its sites' : KL.user.projects?.length ? `Projects you manage: ${KL.user.projects.map((pk) => esc(projectsMeta()[pk]?.name || pk)).join(', ')}` : 'The sites you work at'}</p>
+    <div class="pj-panels">${projectGroups(sites)}</div>`;
 };
 /* Field staff: the Site tab opens their site straight away when they have only one. */
 Views.mysite = () => { const s = mySites(); if (s.length === 1) { setTimeout(() => location.replace(`#site/${s[0].id}`), 0); return spinner(); } return Views.sites(); };

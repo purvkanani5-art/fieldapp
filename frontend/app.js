@@ -1,12 +1,13 @@
 /* Kshetralekha: routing, sign-in, navigation (tab bar on phones, sidebar on computers), the prototype's
    person switch, event wiring and start-up. */
 
-const TABS_FIELD_ALL = [['home', 'home', 'Home'], ['mysite', 'pin', 'My site'], ['tasks', 'kanban', 'Tasks'], ['inbox', 'bell', 'Inbox'], ['me', 'user', 'Me']];
+const TABS_FIELD_ALL = [['home', 'home', 'Today'], ['mysite', 'pin', 'Site'], ['+', 'plus', 'Add'], ['requests', 'receipt', 'Requests'], ['me', 'user', 'Me']];
 const TABS_STAFF = [['home', 'home', 'Home'], ['sites', 'pin', 'Sites'], ['planner', 'kanban', 'Planner'], ['hr', 'users', 'People'], ['inbox', 'bell', 'Inbox']];
 const fieldTabs = () => TABS_FIELD_ALL.filter(([k]) => k !== 'mysite' || (KL.boot?.mySites || []).some((s) => s.project_type !== 'office'));
 const TAB_OF = { attendance: 'work', trips: 'work', registers: 'work', farmers: 'work', sign: 'work', updates: 'me', leaves: 'me', feedback: 'me', dashboard: 'manage', approvals: 'manage', team: 'manage', hrdesk: 'manage', admin: 'manage',
   people: 'manage', personedit: 'manage', reports: 'manage', hrsettings: 'manage', messages: 'manage', privacy: 'me', security: 'me',
   notices: 'me', notice: 'me', surveys: 'me', survey: 'me', changes: 'me', poshdesk: 'me' };
+const FIELD_ONLY = new Set(['requests']);
 const STAFF_ROUTES = new Set(['manage', 'dashboard', 'approvals', 'team', 'hrdesk', 'admin', 'people', 'personedit', 'reports', 'hrsettings', 'messages', 'hr', 'assign', 'monthend', 'hrreg', 'noticenew']);
 const NEEDS_GPS = new Set(['attendance', 'trips', 'registers', 'sign', 'farmers']);
 
@@ -18,7 +19,14 @@ function route() {
 }
 const SITE_VIEWS = new Set(['site', 'sites', 'mysite', 'work', 'registers', 'farmers', 'sign', 'carbon', 'map', 'muster']);
 const PEOPLE_VIEWS = new Set(['hr', 'hub', 'people', 'person', 'personedit', 'assign', 'attsum', 'monthend', 'hrreg', 'changes', 'notices', 'notice', 'noticenew', 'surveys', 'survey', 'surveynew', 'poshdesk', 'hrsettings', 'messages', 'approvals', 'team', 'hrdesk', 'admin', 'manage', 'reports', 'dashboard', 'me', 'updates', 'leaves', 'feedback', 'privacy', 'security']);
+const FIELD_TAB = { home: 'home', tasks: 'home', inbox: 'home', attendance: 'home', updates: 'home', task: 'home', notice: 'me', notices: 'me', survey: 'me', surveys: 'me',
+  mysite: 'mysite', site: 'mysite', muster: 'mysite', registers: 'mysite', farmers: 'mysite', sign: 'mysite', map: 'mysite', carbon: 'mysite',
+  requests: 'requests', leaves: 'requests', trips: 'requests', me: 'me', person: 'me', attsum: 'me', feedback: 'me', settings: 'me', privacy: 'me', security: 'me', changes: 'me', poshdesk: 'me', hr: 'me', hub: 'me' };
 function tabOf(view) {
+  if (KL.user && KL.user.role === 'field') {
+    if (view === 'rec') { const k = kindDef(route().arg.split('/')[0]); return k && ['expense', 'advance', 'regularisation'].includes(k.key) ? 'requests' : k && ['hr', 'money'].includes(k.group) ? 'me' : 'mysite'; }
+    return FIELD_TAB[view] || 'home';
+  }
   if (view === 'planner' || view === 'tasks') return isStaff() ? 'planner' : 'tasks';
   if (view === 'rec') { const k = kindDef(route().arg.split('/')[0]); view = k && ['hr', 'money'].includes(k.group) ? 'hr' : 'site'; }
   if (SITE_VIEWS.has(view) || view === 'site') return isStaff() ? 'sites' : 'mysite';
@@ -34,11 +42,16 @@ function badgeFor(k) {
 }
 function tabBar(active) {
   const tabs = isStaff() ? TABS_STAFF : fieldTabs();
-  return `<nav class="tabbar" aria-label="Main">${tabs.map(([k, icon, label]) => `<a href="#${k}" class="${active === k ? 'on' : ''}">${ic(icon)}${label}${badgeFor(k)}</a>`).join('')}</nav>`;
+  return `<nav class="tabbar ${isStaff() ? '' : 'fa-tabbar'}" aria-label="Main">${tabs.map(([k, icon, label]) => (k === '+' ? `<button type="button" class="fa-plus" data-action="plusOpen" aria-label="Add something new">${ic('plus')}</button>` : `<a href="#${k}" class="${active === k ? 'on' : ''}" ${active === k ? 'aria-current="page"' : ''}>${ic(icon)}<span>${label}</span>${badgeFor(k)}</a>`)).join('')}</nav>`;
 }
 /** Desktop sidebar, grouped by area. Each item shows only for roles that may open it (the same guards as render()). */
 function navGroups() {
   const staff = isStaff();
+  if (!staff) {
+    const hasSiteF = (KL.boot?.mySites || []).some((s) => s.project_type !== 'office');
+    return [[null, [['home', 'home', 'Today'], ...(hasSiteF ? [['mysite', 'pin', 'Site']] : []), ['requests', 'receipt', 'Requests'], ['me', 'user', 'Me']]],
+      ['More', [['tasks', 'kanban', 'My tasks'], ['inbox', 'bell', 'Messages', KL.me?.unread || 0], ['attendance', 'pin', 'Check-in'], ['updates', 'note', 'Daily update']]]];
+  }
   const hrRole = ['admin', 'hr'].includes(KL.user.role);
   const pend = KL.me?.pendingApprovals || 0;
   const unread = KL.me?.unread || 0;
@@ -69,7 +82,7 @@ function sideNav(active) {
   return `<aside class="side" aria-label="Main navigation">
     <div class="side-top"><a class="brand" href="#home"><img src="./icon.svg" alt="" /><span><b>Kshetralekha</b><small>${esc(KL.boot?.company?.short || 'Sajeevan')}</small></span></a>
       <button type="button" class="btn ghost icon-only side-toggle" data-action="sideToggle" aria-label="Collapse the menu" title="Collapse the menu">${ic('back')}</button></div>
-    <nav class="side-nav">${navGroups().map(([title, items]) => `<div class="nav-group">${title ? `<div class="label">${esc(title)}</div>` : ''}${items.map(link).join('')}${title === 'Operations' ? tree.map(([p, list]) => `<div class="nav-tree"><span class="tree-label">${esc(p.name)}</span>${list.map((s) => `<a class="nav sub ${cur.startsWith(`site/${s.id}`) ? 'on' : ''}" href="#site/${esc(s.id)}" title="${esc(s.name)}">${ic(p.icon)}<span>${esc(s.name)}</span></a>`).join('')}</div>`).join('') : ''}</div>`).join('')}</nav>
+    <nav class="side-nav">${navGroups().map(([title, items]) => `<div class="nav-group">${title ? `<div class="label">${esc(title)}</div>` : ''}${items.map(link).join('')}${title === 'Operations' ? tree.map(([p, list]) => `<div class="nav-tree"><span class="tree-label">${ic(p.icon)}<span>${esc(p.name)}</span></span>${list.map((s) => `<a class="nav sub ${cur.startsWith(`site/${s.id}`) ? 'on' : ''}" href="#site/${esc(s.id)}" title="${esc(s.name)}"><span>${esc(s.name)}</span></a>`).join('')}</div>`).join('') : ''}</div>`).join('')}</nav>
     <div class="side-foot">
       <a class="me-chip ${cur === 'me' ? 'on' : ''}" href="#me">${avatar(u.name, 'sm')}<span><b>${esc(u.name)}</b><small>${esc(ROLE_TEXT[u.role] || u.role)}</small></span></a>
       ${KL.boot?.demo ? `<button type="button" class="btn small wide" data-action="switchOpen">${ic('swap')}<span>View as someone else</span></button>` : ''}
@@ -192,6 +205,7 @@ function render() {
   const app = $('#app');
   const signedOut = !KL.token || !KL.user;
   document.body.classList.toggle('signed-out', signedOut);
+  document.body.classList.toggle('field-ui', Boolean(KL.user && KL.user.role === 'field'));
   if (signedOut) { app.innerHTML = loginView(); renderTaskSheet(); hideSplash(); return; }
   if (!KL.boot) {
     app.innerHTML = `<div class="auth"><div class="panel" style="margin-top:20vh"><div class="card stack" style="text-align:center"><img src="./icon.svg" alt="" style="width:64px;margin:0 auto;border-radius:18px" /><b>Loading your sites and settings…</b>${spinner()}<p class="hint">Needs a connection the first time.</p><div class="btns"><button type="button" class="btn" data-action="retryBoot">Retry</button><button type="button" class="btn ghost" data-action="logout">Sign out</button></div></div></div></div>`;
@@ -205,6 +219,7 @@ function render() {
   }
   let view = Views[name] ? name : 'home';
   if (STAFF_ROUTES.has(view) && !isStaff()) view = 'home';
+  if (FIELD_ONLY.has(view) && isStaff()) view = 'me';
   if (view === 'hrdesk' && !['admin', 'hr'].includes(KL.user.role)) view = 'manage';
   if (['surveynew', 'hrsettings', 'personedit'].includes(view) && !['admin', 'hr'].includes(KL.user.role)) view = isStaff() ? 'manage' : 'home';
   if (NEEDS_GPS.has(view)) locate();
