@@ -611,7 +611,7 @@ Changes.form = (el) => {
 const siteById = (id) => (KL.boot ? KL.boot.sites.find((s) => s.id === id) : null);
 const siteName = (id) => siteById(id)?.name || 'Unassigned';
 const personName = (id) => (KL.boot ? KL.boot.people.find((p) => p.id === id)?.name : '') || '';
-const AV_COLORS = ['#1e7a4c', '#2f64b0', '#6b4fcf', '#b9700f', '#c2412e', '#0f766e', '#7a5230', '#a32863'];
+const AV_COLORS = ['#3E5C50', '#4B5A6B', '#5B5368', '#6B5446', '#46606A', '#55603F', '#6A4E5A', '#3F566E']; // muted, white initials ≥ 6.6:1
 function initials(name) {
   const p = String(name || '').trim().split(/\s+/).filter(Boolean);
   return ((p[0]?.[0] || '?') + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase();
