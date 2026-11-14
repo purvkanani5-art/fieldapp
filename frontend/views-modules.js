@@ -1,14 +1,14 @@
 /* Prototype modules: people (HR), money, safety & equipment, production & carbon, purchasing & supply.
    Most screens are generic: the server describes each record kind (fields, who may add, approval chain) and this
    file draws its list (#rec/kind), detail (#rec/kind/id) and form (#rec/kind/new, #rec/kind/id/edit). The parts
-   with real logic have their own screens: people and employee records, attendance summary, payroll, carbon chain,
+   with real logic have their own screens: people and employee records, attendance summary, carbon chain,
    map, reports, HR settings. */
 
 const KDESC = {
   holiday: 'Company holiday calendar', shift: 'Shift timings and weekly offs', regularisation: 'Fix a missed or wrong check-in, approved by your manager',
   asset_issue: 'Phones, tools and safety kit issued to staff', training: 'Courses and certificates with expiry', goal: 'Targets and progress',
   review: 'Half-yearly ratings', policy: 'Policies everyone reads and accepts', onboarding: 'Joining checklists', exit: 'Exit checklist and final settlement',
-  labour: 'Contract workers, days and wages (statutory register)', expense: 'Bills other than travel, with receipt', advance: 'Salary advances and loans, recovered in payroll',
+  labour: 'Contract workers, days and wages (statutory register)', expense: 'Bills other than travel, with receipt', advance: 'Salary advances and loans; the monthly recovery goes to Zoho Payroll',
   farmer_payment: 'Incentives and carbon share paid to farmers', checklist_template: 'Daily and weekly checks to run', incident: 'Injuries, near misses, fires and spills',
   equipment: 'Kilns, gasifiers, loaders and service due dates', maintenance: 'Services and breakdown repairs', batch: 'Kiln runs: feedstock in, biochar out, yield',
   lab_result: 'Carbon content, H/Corg and pass or fail', application: 'Biochar spread on farms, with GPS and photo', sapling: 'Saplings given to farmers',
@@ -49,12 +49,13 @@ function recSub(k, r, inSite = false) {
 /* ---------------------------------------------------------------- hubs */
 const HUB = {
   hr: { title: 'People', icon: 'users', tone: 'blue', extra: () => [
-    isStaff() ? ['#people', 'users', 'blue', 'Employee directory', 'Records, reporting lines, salary set-up'] : ['#person/me', 'user', 'blue', 'My employee record', 'Details, leave, assets, training'],
+    isStaff() ? ['#people', 'users', 'blue', 'Employee directory', 'Records, reporting lines, sites'] : ['#person/me', 'user', 'blue', 'My employee record', 'Details, leave, assets, training'],
     ['#attsum', 'calendar', 'green', 'Attendance summary', 'Month by month: present, late, absent, overtime'],
     ['#leaves', 'sun', 'amber', 'Leave balances', 'Accrual, used, pending and what is left'],
-    ...(['admin', 'hr'].includes(KL.user.role) ? [['#payroll', 'receipt', 'violet', 'Payroll', 'Salary run, payslips, PF/ESI/PT/TDS, bank file, Tally'], ['#hrsettings', 'cog', '', 'HR settings', 'Approval chains, leave policy, work hours']] : []),
+    ...(isStaff() ? [['#monthend', 'lock', 'violet', 'Month end', 'Approve and lock attendance, export to Zoho Payroll'], ['#hrreg', 'list', '', 'Registers', 'Muster roll and leave register']] : []),
+    ...(['admin', 'hr'].includes(KL.user.role) ? [['#hrsettings', 'cog', '', 'HR settings', 'Approval chains, leave policy, work hours']] : []),
   ] },
-  money: { title: 'Money', icon: 'receipt', tone: 'violet', extra: () => (['admin', 'hr'].includes(KL.user.role) ? [['#payroll', 'receipt', 'violet', 'Payroll', 'Run salaries and download the bank file']] : []) },
+  money: { title: 'Money', icon: 'receipt', tone: 'violet', extra: () => [] },
   ops: { title: 'Safety & equipment', icon: 'shield', tone: 'red', extra: () => [['#map', 'map', 'green', 'Map', 'Sites, plots, incidents and people on site']] },
   carbon: { title: 'Production & carbon', icon: 'flame', tone: 'earth', extra: () => [['#carbon', 'leaf', 'green', 'Carbon chain of custody', 'Every batch from feedstock to farm, with checks'], ['#map', 'map', 'blue', 'Map', 'Farm plots and where biochar went']] },
   supply: { title: 'Purchasing & supply', icon: 'box', tone: 'amber', extra: () => [['#registers', 'box', 'amber', 'Site registers', 'Stock balances move with every batch, transfer and dispatch']] },
@@ -67,8 +68,9 @@ Views.hr = () => {
   return `<h1 class="large">People</h1><p class="sub">Approvals, your team and HR for ${KL.user.all_sites ? 'everyone' : 'your projects'}</p>
     <div class="card flush">${row('#me', 'user', 'blue', `${KL.user.name}`, 'My record, leave, claims, settings')}</div>
     ${group('Today', `<div class="card flush">${row('#approvals', 'check', pend ? 'amber' : '', 'Approvals', 'Leave, claims, purchases, trips, check-in exceptions', pend ? tag(String(pend), 'warn') : '')}${row('#team', 'clock', 'green', 'Team activity', 'Attendance, trips and daily updates')}${row('#attsum', 'calendar', 'green', 'Attendance summary', 'Month grid: present, late, absent, overtime')}</div>`)}
-    ${group('Employees', `<div class="card flush">${row('#people', 'users', 'blue', 'Employee directory', hrRole ? 'Records, sites and projects, reporting lines' : 'Your team')}${hrRole ? row('#payroll', 'receipt', 'violet', 'Payroll', 'Payslips, PF/ESI/PT/TDS, bank file, Tally') : ''}${row('#rec/expense', 'receipt', 'amber', 'Expense claims', 'With receipt photos')}${row('#rec/advance', 'receipt', '', 'Advances & loans', 'Recovered in payroll')}${row('#rec/asset_issue', 'box', '', 'Assets issued', 'Phones, tools, safety kit')}${row('#rec/training', 'shield', 'green', 'Training & certificates', 'With expiry')}${row('#rec/goal', 'target', '', 'Goals', 'Targets and progress')}${row('#rec/review', 'chart', '', 'Reviews', 'Half-yearly ratings')}${row('#rec/regularisation', 'clock', '', 'Attendance corrections', 'Approved by managers')}</div>`)}
-    ${group('Company', `<div class="card flush">${row('#rec/policy', 'doc', '', 'Policies', 'Everyone reads and accepts')}${row('#rec/holiday', 'calendar', 'violet', 'Holidays & shifts', 'Calendar used for leave and attendance')}${hrRole ? row('#rec/onboarding', 'users', 'blue', 'Onboarding & exits', 'Joining and leaving checklists') : ''}${hrRole ? row('#hrdesk', 'folder', 'amber', 'HR desk', 'Complaints, suggestions, employee documents') : ''}${row('#reports', 'chart', 'earth', 'Reports', 'Month summary and CSV downloads')}${row('#admin', 'cog', '', 'Administration', 'Users and PINs, sites, registers, templates')}${hrRole ? row('#hrsettings', 'cog', '', 'HR settings & integrations', 'Approval chains, leave policy, WhatsApp, Tally') : ''}</div>`)}`;
+    ${group('Month end', `<div class="card flush">${row('#monthend', 'lock', 'violet', 'Approve, lock and export', 'Managers confirm, HR locks; file for Zoho Payroll (paid days, LOP, OT, leave)')}${row('#hrreg', 'list', '', 'Registers', 'Muster roll and leave register, PDF or Excel')}${row('#changes', 'clock', '', 'Change log', 'Who changed attendance, leave or balances: old and new value')}</div>`)}
+    ${group('Employees', `<div class="card flush">${row('#people', 'users', 'blue', 'Employee directory', hrRole ? 'Records, sites and projects, reporting lines' : 'Your team')}${row('#rec/expense', 'receipt', 'amber', 'Expense claims', 'With receipt photos')}${row('#rec/advance', 'receipt', '', 'Advances & loans', 'Recovery sent to Zoho Payroll')}${row('#rec/asset_issue', 'box', '', 'Assets issued', 'Phones, tools, safety kit')}${row('#rec/training', 'shield', 'green', 'Training & certificates', 'With expiry')}${row('#rec/goal', 'target', '', 'Goals', 'Targets and progress')}${row('#rec/review', 'chart', '', 'Reviews', 'Half-yearly ratings')}${row('#rec/regularisation', 'clock', '', 'Attendance corrections', 'Approved by managers')}</div>`)}
+    ${group('Company', `<div class="card flush">${row('#notices', 'bell', 'amber', 'Notice board', 'Announcements with read receipts')}${row('#surveys', 'chart', 'blue', 'Surveys & eNPS', 'Anonymous pulse surveys')}${row('#rec/policy', 'doc', '', 'Policies', 'Everyone reads and accepts')}${row('#rec/holiday', 'calendar', 'violet', 'Holidays & shifts', 'Calendar used for leave and attendance')}${hrRole ? row('#rec/onboarding', 'users', 'blue', 'Onboarding & exits', 'Joining and leaving checklists') : ''}${hrRole ? row('#hrdesk', 'folder', 'amber', 'HR desk', 'Complaints, suggestions, employee documents') : ''}${KL.cache['hr:posh']?.onCommittee ? row('#poshdesk', 'shield', 'violet', 'Internal Committee (POSH)', 'Confidential complaints') : ''}${row('#reports', 'chart', 'earth', 'Reports', 'Month summary and CSV downloads')}${row('#admin', 'cog', '', 'Administration', 'Users and PINs, sites, registers, templates')}${hrRole ? row('#hrsettings', 'cog', '', 'HR settings & integrations', 'Approval chains, leave policy, WhatsApp, Zoho Payroll') : ''}</div>`)}`;
 };
 Views.hub = (group) => {
   const kd = kinds();
@@ -413,18 +415,19 @@ Views.person = (id) => {
   const kd = kinds();
   const u = p.user;
   const pf = kd && !kd.error ? kd.profileFields : [];
-  const sections = [['Personal', pf.slice(0, 8)], ['Bank and statutory', pf.slice(8, 15)], ['Salary (monthly)', pf.slice(15, 19)], ['Opening leave', pf.slice(19)]];
-  const gross = ['basic', 'hra', 'special', 'conveyance'].reduce((a, k) => a + (Number(p.profile[k]) || 0), 0);
+  const keys = (list) => pf.filter((f) => list.includes(f.key));
+  const sections = [['Personal', pf.filter((f) => !['pan', 'aadhaar_last4', 'uan', 'esic'].includes(f.key) && !f.key.startsWith('opening_'))], ['Statutory numbers (pay is in Zoho Payroll)', keys(['pan', 'aadhaar_last4', 'uan', 'esic'])], ['Opening leave', pf.filter((f) => f.key.startsWith('opening_'))]];
   return `${topbar(u.name, back, p.canEdit ? `<a class="btn small" href="#personedit/${esc(u.id)}">${ic('pen')} Edit</a>` : '')}
     <div class="card profile">${avatar(u.name, 'xl')}<div style="min-width:0"><b>${esc(u.name)}</b><span>${esc(u.designation || '')} · ${esc(u.employee_id)}</span><span class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap">${tag(ROLE_TEXT[u.role] || u.role, 'ok')}${u.manager_name ? tag(`reports to ${u.manager_name}`, 'info') : ''}${p.profile.employment ? tag(p.profile.employment) : ''}</span></div></div>
     ${u.reports.length ? `<p class="hint" style="margin:10px 4px 0">Team: ${u.reports.map((x) => esc(x.name)).join(', ')}</p>` : ''}
     ${group('Works at', worksAt(u))}
+    ${hrRoleNow() || !u.app_access ? group('App and attendance', personFlags(u)) : ''}
     ${group('Leave balance', `<div class="tiles">${p.balances.filter((b) => b.available !== null).map((b) => `<div class="tile ${b.available <= 1 ? 'warn' : 'ok'}"><b>${fmtNum(b.available, 1)}</b><span>${esc(b.type)} left · ${fmtNum(b.used, 1)} used${b.pending ? `, ${fmtNum(b.pending, 1)} pending` : ''}</span></div>`).join('')}</div>`, '', '<a href="#leaves">Apply</a>')}
-    ${sections.map(([title, fs]) => group(title, `<div class="card"><div class="kv">${fs.map((f) => `<span>${esc(f.label)}</span><span>${esc(f.type === 'money' && p.profile[f.key] && !String(p.profile[f.key]).startsWith('•') ? rupees(p.profile[f.key]) : f.type === 'date' && p.profile[f.key] ? fmtDate(p.profile[f.key], false) : p.profile[f.key] || '–')}</span>`).join('')}${title.startsWith('Salary') && gross ? `<span>Gross a month</span><span>${rupees(gross)}</span>` : ''}</div></div>`)).join('')}
+    ${sections.map(([title, fs]) => group(title, `<div class="card"><div class="kv">${fs.map((f) => `<span>${esc(f.label)}</span><span>${esc(f.type === 'money' && p.profile[f.key] && !String(p.profile[f.key]).startsWith('•') ? rupees(p.profile[f.key]) : f.type === 'date' && p.profile[f.key] ? fmtDate(p.profile[f.key], false) : p.profile[f.key] || '–')}</span>`).join('')}</div></div>`)).join('')}
     ${group('Assets', p.assets.length ? `<div class="card flush">${p.assets.map((a) => lrow({ href: `#rec/asset_issue/${a.id}`, icon: 'box', title: a.data.asset, sub: `${esc(a.data.category || '')} · ${esc(a.data.serial || '')}`, right: stag(a.status) })).join('')}</div>` : '<div class="card"><p class="hint">None issued.</p></div>')}
     ${group('Training & certificates', p.trainings.length ? `<div class="card flush">${p.trainings.map((a) => lrow({ href: `#rec/training/${a.id}`, icon: 'shield', tone: 'green', title: a.data.title, sub: `${esc(a.data.provider || '')}${a.data.valid_until ? ` · valid to ${esc(fmtDate(a.data.valid_until, false))}` : ''}`, right: a.data.valid_until && a.data.valid_until < todayISO() ? tag('expired', 'bad') : '' })).join('')}</div>` : '<div class="card"><p class="hint">None yet.</p></div>')}
     ${group('Goals', p.goals.length ? `<div class="card stack">${p.goals.map((g) => `<a href="#rec/goal/${esc(g.id)}" style="text-decoration:none;color:inherit"><div class="row between"><b>${esc(g.data.title)}</b>${stag(g.status)}</div><div class="progress" style="margin-top:8px"><i style="width:${Number(g.data.progress) || 0}%"></i></div><small class="muted">${esc(g.data.progress || 0)}% · due ${esc(fmtDate(g.data.due, false))}</small></a>`).join('')}</div>` : '<div class="card"><p class="hint">No goals set.</p></div>')}
-    <div class="btns" style="margin-top:14px"><a class="btn" href="#attsum/${esc(u.id)}">${ic('calendar')} Attendance</a>${id === 'me' || u.id === KL.user.id ? `<a class="btn" href="/api/me/export?token=${encodeURIComponent(KL.token)}">${ic('download')} My data</a>` : ''}</div>`;
+    <div class="btns" style="margin-top:14px"><a class="btn" href="#attsum/${esc(u.id)}">${ic('calendar')} Attendance</a>${isStaff() || id === 'me' ? `<a class="btn" href="#changes/${id === 'me' ? 'me' : esc(u.id)}">${ic('clock')} Change history</a>` : ''}${id === 'me' || u.id === KL.user.id ? `<a class="btn" href="/api/me/export?token=${encodeURIComponent(KL.token)}">${ic('download')} My data</a>` : ''}</div>`;
 };
 Views.personedit = (id) => {
   const p = data(`hr:profile:${id}`, () => api(`/api/hr/profile/${id}`));
@@ -436,6 +439,7 @@ Views.personedit = (id) => {
     <div class="card stack">
       ${field('Reports to', select('pe-manager', F('pe-manager', ''), KL.boot.people.filter((x) => x.id !== id).map((x) => [x.id, `${x.name} · ${x.designation || ''}`]), { blank: 'Nobody (top of the company)' }))}
       ${kd.profileFields.map((f) => field(f.label, f.type === 'textarea' ? textarea(`pe-${f.key}`, F(`pe-${f.key}`, '')) : f.type === 'select' ? select(`pe-${f.key}`, F(`pe-${f.key}`, ''), f.options, { blank: 'Choose' }) : input(`pe-${f.key}`, F(`pe-${f.key}`, ''), { type: f.type === 'date' ? 'date' : ['money', 'number'].includes(f.type) ? 'number' : 'text', inputmode: ['money', 'number'].includes(f.type) ? 'decimal' : '' }))).join('')}
+      ${field('Reason for the change (kept in the change log)', input('pe-reason', F('pe-reason'), { placeholder: 'e.g. leave carried forward as per letter' }))}
       <button type="button" class="btn primary wide" data-action="personSave" data-id="${esc(id)}">Save</button>
     </div>`;
 };
@@ -443,7 +447,7 @@ Actions.personSave = async (el) => {
   const kd = KL.cache['m:kinds'];
   const profile = {};
   for (const f of kd.profileFields) profile[f.key] = F(`pe-${f.key}`, '');
-  try { await api(`/api/hr/profile/${el.dataset.id}`, { json: { profile, managerId: F('pe-manager', '') } }); invalidate('hr'); KL.ui.peInit = null; await reloadBoot(); toast('Saved'); location.hash = `#person/${el.dataset.id}`; } catch (e) { toast(e.message, 'error'); }
+  try { await api(`/api/hr/profile/${el.dataset.id}`, { json: { profile, managerId: F('pe-manager', ''), reason: F('pe-reason', '') } }); clearF('pe-reason'); invalidate('hr'); KL.ui.peInit = null; await reloadBoot(); toast('Saved'); location.hash = `#person/${el.dataset.id}`; } catch (e) { toast(e.message, 'error'); }
 };
 
 /* ---------------------------------------------------------------- attendance summary */
@@ -461,38 +465,18 @@ Views.attsum = (uid) => {
     return `${topbar('Attendance summary', back)}${pick}
       <div class="card flush att-grid-wrap"><table class="att-grid"><thead><tr><th>Person</th>${Array.from({ length: days }, (_, i) => `<th>${i + 1}</th>`).join('')}<th>P</th><th>A</th><th>Late</th><th>OT h</th></tr></thead>
       <tbody>${s.rows.map((r) => `<tr><td><a href="#attsum/${esc(r.id)}">${esc(r.name)}</a></td>${r.codes.map((c) => `<td class="c c-${esc(c.replace('--', 'F'))}">${c === '--' ? '' : esc(c)}</td>`).join('')}<td><b>${r.totals.P + r.totals.H * 0.5}</b></td><td>${r.totals.A}</td><td>${r.totals.late}</td><td>${fmtNum(r.totals.ot_hours, 1)}</td></tr>`).join('')}</tbody></table></div>
+      <div class="btns" style="margin-top:12px"><a class="btn" href="#monthend/${esc(month)}">${ic('lock')} Month end and Zoho export</a><a class="btn" href="#hrreg">${ic('list')} Registers</a></div>
       <p class="hint" style="margin-top:8px">Late means checked in after ${esc(KL.cache['m:kinds']?.workHours?.start || '09:00')} plus the grace minutes. Missed check-outs are closed at the end of the shift and flagged; the person can ask for a correction.</p>`;
   }
   const t = s.totals;
   return `${topbar(`Attendance · ${s.user.name}`, back)}${pick}
     <div class="tiles four"><div class="tile ok"><b>${t.P}</b><span>present</span></div><div class="tile bad"><b>${t.A}</b><span>absent</span></div><div class="tile warn"><b>${t.late}</b><span>late</span></div><div class="tile blue"><b>${fmtNum(t.ot_hours, 1)}</b><span>overtime hours</span></div></div>
     <div class="cal">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d) => `<div class="cal-h">${d}</div>`).join('')}${Array.from({ length: (new Date(`${s.days[0].date}T00:00:00`).getDay() + 6) % 7 }, () => '<div></div>').join('')}${s.days.map((d) => `<div class="cal-d c-${esc(d.code.replace('--', 'F'))}" title="${esc(d.note)}"><small>${Number(d.date.slice(8))}</small><b>${d.code === '--' ? '' : esc(d.code)}</b>${d.in ? `<span>${esc(d.in)}${d.out ? `–${esc(d.out)}` : ''}</span>` : ''}${d.late ? '<i class="late-dot"></i>' : ''}</div>`).join('')}</div>
-    ${!isStaff() || uid === KL.user.id ? `<a class="btn wide" style="margin-top:14px" href="#rec/regularisation/new">${ic('clock')} Ask for an attendance correction</a>` : ''}`;
+    ${!isStaff() || uid === KL.user.id ? `<a class="btn wide" style="margin-top:14px" href="#rec/regularisation/new">${ic('clock')} Ask for an attendance correction</a>` : ''}
+    <a class="btn ghost wide" style="margin-top:8px" href="#changes/${!uid || uid === KL.user.id ? 'me' : esc(uid)}">${ic('clock')} History of changes</a>`;
 };
 
-/* ---------------------------------------------------------------- payroll */
-Views.payroll = () => {
-  const month = F('pay-month', todayISO().slice(0, 7));
-  const p = data(`payroll:${month}`, () => api(`/api/payroll/preview?month=${month}`));
-  const head = `${topbar('Payroll', '#hub/hr')}<div class="row" style="margin-bottom:12px;flex-wrap:wrap"><input class="input" type="month" value="${esc(month)}" data-change="form" data-key="pay-month" style="max-width:220px" /><span class="hint">Pay is pro-rated for loss-of-pay days (absent, unpaid leave, half days) from the attendance summary.</span></div>`;
-  if (p === null) return `${head}${spinner()}`;
-  if (p.error) return `${head}${errorBox(p.error)}`;
-  const t = p.totals;
-  const done = p.runs.find((x) => x.month === month);
-  return `${head}
-    <div class="tiles auto"><div class="tile feature"><b>${num(t.net, 'pay-net', 'rupee')}</b><span>net pay · ${p.rows.length} people</span></div><div class="tile"><b>${rupees(t.gross)}</b><span>gross</span></div><div class="tile blue"><b>${rupees(t.pf + t.employer_pf)}</b><span>PF (employee + employer)</span></div><div class="tile violet"><b>${rupees(t.esi + t.employer_esi)}</b><span>ESI (both)</span></div><div class="tile warn"><b>${rupees(t.pt)}</b><span>professional tax</span></div><div class="tile bad"><b>${rupees(t.tds)}</b><span>TDS (new regime estimate)</span></div></div>
-    ${group('Salary sheet', `<div class="card flush att-grid-wrap"><table class="pay-table"><thead><tr><th>Employee</th><th>Paid days</th><th>Gross</th><th>PF</th><th>ESI</th><th>PT</th><th>TDS</th><th>Advance</th><th>Net</th></tr></thead><tbody>${p.rows.map((r) => `<tr><td><b>${esc(r.name)}</b><br><small class="muted">${esc(r.employee_id)} · LOP ${fmtNum(r.lop, 1)}</small></td><td>${fmtNum(r.paid_days, 1)}/${r.days}</td><td>${fmtNum(r.gross)}</td><td>${fmtNum(r.pf)}</td><td>${fmtNum(r.esi)}</td><td>${fmtNum(r.pt)}</td><td>${fmtNum(r.tds)}</td><td>${fmtNum(r.advance)}</td><td><b>${fmtNum(r.net)}</b></td></tr>`).join('')}</tbody></table></div>`)}
-    ${done ? `<div class="banner" style="margin-top:14px">${ic('check')}<div><b>${esc(done.title)} is processed</b><p>Payslips are in each person's documents.</p></div></div>` : `<button type="button" class="btn primary wide" style="margin-top:14px" data-action="payRun" data-month="${esc(month)}">${ic('send')} Run payroll for ${esc(new Date(`${month}-01T00:00:00`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }))}</button>`}
-    ${group('Past runs', p.runs.length ? `<div class="card flush">${p.runs.map((x) => `<div class="lrow-static row"><span class="icon violet">${ic('receipt')}</span><span class="tx" style="flex:1"><b>${esc(x.title)}</b><span class="muted" style="font-size:13px;display:block">${x.count} payslips · net ${esc(rupees(x.net))} · ${esc(fmtDate(x.created_at))}</span></span><span class="btns" style="flex:0 0 auto">${fileLinkApi(`/api/payroll/${x.id}/bank.csv`, 'Bank file')}${fileLinkApi(`/api/payroll/${x.id}/register.csv`, 'Register')}${fileLinkApi(`/api/payroll/${x.id}/tally.xml`, 'Tally')}</span></div>`).join('')}</div>` : '<div class="card"><p class="hint">No payroll run yet.</p></div>')}
-    <p class="hint" style="margin-top:10px">Prototype rules: PF 12% of basic up to ₹15,000; ESI 0.75% when gross is ₹21,000 or less; Gujarat professional tax ₹200 from ₹12,000; TDS on the new regime with the ₹75,000 standard deduction and the rebate up to ₹12 lakh.</p>`;
-};
 const fileLinkApi = (path, text) => `<a class="btn small" href="${esc(path)}?token=${encodeURIComponent(KL.token)}" download>${esc(text)}</a>`;
-Actions.payRun = async (el) => {
-  if (!(await modal({ title: 'Run payroll?', message: 'Payslips are made for everyone with a salary, put in their documents and they are notified.', confirmText: 'Run payroll' }))) return;
-  el.classList.add('busy');
-  try { const r = await api('/api/payroll/run', { json: { month: el.dataset.month } }); invalidate('payroll', 'hrdocs'); await celebrate('Payroll done', `${r.count} payslips made and sent.`); render(); } catch (e) { el.classList.remove('busy'); toast(e.message, 'error'); }
-};
-
 /* ---------------------------------------------------------------- carbon */
 Views.carbon = () => {
   const b = data('m:batch', () => api('/api/m/batch'));
@@ -592,7 +576,7 @@ Views.hrsettings = () => {
     ${group('For reviewers', reviewerNote())}
     ${group('Integrations', `<div class="card flush">
       ${lrow({ href: '#messages', icon: 'chat', tone: 'green', title: 'WhatsApp / SMS alerts', sub: `Simulated in the prototype: ${kd.messaging.whatsapp ? 'WhatsApp on' : 'off'}. See what field staff would receive.` })}
-      ${lrow({ href: '#payroll', icon: 'receipt', tone: 'violet', title: 'Tally', sub: 'Salary journal voucher as Tally XML from each payroll run' })}
+      ${lrow({ href: '#monthend', icon: 'lock', tone: 'violet', title: 'Zoho Payroll', sub: 'Pay, PF, ESI, PT, LWF, TDS, Form 16 and salary payment are in Zoho. Each month HR locks attendance and imports the file (or Zoho pulls the JSON).' })}
       ${lrow({ icon: 'building', title: 'Microsoft 365 sign-in and SharePoint', sub: 'Not connected in the prototype (needs the company tenant)', chev: false })}
     </div>`)}`;
 };
@@ -656,7 +640,7 @@ function reviewerNote() {
     ['pin', 'Background location', 'The leave-site check runs only while the app is open. Tracking a checked-in worker with the app closed needs the native app.'],
     ['camera', 'Camera and GPS on a PC', 'Use the prototype location switch and Use a sample photo; on a phone the real camera and GPS work.'],
     ['building', 'Microsoft sign-in and SharePoint', 'Needs the company tenant. Files are kept in the same folder layout, ready to move.'],
-    ['chat', 'WhatsApp, SMS and Tally', 'Messages are logged, not sent. Tally gets an XML file to import, not a live link.'],
+    ['chat', 'WhatsApp, SMS and Zoho Payroll', 'Messages are logged, not sent. Zoho Payroll gets a CSV to import (or the JSON export); a live push needs the company\'s Zoho API access.'],
     ['shield', 'Hosting, backups and data', 'This demo runs inside your browser with sample data only; each phone has its own copy.'],
   ];
   return `<div class="card note-card"><p class="hint" style="margin-top:0">This is a working prototype in a web browser. These parts are left for the installed phone app or the live system:</p><div class="stack" style="gap:10px">${items.map(([i, t, d]) => `<div class="row" style="align-items:flex-start;gap:12px"><span class="icon">${ic(i)}</span><span><b style="font-size:14.5px">${esc(t)}</b><br><span class="hint">${esc(d)}</span></span></div>`).join('')}</div></div>`;
@@ -694,14 +678,14 @@ const I18N = {
     'Site registers': 'સાઇટ રજિસ્ટર', 'Farmers & documents': 'ખેડૂતો અને દસ્તાવેજો', 'Daily work update': 'દૈનિક કામનો અહેવાલ', People: 'કર્મચારીઓ', Money: 'નાણાં', 'Safety & equipment': 'સલામતી અને સાધનો',
     'Production & carbon': 'ઉત્પાદન અને કાર્બન', 'Purchasing & supply': 'ખરીદી અને પુરવઠો', Map: 'નકશો', Reports: 'અહેવાલો', 'Expense claims': 'ખર્ચના દાવા', Incidents: 'અકસ્માતો', 'Production batches': 'ઉત્પાદન બેચ',
     'Sapling distribution': 'રોપા વિતરણ', 'Survival checks': 'જીવંત છોડ તપાસ', 'Not checked in': 'ચેક ઇન નથી', 'All caught up': 'બધું પૂરું', Language: 'ભાષા', 'Sign out': 'સાઇન આઉટ', 'Take check-in selfie': 'ચેક-ઇન સેલ્ફી લો',
-    'Submit for approval': 'મંજૂરી માટે મોકલો', 'Attendance summary': 'હાજરી સારાંશ', 'Leave balances': 'રજા બાકી', Payroll: 'પગાર', 'My employee record': 'મારી કર્મચારી માહિતી', Policies: 'નીતિઓ', Checklists: 'ચેકલિસ્ટ', Equipment: 'સાધનો' },
+    'Submit for approval': 'મંજૂરી માટે મોકલો', 'Attendance summary': 'હાજરી સારાંશ', 'Leave balances': 'રજા બાકી', 'Notice board': 'સૂચના બોર્ડ', 'Month end': 'મહિનાનો અંત', 'Crew attendance': 'ટીમ હાજરી', 'My employee record': 'મારી કર્મચારી માહિતી', Policies: 'નીતિઓ', Checklists: 'ચેકલિસ્ટ', Equipment: 'સાધનો' },
   hi: { Home: 'होम', Work: 'काम', Tasks: 'कार्य', Inbox: 'इनबॉक्स', Me: 'मैं', Planner: 'प्लानर', Manage: 'प्रबंधन', 'Check in': 'चेक इन', 'Check out': 'चेक आउट', 'Start trip': 'यात्रा शुरू', 'End trip': 'यात्रा समाप्त',
     'My tasks': 'मेरे कार्य', Registers: 'रजिस्टर', Farmers: 'किसान', 'Daily update': 'दैनिक रिपोर्ट', Leave: 'छुट्टी', Suggest: 'सुझाव', Today: 'आज', 'See all': 'सब देखें', Save: 'सहेजें', 'Save changes': 'बदलाव सहेजें',
     Cancel: 'रद्द करें', New: 'नया', Approve: 'मंज़ूर', Reject: 'अस्वीकार', Approvals: 'मंज़ूरियाँ', Team: 'टीम', Dashboard: 'डैशबोर्ड', 'Site check-in': 'साइट चेक-इन', 'Travel allowance': 'यात्रा भत्ता',
     'Site registers': 'साइट रजिस्टर', 'Farmers & documents': 'किसान और दस्तावेज़', 'Daily work update': 'दैनिक कार्य रिपोर्ट', People: 'कर्मचारी', Money: 'पैसे', 'Safety & equipment': 'सुरक्षा और उपकरण',
     'Production & carbon': 'उत्पादन और कार्बन', 'Purchasing & supply': 'खरीद और आपूर्ति', Map: 'नक्शा', Reports: 'रिपोर्ट', 'Expense claims': 'खर्च दावे', Incidents: 'दुर्घटनाएँ', 'Production batches': 'उत्पादन बैच',
     'Sapling distribution': 'पौधा वितरण', 'Survival checks': 'जीवित पौधे जाँच', 'Not checked in': 'चेक इन नहीं', 'All caught up': 'सब पूरा', Language: 'भाषा', 'Sign out': 'साइन आउट', 'Take check-in selfie': 'चेक-इन सेल्फ़ी लें',
-    'Submit for approval': 'मंज़ूरी के लिए भेजें', 'Attendance summary': 'हाज़िरी सारांश', 'Leave balances': 'छुट्टी शेष', Payroll: 'वेतन', 'My employee record': 'मेरा कर्मचारी रिकॉर्ड', Policies: 'नीतियाँ', Checklists: 'चेकलिस्ट', Equipment: 'उपकरण' },
+    'Submit for approval': 'मंज़ूरी के लिए भेजें', 'Attendance summary': 'हाज़िरी सारांश', 'Leave balances': 'छुट्टी शेष', 'Notice board': 'सूचना पट्ट', 'Month end': 'महीने का अंत', 'Crew attendance': 'टीम हाज़िरी', 'My employee record': 'मेरा कर्मचारी रिकॉर्ड', Policies: 'नीतियाँ', Checklists: 'चेकलिस्ट', Equipment: 'उपकरण' },
 };
 function lang() { try { return localStorage.getItem('kl.lang') || 'en'; } catch { return 'en'; } }
 function translate(root) {

@@ -102,13 +102,12 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
     endpoints `/api/m/{kind}` (list, get, multipart save, status, check, delete), `/api/m-export/{kind}.csv`,
     `/api/m-approvals`, `/api/m-steps/{kind}/{id}/decide`, `/api/m-ack/{policy}`. Approval chains in
     `approval_steps` (settings `approval_chains`; role `manager` = users.manager_id); leave uses the same chain.
-    Special logic: leave balances, attendance_month, close_missed_checkouts (called from /api/me), payroll_rows and
-    payslip_pdf, tally_xml, TOTP for office accounts (login returns 401 {need2fa}), stock postings for batch /
+    Special logic: leave balances, attendance_month, close_missed_checkouts (called from /api/me), (payroll removed in v0.5), TOTP for office accounts (login returns 401 {need2fa}), stock postings for batch /
     application / transfer / dispatch / PO received (`modules.post`), incident and checklist follow-up tasks in the
     "Safety & maintenance actions" plan, carbon_chain + PDF, map data, left-site alert, consent, my-data export,
     simulated WhatsApp log (Db.notify is wrapped). Migrations add users.manager_id/consent_at, sites.strict,
     attendance.flag. `demo_modules.seed` fills every kind. Front end `views-modules.js` (generic list/detail/form +
-    people, attsum, payroll, carbon, map with Leaflet from cdnjs, reports, hrsettings, messages, privacy, security,
+    people, attsum, carbon, map with Leaflet from cdnjs, reports, hrsettings, messages, privacy, security,
     I18N text-node translation gu/hi, DutyWatch). Owner: native-only parts (push, background location) are NOT
     built; a "For reviewers" note (reviewerNote()) explains them.
 
@@ -125,6 +124,22 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
     My site · Tasks · Inbox · Me, staff Home · Sites · Planner · People (Views.hr) · Inbox. KL.ui.siteBack returns
     record screens to the site tab. Demo: 7 sites (Lodhika, Viramgam, Balaji, Nava, Deesa, Salariya, Head Office),
     users EMP005/106/107 added. Tests: `kl_access_check.py` (16), `kl-e2e4.mjs` (13).
+
+19. **Pay is in Zoho (2026-11-14, v0.5.0)**: owner: "remove payroll. i have payroll in my zoho ERP" (Zoho does payroll,
+    PF, ESI, PT, LWF, TDS, Form 16, salary payment). Payroll screens, payslips, bank file, Tally voucher, salary and
+    bank fields removed. New `backend/hrops.py` (+ `frontend/views-hrops.js`): month end (`att_periods` with a JSON
+    snapshot, `att_reviews` per manager; lock only after the month; admin-only unlock with reason;
+    `hrops.assert_open` guards regularisation save/decide, leave apply/decide, check-in exception decide, muster);
+    Zoho export `/api/hr/month/{m}/zoho.csv|zoho-lop.csv|export.json` (LOP = A + unpaid leave + ½ H; MC counts
+    as present); `change_log` (log_change, written by profile save, assign, site-member, HR settings, decisions,
+    muster re-marks, lock/unlock, user save); muster roll / leave register PDF+CSV; crew muster (`muster_sheets`,
+    `muster_lines`; users.app_access=0 cannot sign in, users.supervisor marks own sites; only app_access=0 people
+    are markable; attendance_month reads muster P/H); complaints moved from app.py to hrops (tracking code stored
+    as SHA-256 `feedback.track_hash`, `feedback_msgs` thread, category `posh` visible only to IC members in setting
+    `posh`, desk `#poshdesk`); `notices` + `notice_reads` (audience all/project/site; managers only their own);
+    `surveys`/`survey_done`/`survey_answers` (anonymous answers carry no user and only the day; results from 3).
+    Demo: crew EMP201-205 (Lodhika, Deesa), supervisors Jignesh and Asha, last month locked, code KL-DEMO-2026.
+    Tests: `kl_hrops_api.py` (50), `kl-e2e5.mjs` (21); `kl-e2e3.mjs` step 6 now checks month end.
 
 ## Testing
 - `D:\PersonalBooks\.cache\kl-e2e.mjs` (2026-11-14): resets the demo, then manager assigns a photo-proof task →

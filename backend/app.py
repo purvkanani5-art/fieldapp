@@ -28,10 +28,11 @@ from storage import FILES_DIR, store  # noqa: E402
 
 import demo  # noqa: E402
 import demo_modules  # noqa: E402
+import hrops  # noqa: E402
 import modules  # noqa: E402
 import planner  # noqa: E402
 
-APP_VERSION = "0.4.0"
+APP_VERSION = "0.5.0"
 DEMO = os.environ.get("KL_DEMO", "1") == "1"  # prototype: demo accounts, person switch, reset
 FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
 
@@ -40,9 +41,11 @@ seed_if_empty()
 _db0 = Db()
 planner.init(_db0)
 modules.init(_db0)
+hrops.init(_db0)
 if DEMO:
     demo.seed_activity(_db0)
     demo_modules.seed(_db0)
+    hrops.seed(_db0)
 _db0.close()
 
 app = FastAPI(title="Kshetralekha", version=APP_VERSION, docs_url="/api/docs", openapi_url="/api/openapi.json")
@@ -115,7 +118,7 @@ def site_allowed(user: dict, site_id: str) -> bool:
 
 def public_user(u: dict) -> dict:
     return {k: u.get(k) for k in ("id", "employee_id", "name", "role", "designation", "phone", "email", "active", "must_change_pin", "sites", "created_at", "manager_id", "consent_at",
-                                  "all_sites", "projects", "direct_sites")}
+                                  "all_sites", "projects", "direct_sites", "supervisor", "app_access")}
 
 
 def parse_float(v, name: str, required: bool = True) -> float | None:
@@ -172,6 +175,7 @@ def doc_no(db: Db) -> str:
 # ------------------------------------------------------------------ planner
 
 app.include_router(planner.make_router(UserDep, DbDep, save_upload=save_upload, is_staff=is_staff))
+app.include_router(hrops.make_router(UserDep, DbDep, save_upload=save_upload, is_staff=is_staff, site_allowed=site_allowed, demo=DEMO))
 app.include_router(modules.make_router(UserDep, DbDep, save_upload=save_upload, save_bytes=save_bytes, is_staff=is_staff, site_allowed=site_allowed, demo=DEMO))
 
 
@@ -183,7 +187,7 @@ def demo_info(db: DbDep):
     """The demo accounts, for the sign-in screen's one-tap buttons (prototype only)."""
     if not DEMO:
         return {"demo": False, "people": []}
-    people = db.all("SELECT employee_id, name, role, designation FROM users WHERE active = 1 ORDER BY CASE role WHEN 'admin' THEN 0 WHEN 'manager' THEN 1 WHEN 'hr' THEN 2 ELSE 3 END, employee_id")
+    people = db.all("SELECT employee_id, name, role, designation FROM users WHERE active = 1 AND COALESCE(app_access, 1) = 1 ORDER BY CASE role WHEN 'admin' THEN 0 WHEN 'manager' THEN 1 WHEN 'hr' THEN 2 ELSE 3 END, employee_id")
     return {"demo": True, "pin": "1234", "people": people}
 
 
@@ -192,7 +196,7 @@ def demo_switch(payload: dict, user: UserDep, db: DbDep):
     """Sign in as another demo account without a PIN, to see the app as a manager or a field worker."""
     if not DEMO:
         raise HTTPException(404, "Not available")
-    target = db.one("SELECT * FROM users WHERE employee_id = ? AND active = 1", str(payload.get("employeeId", "")).upper())
+    target = db.one("SELECT * FROM users WHERE employee_id = ? AND active = 1 AND COALESCE(app_access, 1) = 1", str(payload.get("employeeId", "")).upper())
     if not target:
         raise HTTPException(404, "No such account")
     device_id = new_id()
@@ -228,6 +232,8 @@ def login(payload: dict, db: DbDep):
     if not user or not user["active"] or not auth.check_pin(pin, user["pin_hash"], user["pin_salt"]):
         auth.record_failure(emp)
         raise HTTPException(401, "Employee ID or PIN is wrong")
+    if not (user.get("app_access") if user.get("app_access") is not None else 1):
+        raise HTTPException(403, "This employee does not use the app; the site supervisor marks their attendance. HR can turn the app on.")
     secret = modules.totp_required(db, user["id"])
     if secret and not modules.totp_ok(secret, str(payload.get("code", ""))):
         msg = "Enter the 6-digit code from your authenticator app" if not payload.get("code") else "That code is not right; use the current one"
@@ -443,7 +449,10 @@ def attendance_decide(att_id: str, payload: dict, user: UserDep, db: DbDep):
     decision = payload.get("decision")
     if decision not in ("ok", "rejected"):
         raise HTTPException(422, "decision must be ok or rejected")
+    hrops.assert_open(db, modules.to_local(att["checkin_at"]).date().isoformat())
     db.update("attendance", att_id, {"status": decision, "decided_by": user["id"], "decided_at": now_iso(), "decision_note": str(payload.get("note", ""))[:300]})
+    hrops.log_change(db, user["id"], "attendance", att_id, att["user_id"], f"Check-in exception {modules.to_local(att['checkin_at']):%Y-%m-%d}", "pending",
+                     "accepted" if decision == "ok" else "rejected", str(payload.get("note", "")))
     db.notify(att["user_id"], "Check-in exception " + ("accepted" if decision == "ok" else "rejected"), str(payload.get("note", "")), "#attendance")
     return {"ok": True}
 
@@ -695,41 +704,6 @@ def add_update(payload: dict, user: UserDep, db: DbDep):
     return {"id": wid}
 
 
-@app.get("/api/feedback")
-def feedback_list(user: UserDep, db: DbDep):
-    if is_staff(user):
-        rows = db.all("SELECT fb.*, u.name AS user_name FROM feedback fb LEFT JOIN users u ON u.id = fb.user_id ORDER BY fb.created_at DESC")
-        for r in rows:
-            if not r["user_id"]:
-                r["user_name"] = "Anonymous"
-        return {"rows": rows}
-    return {"rows": db.all("SELECT * FROM feedback WHERE user_id = ? ORDER BY created_at DESC", user["id"])}
-
-
-@app.post("/api/feedback")
-def add_feedback(payload: dict, user: UserDep, db: DbDep):
-    kind = payload.get("type")
-    text = str(payload.get("text", "")).strip()
-    if kind not in ("complaint", "suggestion") or len(text) < 5:
-        raise HTTPException(422, "Choose complaint or suggestion and write a few words")
-    anon = bool(payload.get("anonymous"))
-    fid = db.insert("feedback", {"user_id": None if anon else user["id"], "type": kind, "text": text[:3000], "status": "open", "created_at": now_iso()})
-    db.notify_role(("hr", "admin"), f"New {kind}" + (" (anonymous)" if anon else f" from {user['name']}"), text[:120], "#hrdesk")
-    return {"id": fid}
-
-
-@app.post("/api/feedback/{fb_id}/respond")
-def respond_feedback(fb_id: str, payload: dict, user: UserDep, db: DbDep):
-    require(user, "admin", "hr")
-    fb = db.one("SELECT * FROM feedback WHERE id = ?", fb_id)
-    if not fb:
-        raise HTTPException(404, "Not found")
-    db.update("feedback", fb_id, {"response": str(payload.get("response", ""))[:2000], "status": payload.get("status", "closed"), "responded_by": user["id"], "responded_at": now_iso()})
-    if fb["user_id"]:
-        db.notify(fb["user_id"], f"Reply to your {fb['type']}", str(payload.get("response", ""))[:200], "#me")
-    return {"ok": True}
-
-
 @app.get("/api/leaves")
 def leaves(user: UserDep, db: DbDep, scope: str = "mine"):
     sql = "SELECT l.*, u.name AS user_name FROM leaves l JOIN users u ON u.id = l.user_id"
@@ -755,6 +729,7 @@ def add_leave(payload: dict, user: UserDep, db: DbDep):
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", fd) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", td) or td < fd:
         raise HTTPException(422, "Pick valid from and to dates")
     typ = str(payload.get("type", "Casual"))[:30]
+    hrops.assert_range_open(db, fd, td)
     days = modules.leave_days(db, fd, td)
     if days <= 0:
         raise HTTPException(422, "Those dates are all holidays or weekly offs")
@@ -777,9 +752,11 @@ def leave_decide(leave_id: str, payload: dict, user: UserDep, db: DbDep):
     if decision not in ("approved", "rejected"):
         raise HTTPException(422, "decision must be approved or rejected")
     note = str(payload.get("note", ""))[:300]
+    hrops.assert_range_open(db, lv["from_date"], lv["to_date"])
     res = modules.decide_chain(db, "leave", leave_id, user, decision, note, lv["user_id"], f"Leave {lv['from_date']} to {lv['to_date']}", "#leaves")
     if res != "pending":
         db.update("leaves", leave_id, {"status": res, "decided_by": user["id"], "decided_at": now_iso(), "decision_note": note})
+        hrops.log_change(db, user["id"], "leave", leave_id, lv["user_id"], f"{lv['type']} leave {lv['from_date']} to {lv['to_date']}", "pending", res, note)
         if not modules.steps_for(db, "leave", leave_id):
             db.notify(lv["user_id"], f"Leave {decision}", f"{lv['from_date']} to {lv['to_date']}", "#leaves")
     return {"ok": True, "status": res}
@@ -919,8 +896,10 @@ def admin_user_save(payload: dict, user: UserDep, db: DbDep):
            "email": str(payload.get("email", ""))[:120], "active": 1 if payload.get("active", True) else 0}
     uid = payload.get("id")
     if uid:
-        if not db.one("SELECT 1 FROM users WHERE id = ?", uid):
+        prev = db.one("SELECT * FROM users WHERE id = ?", uid)
+        if not prev:
             raise HTTPException(404, "User not found")
+        hrops.log_dict(db, user["id"], "employee", uid, uid, prev, row, {"role": "Role", "active": "Active", "designation": "Designation", "name": "Name", "employee_id": "Employee ID"})
         db.update("users", uid, row)
     else:
         if db.one("SELECT 1 FROM users WHERE employee_id = ?", emp):

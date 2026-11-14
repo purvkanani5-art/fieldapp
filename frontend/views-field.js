@@ -32,6 +32,7 @@ function fieldHome() {
     <div class="hero">${heroTop(pills.length ? `<div class="pills">${pills.map((p) => `<span class="pill">${p}</span>`).join('')}</div>` : '')}${now}</div>
     ${KL.outboxCount ? `<div class="offline-bar">${KL.outboxCount} item${KL.outboxCount === 1 ? '' : 's'} saved on this phone, waiting for signal</div>` : ''}
     ${mySiteCards()}
+    ${hrBanners()}
     ${quickActions([['#attendance', 'pin', '', att ? 'Check out' : 'Check in'], ['#trips', 'bike', 'blue', trip ? 'End trip' : 'Start trip'], ['#updates', 'note', '', 'Daily update'], ['#leaves', 'sun', 'amber', 'Leave'], ['#tasks', 'kanban', 'violet', 'My tasks', late || '']].slice(0, 4))}
     <div class="cols">
       ${group('My tasks', tasksBody, '', '<a href="#tasks">See all</a>')}
@@ -62,6 +63,7 @@ function staffHome() {
   const pills = ok ? [`${ic('pin')} ${d.onSite.length} on site now`, `${ic('kanban')} ${d.tasks.total - d.tasks.done} open tasks`, d.tasks.late ? `${ic('alert')} ${d.tasks.late} late` : ''].filter(Boolean) : [];
   return `
     <div class="hero">${heroTop(pills.length ? `<div class="pills">${pills.map((p) => `<span class="pill">${p}</span>`).join('')}</div>` : '')}${now}</div>
+    ${hrBanners()}
     ${quickActions([['#sites', 'pin', 'green', 'Sites'], ['#approvals', 'check', 'amber', 'Approvals', pend || ''], ['#hr', 'users', 'blue', 'People'], ['#planner', 'kanban', 'violet', 'Planner'], ['#team', 'clock', '', 'Team today'], ['#reports', 'chart', 'earth', 'Reports'], ['#map', 'map', 'green', 'Map'], ['#admin', 'cog', '', 'Admin']])}
     ${Views.dashboardBody()}`;
 }

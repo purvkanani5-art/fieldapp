@@ -3,6 +3,7 @@
 Views.me = () => {
   const u = KL.user;
   const docs = data('hrdocs:mine', () => api('/api/hr/documents'));
+  data('hr:posh', () => api('/api/hr/posh'));
   const leaves = data('leaves:mine', () => api('/api/leaves'));
   const pendingLeaves = leaves && !leaves.error ? leaves.rows.filter((l) => l.status === 'pending').length : 0;
   let theme = 'auto';
@@ -17,16 +18,20 @@ Views.me = () => {
       ${lrow({ href: '#attsum', icon: 'calendar', tone: 'green', title: 'Attendance summary', sub: 'This month: present, late, absent, overtime' })}
       ${lrow({ href: '#rec/regularisation', icon: 'clock', tone: 'amber', title: 'Attendance corrections', sub: 'Fix a missed check-out; your manager approves' })}
       ${lrow({ href: '#rec/expense', icon: 'receipt', tone: 'violet', title: 'Expense claims', sub: 'Bills with receipt photos; manager, then HR above ₹2,000' })}
-      ${lrow({ href: '#rec/advance', icon: 'receipt', title: 'Advances & loans', sub: 'Recovered from salary in monthly parts' })}
+      ${lrow({ href: '#rec/advance', icon: 'receipt', title: 'Advances & loans', sub: 'Recovered by Zoho Payroll in monthly parts' })}
       ${lrow({ href: '#rec/asset_issue', icon: 'box', title: 'My assets', sub: 'Phone, tools and safety kit issued to me' })}
       ${lrow({ href: '#rec/training', icon: 'shield', tone: 'green', title: 'Training & certificates', sub: 'With expiry dates' })}
       ${lrow({ href: '#rec/goal', icon: 'target', title: 'Goals & reviews', sub: 'Targets set by my manager' })}
       ${lrow({ href: '#rec/policy', icon: 'doc', title: 'Policies', sub: 'Read and accept' })}
     </div>`)}
     ${group('Requests & forms', `<div class="card flush">
+      ${lrow({ href: '#notices', icon: 'bell', tone: 'amber', title: 'Notice board', sub: 'Company and site announcements' })}
+      ${lrow({ href: '#surveys', icon: 'chart', tone: 'blue', title: 'Surveys', sub: 'Short and anonymous' })}
       ${lrow({ href: '#updates', icon: 'note', title: 'Daily work update', sub: 'Today and the last two weeks' })}
       ${lrow({ href: '#leaves', icon: 'sun', tone: 'blue', title: 'Leave', sub: pendingLeaves ? `${pendingLeaves} request${pendingLeaves === 1 ? '' : 's'} pending` : 'Apply and see past leave' })}
-      ${lrow({ href: '#feedback', icon: 'chat', tone: 'amber', title: 'Complaints & suggestions', sub: 'To HR, with your name or anonymously' })}
+      ${lrow({ href: '#feedback', icon: 'chat', tone: 'amber', title: 'Complaints & suggestions', sub: 'To HR or the POSH committee, named or anonymous with a tracking code' })}
+      ${KL.cache['hr:posh']?.onCommittee ? lrow({ href: '#poshdesk', icon: 'shield', tone: 'violet', title: 'Internal Committee (POSH)', sub: 'Confidential complaints for the committee' }) : ''}
+      ${lrow({ href: '#changes/me', icon: 'clock', title: 'Changes to my records', sub: 'Attendance, leave and balance changes, with who and why' })}
       ${lrow({ href: '#attendance', icon: 'pin', tone: 'green', title: 'My attendance', sub: 'Check-ins of the last 31 days' })}
       ${lrow({ href: '#trips', icon: 'bike', title: 'My travel claims', sub: 'Approved, pending and rejected' })}
     </div>`)}
@@ -130,27 +135,5 @@ Actions.leaveApply = async () => {
   try {
     await api('/api/leaves', { json: { from: F('lv-from', todayISO()), to: F('lv-to', todayISO()), type: F('lv-type', KL.boot.leaveTypes[0]), reason: F('lv-reason', '') } });
     clearF('lv-reason'); invalidate('leaves', 'hr:balances'); toast('Leave request sent to your manager'); render();
-  } catch (e) { toast(e.message, 'error'); }
-};
-
-/* ---------------------------------------------------------------- Complaints & suggestions */
-Views.feedback = () => {
-  const list = data('feedback:mine', () => api('/api/feedback'));
-  const type = F('fb-type', 'suggestion');
-  return `${topbar('Complaints & suggestions', '#me')}
-    <div class="card stack">
-      <div class="seg"><button type="button" data-action="fbType" data-type="suggestion" aria-pressed="${type === 'suggestion'}">Suggestion</button><button type="button" data-action="fbType" data-type="complaint" aria-pressed="${type === 'complaint'}">Complaint</button></div>
-      ${textarea('fb-text', F('fb-text'), type === 'complaint' ? 'Describe what happened, when and where. HR reads every complaint.' : 'What would make work better?')}
-      <label class="check"><input type="checkbox" id="fb-anon" ${F('fb-anon') ? 'checked' : ''} data-change="fbAnon" /> <span>Send anonymously (HR will not see your name and cannot reply to you)</span></label>
-      <button type="button" class="btn primary wide" data-action="fbSend">Send to HR</button>
-    </div>
-    ${group('Sent by me', list === null ? spinner() : list.error ? errorBox(list.error) : list.rows.length ? `<div class="card flush">${list.rows.map((r) => `<div class="lrow-static"><div class="row between"><b>${esc(r.type === 'complaint' ? 'Complaint' : 'Suggestion')} · ${esc(fmtDate(r.created_at, false))}</b>${statusTag(r.status)}</div><p class="hint" style="white-space:pre-wrap;margin-top:2px">${esc(r.text)}</p>${r.response ? `<div class="banner info" style="margin-top:6px"><b>HR replied</b><p>${esc(r.response)}</p></div>` : ''}</div>`).join('')}</div>` : '<div class="card"><p class="empty">Anonymous items are not listed here.</p></div>')}`;
-};
-Actions.fbType = (el) => { setF('fb-type', el.dataset.type); render(); };
-Changes.fbAnon = (el) => setF('fb-anon', el.checked);
-Actions.fbSend = async () => {
-  try {
-    await api('/api/feedback', { json: { type: F('fb-type', 'suggestion'), text: F('fb-text', ''), anonymous: Boolean(F('fb-anon')) } });
-    clearF('fb-text', 'fb-anon'); invalidate('feedback'); toast('Sent to HR'); render();
   } catch (e) { toast(e.message, 'error'); }
 };

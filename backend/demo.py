@@ -497,14 +497,17 @@ def reset() -> None:
     init_db()
     seed_if_empty()
     import demo_modules
+    import hrops
     import modules
 
     db = Db()
     try:
         planner.init(db)
         modules.init(db)
+        hrops.init(db)
         seed_activity(db)
         demo_modules.seed(db)
+        hrops.seed(db)
     finally:
         db.close()
 

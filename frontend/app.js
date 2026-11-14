@@ -5,8 +5,9 @@ const TABS_FIELD_ALL = [['home', 'home', 'Home'], ['mysite', 'pin', 'My site'], 
 const TABS_STAFF = [['home', 'home', 'Home'], ['sites', 'pin', 'Sites'], ['planner', 'kanban', 'Planner'], ['hr', 'users', 'People'], ['inbox', 'bell', 'Inbox']];
 const fieldTabs = () => TABS_FIELD_ALL.filter(([k]) => k !== 'mysite' || (KL.boot?.mySites || []).some((s) => s.project_type !== 'office'));
 const TAB_OF = { attendance: 'work', trips: 'work', registers: 'work', farmers: 'work', sign: 'work', updates: 'me', leaves: 'me', feedback: 'me', dashboard: 'manage', approvals: 'manage', team: 'manage', hrdesk: 'manage', admin: 'manage',
-  people: 'manage', personedit: 'manage', payroll: 'manage', reports: 'manage', hrsettings: 'manage', messages: 'manage', privacy: 'me', security: 'me' };
-const STAFF_ROUTES = new Set(['manage', 'dashboard', 'approvals', 'team', 'hrdesk', 'admin', 'people', 'personedit', 'payroll', 'reports', 'hrsettings', 'messages', 'hr', 'assign']);
+  people: 'manage', personedit: 'manage', reports: 'manage', hrsettings: 'manage', messages: 'manage', privacy: 'me', security: 'me',
+  notices: 'me', notice: 'me', surveys: 'me', survey: 'me', changes: 'me', poshdesk: 'me' };
+const STAFF_ROUTES = new Set(['manage', 'dashboard', 'approvals', 'team', 'hrdesk', 'admin', 'people', 'personedit', 'reports', 'hrsettings', 'messages', 'hr', 'assign', 'monthend', 'hrreg', 'noticenew']);
 const NEEDS_GPS = new Set(['attendance', 'trips', 'registers', 'sign', 'farmers']);
 
 function route() {
@@ -14,8 +15,8 @@ function route() {
   const i = h.indexOf('/');
   return i === -1 ? { name: h, arg: '' } : { name: h.slice(0, i), arg: h.slice(i + 1) };
 }
-const SITE_VIEWS = new Set(['site', 'sites', 'mysite', 'work', 'registers', 'farmers', 'sign', 'carbon', 'map']);
-const PEOPLE_VIEWS = new Set(['hr', 'hub', 'people', 'person', 'personedit', 'assign', 'attsum', 'payroll', 'hrsettings', 'messages', 'approvals', 'team', 'hrdesk', 'admin', 'manage', 'reports', 'dashboard', 'me', 'updates', 'leaves', 'feedback', 'privacy', 'security']);
+const SITE_VIEWS = new Set(['site', 'sites', 'mysite', 'work', 'registers', 'farmers', 'sign', 'carbon', 'map', 'muster']);
+const PEOPLE_VIEWS = new Set(['hr', 'hub', 'people', 'person', 'personedit', 'assign', 'attsum', 'monthend', 'hrreg', 'changes', 'notices', 'notice', 'noticenew', 'surveys', 'survey', 'surveynew', 'poshdesk', 'hrsettings', 'messages', 'approvals', 'team', 'hrdesk', 'admin', 'manage', 'reports', 'dashboard', 'me', 'updates', 'leaves', 'feedback', 'privacy', 'security']);
 function tabOf(view) {
   if (view === 'planner' || view === 'tasks') return isStaff() ? 'planner' : 'tasks';
   if (view === 'rec') { const k = kindDef(route().arg.split('/')[0]); view = k && ['hr', 'money'].includes(k.group) ? 'hr' : 'site'; }
@@ -183,7 +184,7 @@ function render() {
   let view = Views[name] ? name : 'home';
   if (STAFF_ROUTES.has(view) && !isStaff()) view = 'home';
   if (view === 'hrdesk' && !['admin', 'hr'].includes(KL.user.role)) view = 'manage';
-  if (['payroll', 'hrsettings', 'personedit'].includes(view) && !['admin', 'hr'].includes(KL.user.role)) view = isStaff() ? 'manage' : 'home';
+  if (['surveynew', 'hrsettings', 'personedit'].includes(view) && !['admin', 'hr'].includes(KL.user.role)) view = isStaff() ? 'manage' : 'home';
   if (NEEDS_GPS.has(view)) locate();
   const entering = KL.lastRoute !== location.hash;
   KL.lastRoute = location.hash;

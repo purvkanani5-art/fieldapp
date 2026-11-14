@@ -85,16 +85,14 @@ def seed(db: Db) -> None:
         "EMP005": (38000, 15200, 10000, 1600, "2023-03-01", "Permanent"), "EMP106": (16000, 6400, 2500, 1600, "2024-06-03", "Permanent"),
         "EMP107": (11500, 4600, 1500, 1600, "2025-01-15", "Probation"),
     }
-    banks = ["State Bank of India", "Bank of Baroda", "HDFC Bank", "Dena Gujarat Gramin Bank"]
     for i, (emp, (b, h, s, c, joined, typ)) in enumerate(pay.items()):
         u = users[emp]
         prof = {"dob": f"19{R.randint(78, 99)}-0{R.randint(1, 9)}-1{R.randint(0, 9)}", "gender": "Female" if emp in ("EMP002", "EMP005", "EMP107") else "Male",
                 "blood_group": R.choice(["B+", "O+", "A+", "AB+"]), "address": f"{R.randint(10, 99)}, {R.choice(['Shastri Nagar', 'Kalawad Road', 'Station Road', 'Bapunagar'])}, Gujarat",
                 "emergency_name": R.choice(["Sunita (wife)", "Ramesh (father)", "Kavita (sister)"]), "emergency_phone": f"9{R.randint(100000000, 999999999)}",
-                "joining_date": joined, "employment": typ, "bank_name": banks[i % 4], "bank_account": f"{R.randint(10**10, 10**11 - 1)}",
-                "ifsc": f"{['SBIN', 'BARB', 'HDFC', 'GSCB'][i % 4]}000{R.randint(1000, 9999)}", "pan": f"{''.join(R.choice('ABCDEFGHJKLMNP') for _ in range(5))}{R.randint(1000, 9999)}{R.choice('ABCDEF')}",
+                "joining_date": joined, "employment": typ, "pan": f"{''.join(R.choice('ABCDEFGHJKLMNP') for _ in range(5))}{R.randint(1000, 9999)}{R.choice('ABCDEF')}",
                 "aadhaar_last4": str(R.randint(1000, 9999)), "uan": f"10{R.randint(10**9, 10**10 - 1)}", "esic": f"3{R.randint(10**9, 10**10 - 1)}" if b + h + s + c <= 21000 else "",
-                "basic": b, "hra": h, "special": s, "conveyance": c, "opening_earned": R.choice([4, 6, 9])}
+                "opening_earned": R.choice([4, 6, 9])}
         db.insert("records", {"kind": "profile", "title": u["name"], "user_id": u["id"], "data": json.dumps(prof), "status": "open", "created_by": hr["id"],
                               "created_at": now_iso(), "updated_at": now_iso()})
     # office staff mark attendance at the head office (no selfie at the desk)

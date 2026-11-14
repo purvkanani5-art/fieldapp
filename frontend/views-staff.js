@@ -10,7 +10,7 @@ Views.manage = () => {
     ['admin', 'hr'].includes(KL.user.role) ? lrow({ href: '#hrdesk', icon: 'folder', tone: 'amber', title: 'HR desk', sub: 'Complaints, suggestions, employee documents' }) : '',
     ['admin', 'manager', 'hr'].includes(KL.user.role) ? lrow({ href: '#admin', icon: 'cog', title: 'Administration', sub: 'Users, sites, registers, templates, company' }) : '',
   ].join('');
-  const mods = [['hr', 'users', 'blue', 'People', 'Employee records, attendance summary, leave balances, payroll, assets, training, goals, policies'],
+  const mods = [['hr', 'users', 'blue', 'People', 'Employee records, attendance, month end for Zoho Payroll, leave, assets, training, goals, policies'],
     ['money', 'receipt', 'violet', 'Money', 'Expense claims, advances and loans, farmer payments'], ['ops', 'shield', 'red', 'Safety & equipment', 'Checklists, incidents, equipment and maintenance'],
     ['carbon', 'flame', 'earth', 'Production & carbon', 'Kiln batches, lab results, farm applications, saplings, chain of custody'], ['supply', 'box', 'amber', 'Purchasing & supply', 'Suppliers, purchase requests, transfers, dispatch']];
   const ops = mods.map(([g, icon, tone, title, sub]) => lrow({ href: `#hub/${g}`, icon, tone, title, sub })).join('') + lrow({ href: '#map', icon: 'map', tone: 'green', title: 'Map', sub: 'Sites, farm plots, applications, incidents, people on site' }) + lrow({ href: '#reports', icon: 'chart', tone: 'blue', title: 'Reports', sub: 'Month summary and CSV downloads for Excel' });
@@ -123,14 +123,15 @@ Actions.teamTab = (el) => { setF('team-tab', el.dataset.tab); render(); };
 /* ---------------------------------------------------------------- HR desk */
 Views.hrdesk = () => {
   const fb = data('feedback:all', () => api('/api/feedback'));
+  data('hr:posh', () => api('/api/hr/posh'));
   const lv = data('leaves:team', () => api('/api/leaves?scope=team'));
   const users = data('admin:users', () => api('/api/admin/users'));
   return `${topbar('HR desk', '#manage')}
-    ${group('Employee documents', `<div class="card stack"><p class="hint">Upload a payslip, letter or ID document; the employee sees it under Me → My documents and gets a notification.</p>
+    ${group('Employee documents', `<div class="card stack"><p class="hint">Upload a payslip from Zoho Payroll, a letter or an ID document; the employee sees it under Me → My documents and gets a notification.</p>
       ${users === null ? spinner() : users.error ? errorBox(users.error) : field('Employee', select('hr-user', F('hr-user', ''), users.rows.filter((u) => u.active).map((u) => [u.id, `${u.employee_id} · ${u.name}`]), { blank: 'Choose' }))}
       <div class="grid2">${field('Title', input('hr-title', F('hr-title'), { placeholder: 'e.g. Payslip October 2026' }))}${field('Category', select('hr-cat', F('hr-cat', 'Payslip'), ['Payslip', 'Offer letter', 'Appointment letter', 'ID card', 'Policy', 'Form 16', 'Other']))}</div>
       <button type="button" class="btn primary wide" data-action="hrUpload">Choose file and upload</button></div>`)}
-    ${group('Complaints & suggestions', fb === null ? spinner() : fb.error ? errorBox(fb.error) : fb.rows.length ? `<div class="stack">${fb.rows.map((r) => `<div class="card"><div class="row between"><b>${ic(r.type === 'complaint' ? 'alert' : 'bulb')} ${esc(r.type === 'complaint' ? 'Complaint' : 'Suggestion')} · ${esc(r.user_name || 'Anonymous')}</b>${statusTag(r.status)}</div><p class="hint" style="white-space:pre-wrap;margin:4px 0">${esc(r.text)}</p><p class="hint">${esc(fmtDate(r.created_at))}</p>${r.response ? `<div class="banner info"><b>Reply</b><p>${esc(r.response)}</p></div>` : `<button type="button" class="btn small" data-action="fbRespond" data-id="${esc(r.id)}" style="margin-top:6px">Reply & close</button>`}</div>`).join('')}</div>` : '<div class="card"><p class="empty">Nothing received.</p></div>', fb && !fb.error ? `${fb.rows.filter((r) => r.status === 'open').length} open` : '')}
+    ${group('Complaints & suggestions', complaintsDesk(fb))}
     ${group('Leave register', lv === null ? spinner() : lv.error ? errorBox(lv.error) : lv.rows.length ? `<div class="card flush">${lv.rows.map((l) => `<div class="lrow-static row"><span class="tx" style="flex:1"><b>${esc(l.user_name)} · ${esc(l.type)}</b><span class="muted" style="font-size:13px;display:block">${esc(fmtDate(l.from_date, false))}${l.to_date !== l.from_date ? ` to ${esc(fmtDate(l.to_date, false))}` : ''}${l.reason ? ` · ${esc(l.reason)}` : ''}</span></span>${statusTag(l.status)}</div>`).join('')}</div>` : '<div class="card"><p class="empty">No leave yet.</p></div>')}`;
 };
 Actions.hrUpload = () => {
@@ -142,12 +143,6 @@ Actions.hrUpload = () => {
     try { await api('/api/hr/documents', { form }); clearF('hr-title'); toast('Uploaded and the employee notified'); render(); } catch (e) { toast(e.message, 'error'); }
   });
 };
-Actions.fbRespond = async (el) => {
-  const v = await modal({ title: 'Reply', fields: [{ key: 'response', label: 'Your reply (the employee sees it unless anonymous)', type: 'textarea' }, { key: 'status', label: 'Status', type: 'select', options: ['closed', 'in_progress'], value: 'closed' }], confirmText: 'Send' });
-  if (!v) return;
-  try { await api(`/api/feedback/${el.dataset.id}/respond`, { json: v }); invalidate('feedback'); toast('Replied'); render(); } catch (e) { toast(e.message, 'error'); }
-};
-
 /* ---------------------------------------------------------------- Admin */
 Views.admin = (arg) => {
   if (arg === 'users') return adminUsers();

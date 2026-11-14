@@ -41,7 +41,7 @@ async function start() {
   py.FS.mount(py.FS.filesystems.IDBFS, {}, '/kl/data');
   await new Promise((resolve, reject) => py.FS.syncfs(true, (err) => (err ? reject(err) : resolve())));
   // Demo data from an older layout is rebuilt (new sites, people and registers would be missing otherwise).
-  const DATA_VERSION = '0.4';
+  const DATA_VERSION = '0.5';
   const verPath = '/kl/data/.data-version';
   const oldVer = py.FS.analyzePath(verPath).exists ? py.FS.readFile(verPath, { encoding: 'utf8' }) : '';
   if (oldVer !== DATA_VERSION) {

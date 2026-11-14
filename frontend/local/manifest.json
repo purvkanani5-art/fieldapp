@@ -6,6 +6,7 @@
   "demo.py",
   "demo_modules.py",
   "geo.py",
+  "hrops.py",
   "modules.py",
   "pdfgen.py",
   "planner.py",

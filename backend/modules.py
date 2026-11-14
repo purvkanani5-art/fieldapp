@@ -2,8 +2,8 @@
 
 Most of them are plain records described by KINDS (fields, who may create, who may see, approval chain) and kept
 in one `records` table as JSON, so one set of endpoints and one front-end screen serve them all. The parts with
-real logic have their own functions: approval chains, leave balances, the monthly attendance summary, payroll
-(PF, ESI, Gujarat professional tax, TDS estimate, payslip PDFs, bank file, Tally XML), production batches and
+real logic have their own functions: approval chains, leave balances, the monthly attendance summary (pay itself is
+in Zoho Payroll; hrops.py exports the month to it), production batches and
 stock postings, the carbon chain of custody, map data, recurring checklists, incidents with follow-up tasks,
 admin two-step sign-in (TOTP) and a simulated WhatsApp/SMS outbox.
 
@@ -141,8 +141,8 @@ KINDS: dict[str, dict] = {
                               F("checklist", "Checklist", "checklist", default="Offer letter signed\nID and address proof collected\nBank details and PAN\nUAN / ESIC registration\nPhone and app PIN issued\nSafety induction\nSite introduction")]},
     "exit": {"label": "Exits & settlement", "one": "Exit", "group": "hr", "icon": "logout", "create": "hr", "scope": "staff", "title": "person", "statuses": ["in progress", "settled"],
              "fields": [F("person", "Employee", "user", required=True), F("last_day", "Last working day", "date"), F("reason", "Reason", "select", options=["Resigned", "Contract ended", "Terminated", "Retired"]),
-                        F("checklist", "Checklist", "checklist", default="Assets returned\nAdvance recovered\nLeave encashment worked out\nFinal salary\nExperience letter\nApp access removed"),
-                        F("settlement", "Final settlement", "money")]},
+                        F("checklist", "Checklist", "checklist", default="Assets returned\nAdvance recovery sent to Zoho Payroll\nLeave encashment days sent to Zoho Payroll\nFull and final done in Zoho\nExperience letter\nApp access removed"),
+                        F("settlement_note", "Settlement notes (amounts are in Zoho)", "textarea")]},
     "labour": {"label": "Contract labour register", "one": "Labour entry", "group": "hr", "icon": "users", "create": "staff", "scope": "site", "title": "worker",
                "fields": [F("worker", "Worker", required=True), F("contractor", "Contractor"), F("site", "Site", "site", required=True), F("month", "Month", placeholder="2026-11"),
                           F("days", "Days worked", "number"), F("rate", "Daily wage", "money"), F("paid", "Wages paid", "money")]},
@@ -469,6 +469,10 @@ def attendance_month(db: Db, user_id: str, month: str) -> dict:
         while d <= date.fromisoformat(x["to_date"]):
             lv[d.isoformat()] = x["type"]
             d += timedelta(days=1)
+    mus: dict[str, dict] = {}  # crew muster marked by a supervisor (people without the app)
+    for x in db.all("SELECT s.date, l.code, l.ot_hours, u.name AS by_name FROM muster_lines l JOIN muster_sheets s ON s.id = l.sheet_id LEFT JOIN users u ON u.id = s.marked_by "
+                    "WHERE l.user_id = ? AND s.date BETWEEN ? AND ?", user_id, first.isoformat(), last.isoformat()):
+        mus[x["date"]] = x
     reg: dict[str, dict] = {}
     for r in db.all("SELECT data FROM records WHERE kind = 'regularisation' AND user_id = ? AND status = 'approved'", user_id):
         dd = json.loads(r["data"])
@@ -478,7 +482,7 @@ def attendance_month(db: Db, user_id: str, month: str) -> dict:
     while d <= last:
         key = d.isoformat()
         rec = {"date": key, "code": "", "in": "", "out": "", "hours": 0.0, "late": False, "ot": 0.0, "note": ""}
-        if d > today or (d == today and key not in att and key not in lv and key not in reg):
+        if d > today or (d == today and key not in att and key not in lv and key not in reg and key not in mus):
             rec["code"] = "--"  # the future, or today before the person has checked in
         elif key in reg:
             r = reg[key]
@@ -502,6 +506,9 @@ def attendance_month(db: Db, user_id: str, month: str) -> dict:
                 rec["code"] = "P" if d == today else "MC"
             if a.get("status") == "pending":
                 rec["note"] = (rec["note"] + " · exception awaiting approval").strip(" ·")
+        elif key in mus and mus[key]["code"] in ("P", "H"):
+            m_ = mus[key]
+            rec.update(code=m_["code"], ot=num(m_["ot_hours"]), note=f"crew muster by {m_['by_name'] or 'supervisor'}")
         elif key in lv:
             rec["code"], rec["note"] = "L", lv[key]
             if lv[key] == "Unpaid":
@@ -512,6 +519,8 @@ def attendance_month(db: Db, user_id: str, month: str) -> dict:
             rec["code"] = "WO"
         else:
             rec["code"] = "A"
+            if key in mus:
+                rec["note"] = f"marked absent by {mus[key]['by_name'] or 'supervisor'}"
         if rec["code"] in totals:
             totals[rec["code"]] += 1
         totals["late"] += 1 if rec["late"] else 0
@@ -541,18 +550,15 @@ def close_missed_checkouts(db: Db) -> int:
     return n
 
 
-# ------------------------------------------------------------------ employee record and payroll
+# ------------------------------------------------------------------ employee record (pay, bank and salary are in Zoho Payroll)
 
 
-SENSITIVE = {"bank_account", "ifsc", "pan", "aadhaar_last4", "uan", "esic", "basic", "hra", "special", "conveyance"}
+SENSITIVE = {"pan", "aadhaar_last4", "uan", "esic"}
 PROFILE_FIELDS = [
     F("dob", "Date of birth", "date"), F("gender", "Gender", "select", options=["Female", "Male", "Other"]), F("blood_group", "Blood group"),
     F("address", "Address", "textarea"), F("emergency_name", "Emergency contact"), F("emergency_phone", "Emergency phone"),
     F("joining_date", "Joining date", "date"), F("employment", "Employment", "select", options=["Permanent", "Probation", "Contract", "Daily wage"]),
-    F("bank_name", "Bank"), F("bank_account", "Account number"), F("ifsc", "IFSC"), F("pan", "PAN"), F("aadhaar_last4", "Aadhaar (last 4)"),
-    F("uan", "UAN (PF)"), F("esic", "ESIC number"),
-    F("basic", "Basic (monthly)", "money"), F("hra", "HRA (monthly)", "money"), F("special", "Special allowance (monthly)", "money"),
-    F("conveyance", "Conveyance (monthly)", "money"),
+    F("pan", "PAN"), F("aadhaar_last4", "Aadhaar (last 4)"), F("uan", "UAN (PF)"), F("esic", "ESIC number"),
     F("opening_casual", "Opening casual leave", "number"), F("opening_sick", "Opening sick leave", "number"), F("opening_earned", "Opening earned leave", "number"),
 ]
 
@@ -560,128 +566,6 @@ PROFILE_FIELDS = [
 def profile_data(db: Db, user_id: str) -> dict:
     r = db.one("SELECT data FROM records WHERE kind = 'profile' AND user_id = ?", user_id)
     return json.loads(r["data"]) if r else {}
-
-
-def pt_gujarat(gross: float) -> float:
-    return 200.0 if gross >= 12000 else 0.0
-
-
-def tds_new_regime_monthly(gross_month: float) -> float:
-    """FY 2025-26 new regime estimate: standard deduction 75,000, rebate to 12 lakh, 4% cess; spread over 12 months."""
-    income = max(0.0, gross_month * 12 - 75000)
-    if income <= 1_200_000:
-        return 0.0
-    slabs = [(400_000, 0.0), (800_000, 0.05), (1_200_000, 0.10), (1_600_000, 0.15), (2_000_000, 0.20), (2_400_000, 0.25), (float("inf"), 0.30)]
-    tax, low = 0.0, 0.0
-    for high, rate in slabs:
-        if income > low:
-            tax += (min(income, high) - low) * rate
-        low = high
-    return round(tax * 1.04 / 12)
-
-
-def payroll_rows(db: Db, month: str) -> list[dict]:
-    y, m = int(month[:4]), int(month[5:7])
-    days_in = calendar.monthrange(y, m)[1]
-    out = []
-    for u in db.all("SELECT * FROM users WHERE active = 1 ORDER BY employee_id"):
-        p = profile_data(db, u["id"])
-        basic, hra, special, conv = (num(p.get(k)) for k in ("basic", "hra", "special", "conveyance"))
-        if basic <= 0:
-            continue
-        s = attendance_month(db, u["id"], month)["totals"]
-        lop = s["A"] + s["unpaid"] + 0.5 * s["H"]
-        paid = max(0.0, days_in - lop)
-        f = paid / days_in
-        e = {"basic": round(basic * f), "hra": round(hra * f), "special": round(special * f), "conveyance": round(conv * f)}
-        gross = sum(e.values())
-        pf = round(0.12 * min(e["basic"], 15000))
-        esi = round(gross * 0.0075) if gross <= 21000 else 0
-        pt = pt_gujarat(gross)
-        tds = tds_new_regime_monthly(gross)
-        adv = 0.0
-        for r in db.all("SELECT data FROM records WHERE kind = 'advance' AND user_id = ? AND status = 'approved'", u["id"]):
-            d = json.loads(r["data"])
-            adv += round(num(d.get("amount")) / max(1.0, num(d.get("recover_months"), 1)))
-        ded = pf + esi + pt + tds + adv
-        out.append({"user_id": u["id"], "employee_id": u["employee_id"], "name": u["name"], "designation": u["designation"], "days": days_in, "lop": lop,
-                    "paid_days": paid, "earnings": e, "gross": gross, "pf": pf, "employer_pf": pf, "esi": esi, "employer_esi": round(gross * 0.0325) if esi else 0,
-                    "pt": pt, "tds": tds, "advance": adv, "deductions": ded, "net": gross - ded,
-                    "bank": p.get("bank_name", ""), "account": p.get("bank_account", ""), "ifsc": p.get("ifsc", ""), "uan": p.get("uan", ""), "pan": p.get("pan", ""),
-                    "present": s["P"], "half": s["H"], "leave": s["L"], "absent": s["A"], "ot_hours": s["ot_hours"]})
-    return out
-
-
-def payslip_pdf(company: dict, month: str, r: dict) -> bytes:
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib.units import mm
-    from reportlab.pdfgen import canvas
-
-    buf = io.BytesIO()
-    c = canvas.Canvas(buf, pagesize=A4)
-    w, h = A4
-    c.setFillColorRGB(0.06, 0.23, 0.16)
-    c.rect(0, h - 32 * mm, w, 32 * mm, fill=1, stroke=0)
-    c.setFillColorRGB(1, 1, 1)
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(18 * mm, h - 16 * mm, company.get("name", "Company"))
-    c.setFont("Helvetica", 10)
-    c.drawString(18 * mm, h - 23 * mm, f"Payslip for {datetime.strptime(month, '%Y-%m').strftime('%B %Y')}")
-    c.setFillColorRGB(0, 0, 0)
-    y = h - 44 * mm
-    c.setFont("Helvetica", 10)
-    for label, val in (("Employee", f"{r['name']} ({r['employee_id']})"), ("Designation", r["designation"] or ""), ("PAN / UAN", f"{r['pan'] or '-'} / {r['uan'] or '-'}"),
-                       ("Bank", f"{r['bank'] or '-'} {('XXXX' + r['account'][-4:]) if r['account'] else ''}"),
-                       ("Days", f"{r['days']} in month, {r['paid_days']:g} paid, {r['lop']:g} loss of pay")):
-        c.drawString(18 * mm, y, label)
-        c.drawString(60 * mm, y, str(val))
-        y -= 6 * mm
-    y -= 4 * mm
-    c.setFont("Helvetica-Bold", 11)
-    c.drawString(18 * mm, y, "Earnings")
-    c.drawString(110 * mm, y, "Deductions")
-    y -= 7 * mm
-    c.setFont("Helvetica", 10)
-    earn = [("Basic", r["earnings"]["basic"]), ("HRA", r["earnings"]["hra"]), ("Special allowance", r["earnings"]["special"]), ("Conveyance", r["earnings"]["conveyance"])]
-    ded = [("Provident fund (12%)", r["pf"]), ("ESI (0.75%)", r["esi"]), ("Professional tax", r["pt"]), ("Income tax (TDS)", r["tds"]), ("Advance recovery", r["advance"])]
-    for i in range(max(len(earn), len(ded))):
-        if i < len(earn):
-            c.drawString(18 * mm, y, earn[i][0])
-            c.drawRightString(95 * mm, y, f"{earn[i][1]:,.0f}")
-        if i < len(ded):
-            c.drawString(110 * mm, y, ded[i][0])
-            c.drawRightString(190 * mm, y, f"{ded[i][1]:,.0f}")
-        y -= 6 * mm
-    c.line(18 * mm, y + 2 * mm, 190 * mm, y + 2 * mm)
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(18 * mm, y - 3 * mm, "Gross")
-    c.drawRightString(95 * mm, y - 3 * mm, f"{r['gross']:,.0f}")
-    c.drawString(110 * mm, y - 3 * mm, "Total deductions")
-    c.drawRightString(190 * mm, y - 3 * mm, f"{r['deductions']:,.0f}")
-    c.setFillColorRGB(0.12, 0.48, 0.3)
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(18 * mm, y - 16 * mm, f"Net pay: Rs {r['net']:,.0f}")
-    c.setFillColorRGB(0.4, 0.4, 0.4)
-    c.setFont("Helvetica", 8)
-    c.drawString(18 * mm, 15 * mm, "Prototype payslip generated by Kshetralekha. Employer PF and ESI are paid in addition to the amounts above.")
-    c.showPage()
-    c.save()
-    return buf.getvalue()
-
-
-def tally_xml(company: str, month: str, rows: list[dict]) -> str:
-    """A Tally journal voucher for the month's salary (import in Tally: Gateway > Import Data > Vouchers)."""
-    vdate = month.replace("-", "") + str(calendar.monthrange(int(month[:4]), int(month[5:7]))[1])
-    gross = sum(r["gross"] for r in rows)
-    lines = [("Salaries", -gross), ("PF Payable", sum(r["pf"] for r in rows)), ("ESI Payable", sum(r["esi"] for r in rows)),
-             ("Professional Tax Payable", sum(r["pt"] for r in rows)), ("TDS on Salary", sum(r["tds"] for r in rows)),
-             ("Staff Advances", sum(r["advance"] for r in rows)), ("Salary Payable", sum(r["net"] for r in rows))]
-    entries = "".join(f"<ALLLEDGERENTRIES.LIST><LEDGERNAME>{n}</LEDGERNAME><ISDEEMEDPOSITIVE>{'Yes' if a < 0 else 'No'}</ISDEEMEDPOSITIVE><AMOUNT>{a:.2f}</AMOUNT></ALLLEDGERENTRIES.LIST>"
-                      for n, a in lines if a)
-    return (f'<?xml version="1.0"?><ENVELOPE><HEADER><TALLYREQUEST>Import Data</TALLYREQUEST></HEADER><BODY><IMPORTDATA><REQUESTDESC><REPORTNAME>Vouchers</REPORTNAME>'
-            f"<STATICVARIABLES><SVCURRENTCOMPANY>{company}</SVCURRENTCOMPANY></STATICVARIABLES></REQUESTDESC><REQUESTDATA><TALLYMESSAGE>"
-            f'<VOUCHER VCHTYPE="Journal" ACTION="Create"><DATE>{vdate}</DATE><VOUCHERTYPENAME>Journal</VOUCHERTYPENAME>'
-            f"<NARRATION>Salary for {month} ({len(rows)} employees) from Kshetralekha</NARRATION>{entries}</VOUCHER></TALLYMESSAGE></REQUESTDATA></IMPORTDATA></BODY></ENVELOPE>")
 
 
 # ------------------------------------------------------------------ TOTP (admin two-step sign-in)
@@ -882,6 +766,10 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
                     float(data[f["key"]])
                 except ValueError as e:
                     raise HTTPException(422, f"{f['label']} must be a number") from e
+        if kind == "regularisation":
+            import hrops
+
+            hrops.assert_open(db, str(data.get("date", "")), *([json.loads(old["data"]).get("date", "")] if old else []))
         site_id = data.get("site") or data.get("from_site") or (old["site_id"] if old else None)
         if kind in ("lab_result", "application") and data.get("batch"):
             b = db.one("SELECT site_id FROM records WHERE id = ?", data["batch"])
@@ -1163,10 +1051,20 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
         rec = db.one("SELECT * FROM records WHERE id = ? AND kind = ?", rid, kind)
         if not rec or rec["status"] != "pending":
             raise HTTPException(404, "Nothing to decide")
+        import hrops
+
+        day = json.loads(rec["data"]).get("date", "") if kind == "regularisation" else ""
+        if day:
+            hrops.assert_open(db, day)
+        before = hrops.day_text(db, rec["user_id"], day) if day else ""
         res = decide_chain(db, k["approval"], rid, user, payload.get("decision"), str(payload.get("note", "")), rec["user_id"],
                            f"{k['one']} · {rec['title']}", f"#rec/{kind}/{rid}")
         if res != "pending":
             db.update("records", rid, {"status": res, "updated_at": now_iso()})
+            if kind in ("regularisation", "advance", "expense"):
+                hrops.log_change(db, user["id"], kind, rid, rec["user_id"], f"{k['one']} {rec['title']}", "pending", res, str(payload.get("note", "")))
+            if day and res == "approved":
+                hrops.log_change(db, user["id"], "attendance", rid, rec["user_id"], f"Attendance {day}", before, hrops.day_text(db, rec["user_id"], day), "attendance correction approved")
         return {"status": res}
 
     # -------------------------------------------------------------- people
@@ -1176,7 +1074,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
         if not is_staff(user):
             raise HTTPException(403, "Managers and HR only")
         team = team_ids(db, user)
-        rows = [u for u in db.all("SELECT id, employee_id, name, role, designation, phone, email, manager_id, active FROM users ORDER BY active DESC, name")
+        rows = [u for u in db.all("SELECT id, employee_id, name, role, designation, phone, email, manager_id, active, COALESCE(app_access, 1) AS app_access, COALESCE(supervisor, 0) AS supervisor FROM users ORDER BY active DESC, name")
                 if team is None or u["id"] in team]
         for u in rows:
             p = profile_data(db, u["id"])
@@ -1185,7 +1083,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
             u["manager_name"] = user_name(db, u["manager_id"])
             u["sites"] = [x["site_id"] for x in db.all("SELECT site_id FROM user_sites WHERE user_id = ?", u["id"])]
             u["projects"] = [x["project"] for x in db.all("SELECT project FROM user_projects WHERE user_id = ?", u["id"])]
-            u["complete"] = round(sum(1 for f in PROFILE_FIELDS[:15] if p.get(f["key"])) / 15 * 100)
+            u["complete"] = round(sum(1 for f in PROFILE_FIELDS[:12] if p.get(f["key"])) / 12 * 100)
         return {"rows": rows}
 
     @r.get("/hr/profile/{uid}")
@@ -1194,7 +1092,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
             uid = user["id"]
         if uid != user["id"] and not is_staff(user):
             raise HTTPException(403, "Not allowed")
-        u = db.one("SELECT id, employee_id, name, role, designation, phone, email, manager_id, created_at FROM users WHERE id = ?", uid)
+        u = db.one("SELECT id, employee_id, name, role, designation, phone, email, manager_id, created_at, COALESCE(app_access, 1) AS app_access, COALESCE(supervisor, 0) AS supervisor FROM users WHERE id = ?", uid)
         if not u:
             raise HTTPException(404, "Not found")
         p = profile_data(db, uid)
@@ -1221,6 +1119,14 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
         keys = {f["key"] for f in PROFILE_FIELDS}
         data = {k: str(v)[:300] for k, v in (payload.get("profile") or {}).items() if k in keys}
         old = db.one("SELECT id, data FROM records WHERE kind = 'profile' AND user_id = ?", uid)
+        import hrops
+
+        before = json.loads(old["data"]) if old else {}
+        reason = str(payload.get("reason", ""))[:300]
+        for f_ in PROFILE_FIELDS:
+            k_ = f_["key"]
+            if k_ in data and str(before.get(k_, "") or "") != str(data.get(k_, "") or ""):
+                hrops.log_change(db, user["id"], "leave_balance" if k_.startswith("opening_") else "employee", uid, uid, f_["label"], before.get(k_, ""), data[k_], reason)
         if old:
             merged = {**json.loads(old["data"]), **data}
             db.update("records", old["id"], {"data": json.dumps(merged), "updated_at": now_iso()})
@@ -1231,6 +1137,9 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
             mid = payload.get("managerId") or None
             if mid == uid:
                 raise HTTPException(422, "Someone cannot report to themselves")
+            prev = db.one("SELECT manager_id FROM users WHERE id = ?", uid)["manager_id"]
+            if (prev or None) != mid:
+                hrops.log_change(db, user["id"], "employee", uid, uid, "Reports to", user_name(db, prev), user_name(db, mid), reason)
             db.run("UPDATE users SET manager_id = ? WHERE id = ?", mid, uid)
         db.audit(user["id"], "profile_saved", "user", uid, "")
         return {"ok": True}
@@ -1275,6 +1184,12 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
         projects = [p for p in payload.get("projects") or [] if p in PROJECTS]
         if projects and u["role"] == "field":
             raise HTTPException(422, "Field staff work at sites; only managers manage a whole project")
+        import hrops
+
+        was_s = sorted(site_name(db, x["site_id"]) for x in db.all("SELECT site_id FROM user_sites WHERE user_id = ?", uid))
+        was_p = sorted(PROJECTS[x["project"]]["name"] for x in db.all("SELECT project FROM user_projects WHERE user_id = ?", uid) if x["project"] in PROJECTS)
+        hrops.log_change(db, user["id"], "assignment", uid, uid, "Works at", ", ".join(was_s), ", ".join(sorted(site_name(db, x) for x in sites)))
+        hrops.log_change(db, user["id"], "assignment", uid, uid, "Manages projects", ", ".join(was_p), ", ".join(sorted(PROJECTS[x]["name"] for x in projects)))
         db.run("DELETE FROM user_sites WHERE user_id = ?", uid)
         db.run("DELETE FROM user_projects WHERE user_id = ?", uid)
         for s in sites:
@@ -1294,6 +1209,10 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
         uid, sid = str(payload.get("userId", "")), str(payload.get("siteId", ""))
         if not db.one("SELECT 1 FROM users WHERE id = ?", uid) or not db.one("SELECT 1 FROM sites WHERE id = ?", sid):
             raise HTTPException(404, "Not found")
+        import hrops
+
+        was = bool(db.one("SELECT 1 FROM user_sites WHERE user_id = ? AND site_id = ?", uid, sid))
+        hrops.log_change(db, user["id"], "assignment", uid, uid, f"Works at {site_name(db, sid)}", "yes" if was else "no", "yes" if payload.get("add") else "no")
         db.run("DELETE FROM user_sites WHERE user_id = ? AND site_id = ?", uid, sid)
         if payload.get("add"):
             db.insert("user_sites", {"user_id": uid, "site_id": sid})
@@ -1357,86 +1276,20 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
     def hr_settings(payload: dict, user: user_dep, db: db_dep):
         if user["role"] not in ("admin", "hr"):
             raise HTTPException(403, "HR only")
+        import hrops
+
+        names = {"approval_chains": "Approval chains", "leave_policy": "Leave policy", "work_hours": "Work hours", "retention": "Data retention", "messaging": "Messaging"}
         for key in ("approval_chains", "leave_policy", "work_hours", "retention", "messaging"):
             if key in payload:
+                old_v = db.setting(key)
+                if isinstance(old_v, dict) and isinstance(payload[key], dict):
+                    for kk in sorted(set(old_v) | set(payload[key])):
+                        if old_v.get(kk) != payload[key].get(kk):
+                            hrops.log_change(db, user["id"], "settings", key, None, f"{names[key]}: {kk}", old_v.get(kk), payload[key].get(kk), payload.get("reason", ""))
+                else:
+                    hrops.log_change(db, user["id"], "settings", key, None, names[key], old_v, payload[key], payload.get("reason", ""))
                 db.set_setting(key, payload[key])
         return {"ok": True}
-
-    # -------------------------------------------------------------- payroll
-
-    @r.get("/payroll/preview")
-    def payroll_preview(user: user_dep, db: db_dep, month: str = ""):
-        if user["role"] not in ("admin", "hr"):
-            raise HTTPException(403, "HR only")
-        month = month or local_today().strftime("%Y-%m")
-        rows = payroll_rows(db, month)
-        runs = db.all("SELECT id, title, status, created_at, data FROM records WHERE kind = 'payroll_run' ORDER BY created_at DESC")
-        for x in runs:
-            d = json.loads(x.pop("data"))
-            x["month"], x["count"], x["net"] = d["month"], len(d["rows"]), sum(rr["net"] for rr in d["rows"])
-        return {"month": month, "rows": rows, "totals": {k: sum(rr[k] for rr in rows) for k in ("gross", "pf", "esi", "pt", "tds", "advance", "net", "employer_pf", "employer_esi")},
-                "runs": runs}
-
-    @r.post("/payroll/run")
-    def payroll_run(payload: dict, user: user_dep, db: db_dep):
-        if user["role"] not in ("admin", "hr"):
-            raise HTTPException(403, "HR only")
-        month = str(payload.get("month") or local_today().strftime("%Y-%m"))
-        if db.one("SELECT 1 FROM records WHERE kind = 'payroll_run' AND title = ?", f"Payroll {month}"):
-            raise HTTPException(409, f"Payroll for {month} is already run")
-        rows = payroll_rows(db, month)
-        company = db.setting("company") or {}
-        for rr in rows:
-            pdf = payslip_pdf(company, month, rr)
-            fid = save_bytes(db, pdf, f"HR/Payslips/{month}", f"Payslip {month} {rr['employee_id']}.pdf", "application/pdf", "hr_document", user["id"])
-            db.insert("hr_documents", {"user_id": rr["user_id"], "title": f"Payslip {datetime.strptime(month, '%Y-%m'):%B %Y}", "category": "Payslip",
-                                       "file_id": fid, "uploaded_by": user["id"], "created_at": now_iso()})
-            db.notify(rr["user_id"], "Payslip ready", f"{datetime.strptime(month, '%Y-%m'):%B %Y} · net ₹{rr['net']:,.0f}", "#me")
-        rid = db.insert("records", {"kind": "payroll_run", "title": f"Payroll {month}", "status": "processed", "data": json.dumps({"month": month, "rows": rows}),
-                                    "created_by": user["id"], "created_at": now_iso(), "updated_at": now_iso()})
-        db.audit(user["id"], "payroll_run", "payroll", rid, month)
-        return {"id": rid, "count": len(rows)}
-
-    def run_rows(db: Db, rid: str) -> tuple[str, list[dict]]:
-        rec = db.one("SELECT data FROM records WHERE id = ? AND kind = 'payroll_run'", rid)
-        if not rec:
-            raise HTTPException(404, "Not found")
-        d = json.loads(rec["data"])
-        return d["month"], d["rows"]
-
-    @r.get("/payroll/{rid}/bank.csv")
-    def bank_file(rid: str, user: user_dep, db: db_dep):
-        if user["role"] not in ("admin", "hr"):
-            raise HTTPException(403, "HR only")
-        month, rows = run_rows(db, rid)
-        buf = io.StringIO()
-        w = csv.writer(buf)
-        w.writerow(["Beneficiary name", "Account number", "IFSC", "Amount", "Narration"])
-        for rr in rows:
-            w.writerow([rr["name"], rr["account"], rr["ifsc"], f"{rr['net']:.2f}", f"Salary {month}"])
-        return Response(buf.getvalue(), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="bank-transfer-{month}.csv"'})
-
-    @r.get("/payroll/{rid}/register.csv")
-    def pay_register(rid: str, user: user_dep, db: db_dep):
-        if user["role"] not in ("admin", "hr"):
-            raise HTTPException(403, "HR only")
-        month, rows = run_rows(db, rid)
-        buf = io.StringIO()
-        w = csv.writer(buf)
-        w.writerow(["Employee", "Name", "Paid days", "LOP", "Basic", "HRA", "Special", "Conveyance", "Gross", "PF", "ESI", "PT", "TDS", "Advance", "Net", "Employer PF", "Employer ESI"])
-        for rr in rows:
-            e = rr["earnings"]
-            w.writerow([rr["employee_id"], rr["name"], rr["paid_days"], rr["lop"], e["basic"], e["hra"], e["special"], e["conveyance"], rr["gross"], rr["pf"], rr["esi"],
-                        rr["pt"], rr["tds"], rr["advance"], rr["net"], rr["employer_pf"], rr["employer_esi"]])
-        return Response(buf.getvalue(), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="salary-register-{month}.csv"'})
-
-    @r.get("/payroll/{rid}/tally.xml")
-    def tally(rid: str, user: user_dep, db: db_dep):
-        if user["role"] not in ("admin", "hr"):
-            raise HTTPException(403, "HR only")
-        month, rows = run_rows(db, rid)
-        return Response(tally_xml((db.setting("company") or {}).get("name", ""), month, rows), media_type="application/xml",
-                        headers={"Content-Disposition": f'attachment; filename="tally-salary-{month}.xml"'})
 
     # -------------------------------------------------------------- carbon chain of custody
 

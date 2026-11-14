@@ -70,7 +70,7 @@ Who sees what: field staff see only the sites they work at; a project manager se
 they manage (Meera: Biochar and Gasifier, Nidhi: Agroforestry); the director and HR see everything. HR sets this
 on the employee record ("Works at") or from a site's Team tab. Someone with no site uses only HR, the Planner and
 the inbox. Planner plans can be for a site or General (no site) for work anywhere. General HR (approvals, leave,
-claims, payroll, policies) is in People for managers and in Me for everyone.
+claims, month end, policies, notices, surveys) is in People for managers and in Me for everyone.
 
 
 - **Site check-in / out**: pick the site, the app shows your distance to it, take a live selfie (camera only, no
@@ -103,9 +103,21 @@ claims, payroll, policies) is in People for managers and in Me for everyone.
 - **Approval chains**: every request goes to the person's own manager, then HR or the director when the amount or
   number of days is above a limit (HR settings). Leave, expense claims, advances, farmer payments, purchase
   requests and attendance corrections all use it.
-- **Money**: expense claims with receipt photos, advances and loans (recovered in payroll), farmer payments,
-  payroll (pro-rated for loss of pay; PF, ESI, Gujarat professional tax, TDS estimate; payslip PDFs to each
-  person; bank transfer file, salary register and a Tally XML voucher).
+- **Money**: expense claims with receipt photos, advances and loans (monthly recovery goes to Zoho), farmer
+  payments. Pay is not in this app: Zoho Payroll does payroll, PF, ESI, PT, LWF, TDS, Form 16 and salary payment.
+- **Month end for Zoho Payroll**: managers confirm their team's month, HR approves and locks it (a frozen copy is
+  kept; corrections, leave, exceptions and muster for that month are refused until the director unlocks it with
+  a reason). Export per employee: paid days, loss-of-pay days, half days, overtime, leave taken by type, late
+  marks, advance recovery (CSV, an LOP-only CSV, JSON for an API pull).
+- **Registers and change log**: monthly muster roll and leave register as PDF or CSV; a change log of every change
+  to attendance, leave, balances, corrections, assignments and HR settings with who, when, old value, new value
+  and reason (employees see changes to their own records).
+- **Crew muster**: a site supervisor (or manager) marks crew without phones present, half day or absent, with
+  overtime and one geotagged crew photo; contract workers too. It counts in the summary and the Zoho export.
+- **Complaints, POSH, notices, surveys**: anonymous complaints get a tracking code to read HR's reply and write
+  back; a POSH category goes only to the Internal Committee, and the POSH notice (committee, time limits,
+  confidentiality, Local Committee) is on the complaint screen; a notice board with read receipts, "I have read
+  this" for important notices and reminders; anonymous surveys with eNPS (results from 3 answers).
 - **Safety & equipment**: recurring checklists (items not OK raise Planner tasks), incident reports (medium and
   above raise a follow-up task), equipment with service due dates, maintenance and breakdown log.
 - **Production & carbon**: kiln batches that post feedstock out and biochar in to the stock register, lab results,
@@ -118,7 +130,7 @@ claims, payroll, policies) is in People for managers and in Me for everyone.
   Gujarati and Hindi labels; two-step sign-in for office accounts; a data-protection notice and "download my
   data"; WhatsApp/SMS messages are simulated (logged).
 - **Left for the phone app or the live system** (noted in the app under Me → For reviewers): push notifications,
-  background location, Microsoft sign-in and SharePoint, real WhatsApp/SMS sending, live Tally link, hosting.
+  background location, Microsoft sign-in and SharePoint, real WhatsApp/SMS sending, a live Zoho Payroll push (needs Zoho API access), hosting.
 - **Manage** (managers, HR, admin): dashboard (on site now, stock, travel spend, farmers), approvals (trips,
   check-in exceptions, leave), team activity, HR desk (reply to complaints, upload employee documents), admin
   (users and PIN resets, sites and geofences, register items, templates, company and rates, audit log).
