@@ -10,6 +10,7 @@ const TAB_OF = { attendance: 'work', trips: 'work', registers: 'work', farmers: 
 const STAFF_ROUTES = new Set(['manage', 'dashboard', 'approvals', 'team', 'hrdesk', 'admin', 'people', 'personedit', 'reports', 'hrsettings', 'messages', 'hr', 'assign', 'monthend', 'hrreg', 'noticenew']);
 const NEEDS_GPS = new Set(['attendance', 'trips', 'registers', 'sign', 'farmers']);
 
+const SECTION_LABEL = {'home': 'Home', 'sites': 'Sites', 'mysite': 'My site', 'planner': 'Planner', 'tasks': 'My tasks', 'hr': 'People', 'me': 'Me', 'inbox': 'Inbox', 'manage': 'Manage'};
 function route() {
   const h = location.hash.replace(/^#/, '') || 'home';
   const i = h.indexOf('/');
@@ -35,27 +36,48 @@ function tabBar(active) {
   const tabs = isStaff() ? TABS_STAFF : fieldTabs();
   return `<nav class="tabbar" aria-label="Main">${tabs.map(([k, icon, label]) => `<a href="#${k}" class="${active === k ? 'on' : ''}">${ic(icon)}${label}${badgeFor(k)}</a>`).join('')}</nav>`;
 }
+/** Desktop sidebar, grouped by area. Each item shows only for roles that may open it (the same guards as render()). */
+function navGroups() {
+  const staff = isStaff();
+  const hrRole = ['admin', 'hr'].includes(KL.user.role);
+  const pend = KL.me?.pendingApprovals || 0;
+  const unread = KL.me?.unread || 0;
+  const hasSite = (KL.boot?.mySites || []).some((s) => s.project_type !== 'office');
+  const g = [
+    [null, [['home', 'home', 'Home']]],
+    ['My work', [[staff ? 'planner' : 'tasks', 'kanban', staff ? 'Planner' : 'My tasks'], ['inbox', 'bell', 'Inbox', unread], ['attendance', 'pin', 'Check-in'], ['updates', 'note', 'Daily update'],
+      ['leaves', 'sun', 'Leave'], ['trips', 'bike', 'Travel'], ['rec/expense', 'receipt', 'Expenses']]],
+    staff ? ['Team', [['approvals', 'check', 'Approvals', pend], ['team', 'clock', 'Team activity'], ['attsum', 'calendar', 'Attendance']]] : null,
+    ['People & HR', staff
+      ? [['hr', 'users', 'People'], ['people', 'user', 'Directory'], ['monthend', 'lock', 'Month end'], ['hrreg', 'list', 'Registers'], ['changes', 'clock', 'Change log'],
+        ...(hrRole ? [['hrdesk', 'folder', 'HR desk']] : []), ['notices', 'bell', 'Notices'], ['surveys', 'chart', 'Surveys'], ['rec/policy', 'doc', 'Policies']]
+      : [['person/me', 'user', 'My record'], ['attsum', 'calendar', 'Attendance'], ['notices', 'bell', 'Notices'], ['surveys', 'chart', 'Surveys'], ['feedback', 'chat', 'Complaints'], ['rec/policy', 'doc', 'Policies']]],
+    ['Operations', [...(staff || hasSite ? [[staff ? 'sites' : 'mysite', 'pin', staff ? 'Sites' : 'My site']] : []), ['map', 'map', 'Map'], ...(staff ? [['carbon', 'leaf', 'Carbon chain'], ['hub/supply', 'box', 'Purchasing']] : [])]],
+    staff ? ['Reports', [['reports', 'chart', 'Reports']]] : null,
+    staff ? ['Admin', [['admin', 'cog', 'Administration'], ...(hrRole ? [['hrsettings', 'cog', 'HR settings']] : [])]] : null,
+  ];
+  return g.filter(Boolean);
+}
 function sideNav(active) {
   const u = KL.user;
-  const tabs = isStaff() ? [...TABS_STAFF, ['me', 'user', 'Me']] : fieldTabs();
-  const quick = [['attendance', 'pin', 'Site check-in'], ['trips', 'bike', 'Travel'], ['registers', 'box', 'Site registers'], ['farmers', 'sprout', 'Farmers'], ['updates', 'note', 'Daily update']];
+  const cur = location.hash.replace('#', '') || 'home';
   const pm = KL.boot?.projects || {};
   const ms = (KL.boot?.mySites || []).filter((s) => s.project_type !== 'office');
   const tree = Object.entries(pm).map(([key, p]) => [p, ms.filter((s) => s.project_type === key)]).filter(([, l]) => l.length);
-  const cur = location.hash.replace('#', '');
-  const link = ([k, icon, label]) => `<a class="nav ${active === k || (k.includes('/') && cur.startsWith(k)) ? 'on' : ''}" href="#${k}">${ic(icon)}<span>${label}</span>${badgeFor(k)}</a>`;
-  return `<aside class="side" aria-label="Navigation">
-    <a class="brand" href="#home"><img src="./icon.svg" alt="" /><span><b>Kshetralekha</b><small>${esc(KL.boot?.company?.short || 'Sajeevan')} · field app</small></span></a>
-    ${tabs.map(link).join('')}
-    ${tree.map(([p, list]) => `<div class="sep"></div><div class="label">${esc(p.name)}</div>${list.map((s) => `<a class="nav sub ${cur.startsWith(`site/${s.id}`) ? 'on' : ''}" href="#site/${esc(s.id)}">${ic(p.icon)}<span>${esc(s.name)}</span></a>`).join('')}`).join('')}
-    <div class="sep"></div><div class="label">Quick</div>
-    ${quick.filter(([k]) => !['registers', 'farmers'].includes(k)).map(link).join('')}${link(['map', 'map', 'Map'])}
-    <div class="foot-card">${KL.boot?.demo ? `<b style="color:var(--violet);font-size:12px;letter-spacing:.08em">PROTOTYPE</b>` : ''}
-      <div class="me-chip">${avatar(u.name)}<span style="flex:1;min-width:0"><b style="color:var(--ink);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(u.name)}</b>${esc(ROLE_TEXT[u.role] || u.role)}</span></div>
-      ${KL.boot?.demo ? `<button type="button" class="btn small wide" style="margin-top:10px" data-action="switchOpen">${ic('swap')} View as someone else</button>` : ''}
+  const on = (k) => cur === k || cur.startsWith(`${k}/`) || (k === active && !navGroups().some(([, items]) => items.some(([x]) => x !== k && (cur === x || cur.startsWith(`${x}/`)))));
+  const link = ([k, icon, label, badge]) => `<a class="nav ${on(k) ? 'on' : ''}" href="#${k}" title="${esc(label)}" ${on(k) ? 'aria-current="page"' : ''}>${ic(icon)}<span>${esc(label)}</span>${badge ? `<span class="badge">${badge}</span>` : ''}</a>`;
+  return `<aside class="side" aria-label="Main navigation">
+    <div class="side-top"><a class="brand" href="#home"><img src="./icon.svg" alt="" /><span><b>Kshetralekha</b><small>${esc(KL.boot?.company?.short || 'Sajeevan')}</small></span></a>
+      <button type="button" class="btn ghost icon-only side-toggle" data-action="sideToggle" aria-label="Collapse the menu" title="Collapse the menu">${ic('back')}</button></div>
+    <nav class="side-nav">${navGroups().map(([title, items]) => `<div class="nav-group">${title ? `<div class="label">${esc(title)}</div>` : ''}${items.map(link).join('')}${title === 'Operations' ? tree.map(([p, list]) => `<div class="nav-tree"><span class="tree-label">${esc(p.name)}</span>${list.map((s) => `<a class="nav sub ${cur.startsWith(`site/${s.id}`) ? 'on' : ''}" href="#site/${esc(s.id)}" title="${esc(s.name)}">${ic(p.icon)}<span>${esc(s.name)}</span></a>`).join('')}</div>`).join('') : ''}</div>`).join('')}</nav>
+    <div class="side-foot">
+      <a class="me-chip ${cur === 'me' ? 'on' : ''}" href="#me">${avatar(u.name, 'sm')}<span><b>${esc(u.name)}</b><small>${esc(ROLE_TEXT[u.role] || u.role)}</small></span></a>
+      ${KL.boot?.demo ? `<button type="button" class="btn small wide" data-action="switchOpen">${ic('swap')}<span>View as someone else</span></button>` : ''}
     </div>
   </aside>`;
 }
+Actions.sideToggle = () => { const mini = !document.body.classList.contains('side-mini'); document.body.classList.toggle('side-mini', mini); try { localStorage.setItem('kl.side', mini ? 'mini' : ''); } catch { /* private */ } };
+try { if (localStorage.getItem('kl.side') === 'mini') document.body.classList.add('side-mini'); } catch { /* private */ }
 function switcherPill() {
   if (!KL.boot?.demo) return '';
   const u = KL.user;
@@ -66,28 +88,28 @@ function switcherPill() {
 function loginView() {
   const l = KL.ui.login;
   const demo = KL.demoInfo && KL.demoInfo.demo;
+  const byRole = demo ? ['admin', 'manager', 'hr', 'field'].map((r) => [r, KL.demoInfo.people.filter((p) => p.role === r)]).filter(([, list]) => list.length) : [];
   return `<div class="auth">
     <section class="top">
-      <svg class="rows" viewBox="0 0 400 120" preserveAspectRatio="none" aria-hidden="true"><path d="M-10 70c70-30 140-42 210-42s140 12 210 42" fill="none" stroke="rgba(244,239,223,.18)" stroke-width="10"/><path d="M-10 104c70-24 140-34 210-34s140 10 210 34" fill="none" stroke="rgba(244,239,223,.1)" stroke-width="9"/></svg>
-      <div class="brand"><img src="./icon.svg" alt="" /><span><b>Kshetralekha</b><small>BY SAJEEVAN · FIELD APP</small></span></div>
-      <h1>Every field day, <em>on record.</em></h1>
-      <p class="lede">Site check-ins, travel, stock registers, farmer agreements and team tasks in one app. It keeps working without signal.</p>
-      <img class="floaty" src="./icon.svg" alt="" />
+      <div class="brand"><img src="./icon.svg" alt="" /><span><b>Kshetralekha</b><small>Sajeevan Life · field operations and HR</small></span></div>
+      <h1>Sign in</h1>
+      <p class="lede">Attendance, site records, approvals and HR in one place. Works without signal; anything saved offline is sent when you are back online.</p>
     </section>
-    <div class="panel"><div class="card stack">
-      ${demo ? `<div><b style="font-family:var(--display);font-size:20px;letter-spacing:-.01em">Try the prototype</b><p class="hint">Tap a person to sign in as them. You can switch person any time.</p></div>
-      <div class="demo-people">${KL.demoInfo.people.map((p) => `<button type="button" data-action="demoLogin" data-emp="${esc(p.employee_id)}">${avatar(p.name)}<span style="min-width:0"><b>${esc(p.name)}</b><small>${esc(ROLE_TEXT[p.role] || p.role)}${p.designation ? ` · ${esc(p.designation)}` : ''}</small></span></button>`).join('')}</div>
-      <div class="or"><span></span>or sign in with your PIN<span></span></div>` : ''}
+    <div class="panel">
       ${window.KL_LOCAL ? `<div class="banner info">${ic('shield')}<div><b>Runs entirely on this phone</b><p>This online demo has no server: the app and its sample data live in this browser. Nothing you enter leaves the device.</p></div></div>` : ''}
-      ${l.error ? `<div class="banner bad">${ic('alert')}<div><b>${esc(l.error)}</b></div></div>` : ''}
-      <label class="field"><span>Employee ID</span><input id="login-emp" class="input" value="${esc(l.emp)}" placeholder="EMP101" autocapitalize="characters" autocomplete="username" data-input="loginEmp" /></label>
-      <label class="field"><span>PIN</span><input id="login-pin" class="input pinbox" type="password" inputmode="numeric" value="${esc(l.pin)}" placeholder="••••" autocomplete="current-password" data-input="loginPin" /></label>
-      ${l.need2fa ? `<label class="field"><span>Code from your authenticator app</span><input id="login-code" class="input pinbox" inputmode="numeric" value="${esc(l.code || '')}" placeholder="123456" autocomplete="one-time-code" data-input="loginCode" /></label>` : ''}
-      <button type="button" class="btn primary wide ${l.busy ? 'busy' : ''}" data-action="login" ${l.busy ? 'disabled' : ''}>${l.busy ? 'Signing in' : 'Sign in'}</button>
-      <p class="hint">Office staff will sign in with Microsoft here once the company tenant is connected. Forgotten PIN: ask HR to reset it.</p>
-      ${demo ? '<p class="hint">Reviewers: this web prototype leaves out what only the phone app can do (push notifications, background location). See Me → For reviewers.</p>' : ''}
+      <div class="card stack">
+        ${l.error ? `<div class="banner bad" role="alert">${ic('alert')}<div><b>${esc(l.error)}</b></div></div>` : ''}
+        ${field('Employee ID', `<input id="login-emp" class="input" value="${esc(l.emp)}" placeholder="EMP101" autocapitalize="characters" autocomplete="username" data-input="loginEmp" />`)}
+        ${field('PIN', `<input id="login-pin" class="input pinbox" type="password" inputmode="numeric" value="${esc(l.pin)}" placeholder="••••" autocomplete="current-password" data-input="loginPin" />`, { help: 'Forgotten PIN: ask HR to reset it.' })}
+        ${l.need2fa ? field('Code from your authenticator app', `<input id="login-code" class="input pinbox" inputmode="numeric" value="${esc(l.code || '')}" placeholder="123456" autocomplete="one-time-code" data-input="loginCode" />`) : ''}
+        <button type="button" class="btn primary wide ${l.busy ? 'busy' : ''}" data-action="login" ${l.busy ? 'disabled' : ''}>${l.busy ? 'Signing in' : 'Sign in'}</button>
+        <p class="hint">Office staff will sign in with Microsoft here once the company tenant is connected.</p>
+      </div>
+      ${demo ? `<div class="card stack demo-card"><div><b class="card-title">Try the prototype</b><p class="hint">Choose a person to sign in as them. You can switch person at any time.</p></div>
+        ${byRole.map(([r, list]) => `<div class="demo-group"><span class="demo-role">${esc(ROLE_TEXT[r] || r)}</span><div class="demo-people">${list.map((p) => `<button type="button" data-action="demoLogin" data-emp="${esc(p.employee_id)}">${avatar(p.name, 'sm')}<span style="min-width:0"><b>${esc(p.name)}</b><small>${esc(p.designation || ROLE_TEXT[p.role] || p.role)}</small></span></button>`).join('')}</div></div>`).join('')}
+        <p class="hint">Reviewers: this web prototype leaves out what only the phone app can do (push notifications, background location). See Me → For reviewers.</p></div>` : ''}
+      <div class="partner"><span>An app of</span><img src="./logo.png" alt="Sajeevan" /></div>
     </div>
-    <div class="partner"><span>An app of</span><img src="./logo.png" alt="Sajeevan" /></div></div>
   </div>`;
 }
 Inputs.loginEmp = (el) => (KL.ui.login.emp = el.value);
@@ -194,7 +216,15 @@ function render() {
   const scroll = entering ? 0 : window.scrollY;
   const boardX = entering ? 0 : $('.board')?.scrollLeft || 0;
   const tab = tabOf(view);
-  app.innerHTML = `${sideNav(tab)}<main class="view ${entering ? 'enter' : ''}" id="main">${Views[view](arg)}</main>${tabBar(tab)}${switcherPill()}`;
+  KL.ui.section = { href: `#${tab}`, label: SECTION_LABEL[tab] || tab };
+  KL.ui.backLabel = '';
+  // record details open in a drawer beside their list on wide screens; on phones they are a full screen
+  const [rk, rid, rmode] = view === 'rec' ? String(arg).split('/') : [];
+  const drawer = view === 'rec' && rid && rid !== 'new' && !rmode && innerWidth >= 1040;
+  const main = drawer ? Views.rec(rk) : Views[view](arg);
+  const side = drawer ? drawerShell(Views.rec(arg), `#rec/${rk}`) : '';
+  app.innerHTML = `${sideNav(tab)}<main class="view ${entering ? 'enter' : ''}" id="main">${main}</main>${side}${tabBar(tab)}${switcherPill()}`;
+  document.body.classList.toggle('has-drawer', Boolean(drawer));
   const canvas = $('#sig');
   if (canvas) {
     KL.sig = signaturePad(canvas);
@@ -203,7 +233,6 @@ function render() {
   if (boardX && $('.board')) $('.board').scrollLeft = boardX;
   if (typeof applyPlanFilter === 'function' && F('pl-q', '')) applyPlanFilter();
   loadAuthImages();
-  countUp(app);
   translate(app);
   const hooks = KL.afterRender.splice(0);
   for (const h of hooks) { try { h(); } catch (err) { console.error(err); } }
@@ -231,6 +260,7 @@ function bindEvents() {
       if ($('#cam')) return closeCamera();
       if (!$('#modal').hidden) return KL.closeModal?.(null);
       if (KL.ui.sheetTask) return Actions.taskClose();
+      if (document.body.classList.contains('has-drawer')) { const r = route(); location.hash = `#rec/${String(r.arg).split('/')[0]}`; return; }
     }
     if (e.key !== 'Enter') return;
     const id = e.target.id;
@@ -254,7 +284,9 @@ function bindEvents() {
   render();
   if (KL.token) {
     await boot();
-    KL.outboxCount = (await Outbox.all().catch(() => [])).length;
+    const queued = await Outbox.all().catch(() => []);
+    KL.outboxCount = queued.length;
+    KL.outboxItems = queued.map((x) => ({ id: x.id, label: x.label, path: x.path, createdAt: x.createdAt }));
     render();
     Outbox.flush();
   }

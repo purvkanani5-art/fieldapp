@@ -105,7 +105,7 @@ Views.updates = () => {
       ${field('Blockers or help needed (optional)', input('upd-blockers', F('upd-blockers', today?.blockers || ''), { placeholder: 'e.g. Need more saplings at Junagadh' }))}
       <button type="button" class="btn primary wide" data-action="updateSave">${today ? 'Update' : 'Send update'}</button>
     </div>
-    ${group('Last two weeks', list === null ? spinner() : list.error ? errorBox(list.error) : list.rows.length ? `<div class="card flush">${list.rows.map((r) => `<div class="lrow-static"><b>${esc(fmtDate(r.date, false))}${r.hours ? ` · ${r.hours} h` : ''}${r.site_name ? ` · ${esc(r.site_name)}` : ''}</b><p class="hint" style="white-space:pre-wrap;margin-top:2px">${esc(r.summary)}</p>${r.blockers ? `<p class="hint" style="color:var(--amber)">Blocker: ${esc(r.blockers)}</p>` : ''}</div>`).join('')}</div>` : '<div class="card"><p class="empty">No updates yet.</p></div>')}`;
+    ${group('Last two weeks', list === null ? spinner() : list.error ? errorBox(list.error) : list.rows.length ? `<div class="card flush">${timeline(list.rows.map((r) => ({ title: `${fmtDate(r.date, false)}${r.hours ? ` · ${r.hours} h` : ''}${r.site_name ? ` · ${r.site_name}` : ''}`, sub: `${esc(r.summary)}${r.blockers ? `<br><b class="bad-text">Blocker:</b> ${esc(r.blockers)}` : ''}`, tone: r.blockers ? 'warn' : '' })))}</div>` : emptyState('note', 'No updates yet', 'Write a few lines at the end of each day.'))}`;
 };
 Actions.updateSave = async () => {
   try {
@@ -124,12 +124,19 @@ Views.leaves = () => {
   const bal = data('hr:balances', () => api('/api/hr/leave-balances'));
   return `${topbar('Leave', '#me')}
     ${bal && !bal.error ? `<div class="tiles four" style="margin-bottom:14px">${bal.rows.map((b) => `<div class="tile ${b.available === null ? '' : b.available <= 1 ? 'warn' : 'ok'}"><b>${b.available === null ? '∞' : fmtNum(b.available, 1)}</b><span>${esc(b.type)} left${b.available === null ? ' (unpaid)' : ` · ${fmtNum(b.accrued + b.opening, 1)} credited, ${fmtNum(b.used, 1)} used${b.pending ? `, ${fmtNum(b.pending, 1)} pending` : ''}`}</span></div>`).join('')}</div>` : ''}
-    <div class="card stack">
-      <div class="grid2">${field('From', input('lv-from', F('lv-from', todayISO()), { type: 'date' }))}${field('To', input('lv-to', F('lv-to', todayISO()), { type: 'date' }))}</div>
-      <div class="grid2">${field('Type', select('lv-type', F('lv-type', types[0]), types))}${field('Reason', input('lv-reason', F('lv-reason'), { placeholder: 'optional' }))}</div>
+    ${group('Apply for leave', `<div class="card stack">
+      <div class="grid2">${field('From', input('lv-from', F('lv-from', todayISO()), { type: 'date' }), { required: true })}${field('To', input('lv-to', F('lv-to', todayISO()), { type: 'date' }), { required: true })}</div>
+      <div class="grid2">${field('Type', select('lv-type', F('lv-type', types[0]), types), { required: true })}${field('Reason', input('lv-reason', F('lv-reason'), { placeholder: 'Optional' }), { help: 'Your manager sees this.' })}</div>
       <button type="button" class="btn primary wide" data-action="leaveApply">Apply</button>
-    </div>
-    ${group('My leave', list === null ? spinner() : list.error ? errorBox(list.error) : list.rows.length ? `<div class="card flush">${list.rows.map((l) => `<div class="lrow-static row"><span class="tx" style="flex:1"><b>${esc(l.type)} · ${esc(fmtDate(l.from_date, false))}${l.to_date !== l.from_date ? ` to ${esc(fmtDate(l.to_date, false))}` : ''}</b><span class="muted" style="font-size:13px;display:block">${fmtNum(l.days || 0, 1)} working day${l.days === 1 ? '' : 's'}${l.reason ? ` · ${esc(l.reason)}` : ''}${l.decision_note ? ` · ${esc(l.decision_note)}` : ''}${l.status === 'pending' && l.waiting ? ` · with ${esc(l.waiting)}` : ''}</span></span>${statusTag(l.status)}</div>`).join('')}</div>` : '<div class="card"><p class="empty">No leave requests yet.</p></div>')}`;
+    </div>`)}
+    ${group('My leave', list === null ? spinner() : list.error ? errorBox(list.error) : list.rows.length ? dataTable({ id: 'my-leave', rows: list.rows, pageSize: 10,
+      filters: [{ key: 'st', label: 'Status', options: [['pending', 'Pending'], ['approved', 'Approved'], ['rejected', 'Rejected']], match: (l, v) => l.status === v }],
+      columns: [{ key: 'from_date', label: 'Dates', render: (l) => `${esc(fmtDate(l.from_date, false))}${l.to_date !== l.from_date ? ` to ${esc(fmtDate(l.to_date, false))}` : ''}` },
+        { key: 'type', label: 'Type' }, { key: 'days', label: 'Days', align: 'right', value: (l) => l.days || 0, render: (l) => fmtNum(l.days || 0, 1) },
+        { key: 'reason', label: 'Note', phone: false, render: (l) => esc([l.reason, l.decision_note, l.status === 'pending' && l.waiting ? `with ${l.waiting}` : ''].filter(Boolean).join(' · ') || '–') },
+        { key: 'status', label: 'Status', render: (l) => statusTag(l.status) }],
+      phoneRow: (l) => `<div class="lrow-static row"><span class="tx" style="flex:1"><b>${esc(l.type)} · ${esc(fmtDate(l.from_date, false))}${l.to_date !== l.from_date ? ` to ${esc(fmtDate(l.to_date, false))}` : ''}</b><span class="muted" style="font-size:14px;display:block">${fmtNum(l.days || 0, 1)} working day${l.days === 1 ? '' : 's'}${l.reason ? ` · ${esc(l.reason)}` : ''}${l.decision_note ? ` · ${esc(l.decision_note)}` : ''}${l.status === 'pending' && l.waiting ? ` · with ${esc(l.waiting)}` : ''}</span></span>${statusTag(l.status)}</div>` })
+      : emptyState('sun', 'No leave requests yet', 'Apply above; your manager is told at once.'))}`;
 };
 Actions.leaveApply = async () => {
   try {

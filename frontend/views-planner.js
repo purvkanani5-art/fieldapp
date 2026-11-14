@@ -78,7 +78,7 @@ function plannerHub() {
   const planCards = pl === null ? spinner() : pl.error ? errorBox(pl.error) : plans.length ? `<div class="plan-grid">${plans.map(planCard).join('')}</div>`
     : emptyState('kanban', 'No plans yet', staff ? 'Make a plan for a site or project, then add tasks and assign people.' : 'Plans for your sites appear here.');
   return `<h1 class="large">${staff ? 'Planner' : 'My tasks'}</h1>
-    <p class="sub">${staff ? 'Plans for every site and project. Assign tasks and see them through to done.' : `${open.length} open${late ? ` · <b style="color:var(--red)">${late} late</b>` : ''} · tasks your manager assigned to you`}</p>
+    <p class="sub">${staff ? 'Plans for every site and project. Assign tasks and see them through to done.' : `${open.length} open${late ? ` · <b style="color:var(--danger)">${late} late</b>` : ''} · tasks your manager assigned to you`}</p>
     ${staff ? '' : myTasksBlock(my)}
     ${group(staff ? 'Plans' : 'Plans you are in', planCards, '', staff ? '<button type="button" class="btn small primary" data-action="planEdit">' + ic('plus') + ' New plan</button>' : '')}
     ${staff ? group('Assigned to me', myTasksBlock(my, true)) : ''}
@@ -89,7 +89,7 @@ function planCard(p) {
   return `<a class="card hover plan-card" href="#${isStaff() ? 'planner' : 'tasks'}/${esc(p.id)}">
     <div class="top"><span class="pmark pm-${esc(p.color)}">${esc(initials(p.name))}</span><span style="flex:1;min-width:0"><b>${esc(p.name)}</b><small>${esc(p.site_name || 'General · no particular site')}</small></span><span class="chev">${ic('chevron')}</span></div>
     <div class="progress" style="margin-top:14px"><i style="width:${pct}%"></i></div>
-    <div class="stats"><span><b>${p.done}</b>/${p.total} done</span><span><b>${p.doing}</b> in progress</span>${p.late ? `<span style="color:var(--red)"><b style="color:var(--red)">${p.late}</b> late</span>` : ''}<span style="margin-left:auto">${pct}%</span></div>
+    <div class="stats"><span><b>${p.done}</b>/${p.total} done</span><span><b>${p.doing}</b> in progress</span>${p.late ? `<span style="color:var(--danger)"><b style="color:var(--danger)">${p.late}</b> late</span>` : ''}<span style="margin-left:auto">${pct}%</span></div>
   </a>`;
 }
 function myTasksBlock(my, compact = false) {
@@ -194,22 +194,22 @@ function planCharts(plan, buckets, list) {
   const done = list.filter((t) => t.progress === 'completed').length;
   const total = list.length;
   const pct = total ? Math.round((done / total) * 100) : 0;
-  const C = { ns: 'var(--line-2)', ip: 'var(--blue)', late: 'var(--red)', done: 'var(--brand)' };
+  const C = { ns: 'var(--border-strong)', ip: 'var(--info)', late: 'var(--danger)', done: 'var(--accent)' };
   const split = (ts) => [[ts.filter((t) => t.progress === 'not_started' && !isLate(t)).length, C.ns, 'Not started'], [ts.filter((t) => t.progress === 'in_progress' && !isLate(t)).length, C.ip, 'In progress'], [ts.filter(isLate).length, C.late, 'Late'], [ts.filter((t) => t.progress === 'completed').length, C.done, 'Completed']];
   const people = [...new Set(list.flatMap((t) => t.assignees))].map((id) => ({ p: personById(id), ts: list.filter((t) => t.assignees.includes(id)) })).filter((x) => x.p).sort((a, b) => b.ts.length - a.ts.length);
   const unassigned = list.filter((t) => !t.assignees.length);
   return `<div class="tiles four">
-      <div class="tile"><div class="ti" style="background:var(--chip);color:var(--muted)">${ic('dot')}</div><b>${num(ns, 'c-ns')}</b><span>Not started</span></div>
+      <div class="tile"><div class="ti" style="background:var(--surface-2);color:var(--muted)">${ic('dot')}</div><b>${num(ns, 'c-ns')}</b><span>Not started</span></div>
       <div class="tile blue"><div class="ti">${ic('play')}</div><b>${num(ip, 'c-ip')}</b><span>In progress</span></div>
       <div class="tile bad"><div class="ti">${ic('alert')}</div><b>${num(late, 'c-late')}</b><span>Late</span></div>
       <div class="tile ok"><div class="ti">${ic('check')}</div><b>${num(done, 'c-done')}</b><span>Completed</span></div>
     </div>
     <div class="cols" style="margin-top:14px">
-      <div class="card"><b class="card-title">Status</b><div class="row" style="gap:22px;margin-top:12px;flex-wrap:wrap"><div class="donut" style="--p:${pct};background:conic-gradient(var(--brand) 0 ${pct}%, var(--blue) ${pct}% ${pct + (total ? Math.round((ip / total) * 100) : 0)}%, var(--red) 0 ${pct + (total ? Math.round(((ip + late) / total) * 100) : 0)}%, var(--chip) 0)" data-label="${pct}%"></div>
+      <div class="card"><b class="card-title">Status</b><div class="row" style="gap:22px;margin-top:12px;flex-wrap:wrap"><div class="donut" style="--p:${pct};background:conic-gradient(var(--accent) 0 ${pct}%, var(--info) ${pct}% ${pct + (total ? Math.round((ip / total) * 100) : 0)}%, var(--danger) 0 ${pct + (total ? Math.round(((ip + late) / total) * 100) : 0)}%, var(--surface-2) 0)" data-label="${pct}%"></div>
         <div class="legend-list"><span><i style="background:${C.done}"></i>${done} completed</span><span><i style="background:${C.ip}"></i>${ip} in progress</span><span><i style="background:${C.late}"></i>${late} late</span><span><i style="background:${C.ns}"></i>${ns} not started</span></div></div></div>
       <div class="card"><b class="card-title">Buckets</b><div class="stack" style="margin-top:12px">${buckets.map((b) => { const ts = list.filter((t) => t.bucket_id === b.id); return `<div><div class="row between" style="font-size:14px;font-weight:700;margin-bottom:6px"><span>${esc(b.name)}</span><span class="muted">${ts.length}</span></div>${hbar(split(ts), ts.length)}</div>`; }).join('')}</div></div>
     </div>
-    <div class="card" style="margin-top:14px"><b class="card-title">Members</b><div class="stack" style="margin-top:12px">${people.map(({ p, ts }) => `<div class="row" style="gap:12px">${avatar(p.name)}<div style="flex:1;min-width:0"><div class="row between" style="font-size:14px;font-weight:700;margin-bottom:6px"><span>${esc(p.name)}</span><span class="muted">${ts.filter((t) => t.progress === 'completed').length}/${ts.length} done</span></div>${hbar(split(ts), ts.length)}</div></div>`).join('')}${unassigned.length ? `<div class="row" style="gap:12px"><span class="avatar" style="background:var(--chip);color:var(--muted)">?</span><div style="flex:1"><div class="row between" style="font-size:14px;font-weight:700;margin-bottom:6px"><span>Unassigned</span><span class="muted">${unassigned.length}</span></div>${hbar(split(unassigned), unassigned.length)}</div></div>` : ''}${!people.length && !unassigned.length ? '<p class="empty">No tasks.</p>' : ''}</div>
+    <div class="card" style="margin-top:14px"><b class="card-title">Members</b><div class="stack" style="margin-top:12px">${people.map(({ p, ts }) => `<div class="row" style="gap:12px">${avatar(p.name)}<div style="flex:1;min-width:0"><div class="row between" style="font-size:14px;font-weight:700;margin-bottom:6px"><span>${esc(p.name)}</span><span class="muted">${ts.filter((t) => t.progress === 'completed').length}/${ts.length} done</span></div>${hbar(split(ts), ts.length)}</div></div>`).join('')}${unassigned.length ? `<div class="row" style="gap:12px"><span class="avatar" style="background:var(--surface-2);color:var(--muted)">?</span><div style="flex:1"><div class="row between" style="font-size:14px;font-weight:700;margin-bottom:6px"><span>Unassigned</span><span class="muted">${unassigned.length}</span></div>${hbar(split(unassigned), unassigned.length)}</div></div>` : ''}${!people.length && !unassigned.length ? '<p class="empty">No tasks.</p>' : ''}</div>
       <div class="legend-list" style="display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;font-size:12.5px"><span><i style="background:${C.ns}"></i>Not started</span><span><i style="background:${C.ip}"></i>In progress</span><span><i style="background:${C.late}"></i>Late</span><span><i style="background:${C.done}"></i>Completed</span></div></div>
     <div class="card" style="margin-top:14px"><b class="card-title">Priority</b><div class="tiles four" style="margin-top:12px">${Object.entries(PRIO).map(([k, [l, mark]]) => { const n = list.filter((t) => t.priority === k && t.progress !== 'completed').length; return `<div class="pri-stat"><span class="prio ${k}" style="display:inline-grid">${mark || '•'}</span><b>${n}</b><span>${l}</span></div>`; }).join('')}</div><p class="hint" style="margin-top:8px">Open tasks only.</p></div>`;
 }
