@@ -925,3 +925,8 @@ a.tile:hover { border-color: var(--border-strong); }
 @media (min-width: 1040px) { .side a.nav.sub { min-height: 32px; font-size: 14px; } .side a.nav.sub svg.ic { width: 16px; height: 16px; } }
 .splash .boot-note { margin: 18px auto 0; max-width: 300px; font-size: 14px; color: var(--text-2); min-height: 40px; }
 .splash .boot-retry { margin-top: 12px; }
+.site-tabs { gap: 4px; border-bottom: 1px solid var(--border); padding: 0; margin: 0 0 16px; }
+.site-tabs a { border-radius: 0; padding: 10px 12px; min-height: 44px; color: var(--text-2); border-bottom: 2px solid transparent; margin-bottom: -1px; background: none; box-shadow: none; font-weight: 500; }
+.site-tabs a:hover { color: var(--text); background: none; }
+.site-tabs a.on { background: none; color: var(--accent); border-bottom-color: var(--accent); }
+.plan-tabs button[aria-pressed="true"] { background: var(--accent-tint); color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }

@@ -141,6 +141,15 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
     Demo: crew EMP201-205 (Lodhika, Deesa), supervisors Jignesh and Asha, last month locked, code KL-DEMO-2026.
     Tests: `kl_hrops_api.py` (50), `kl-e2e5.mjs` (21); `kl-e2e3.mjs` step 6 now checks month end.
 
+20. **UI redesign (2026-11-14, branch `ui-redesign`)**: owner asked for an enterprise HCM look (Workday/Keka class:
+    calm, structured), UI only. Design system in `design-system/MASTER.md` (tokens at the top of styles.css: one
+    accent #1C6B45, neutrals, status colours, IBM Plex Sans + Noto Gujarati/Devanagari, AA contrast). Shared
+    pieces in core.js: `topbar` (breadcrumb + `syncChip`), `dataTable`, `kpi` + `sparkline`, `timeline`,
+    `drawerShell`, `STATUS` chip vocabulary, `field(..., {help, required})`, quiet `celebrate` (still `.success`).
+    Shell in app.js: `navGroups()` sidebar (collapsible, `kl.side`), record drawer on desktop for `#rec/kind/id`.
+    Role homes and the unified approvals queue in `views-home.js`. Summary: `docs/ui-redesign/README.md`.
+    Test `kl-e2e6.mjs` (27). Old colour names (--brand, --forest, --lime ...) are gone; use the new tokens.
+
 ## Testing
 - `D:\PersonalBooks\.cache\kl-e2e.mjs` (2026-11-14): resets the demo, then manager assigns a photo-proof task →
   worker gets inbox item, ticks checklist, completes with sample photo → manager inbox "Task done" with note and
