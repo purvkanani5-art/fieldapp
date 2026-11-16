@@ -175,6 +175,14 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
    field-staff release: one phone per account with HR approval for a new phone, hardening (image rebuilds, session
    expiry, sign out everywhere, rate limits, headers, upload checks), Microsoft sign-in for office staff.
 
+24. **Simple navigation for office roles (2026-11-16)**: owner (director) found the app confusing: language hard to find,
+   the same links in several places (Administration in the sidebar and in People). Now five sections, each screen in
+   exactly one: Home · Inbox (Approvals, Messages) · Operations (Sites, Planner, Records, Carbon, Map) · People
+   (Directory, Attendance, Activity, Month end, Records, Notices, Surveys, HR desk) · Reports (Reports, Dashboard), as
+   tabs on the section page ( in app.js). Settings (gear) holds language, appearance, account, two-step,
+   Administration, HR settings; your own items are under your name (#me). Language button on every screen (phone top
+   bar, sidebar foot). Old link-list pages (#hr, #manage, hub/*) redirect. Field-staff app unchanged.
+
 ## Testing
 - `D:\PersonalBooks\.cache\kl-e2e.mjs` (2026-11-14): resets the demo, then manager assigns a photo-proof task →
   worker gets inbox item, ticks checklist, completes with sample photo → manager inbox "Task done" with note and

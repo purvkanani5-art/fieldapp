@@ -24,9 +24,7 @@ Views.me = () => {
       ${lrow({ href: '#rec/goal', icon: 'target', title: 'Goals & reviews', sub: 'Targets set by my manager' })}
       ${lrow({ href: '#rec/policy', icon: 'doc', title: 'Policies', sub: 'Read and accept' })}
     </div>`)}
-    ${group('Requests & forms', `<div class="card flush">
-      ${lrow({ href: '#notices', icon: 'bell', tone: 'amber', title: 'Notice board', sub: 'Company and site announcements' })}
-      ${lrow({ href: '#surveys', icon: 'chart', tone: 'blue', title: 'Surveys', sub: 'Short and anonymous' })}
+    ${group('My requests', `<div class="card flush">
       ${lrow({ href: '#updates', icon: 'note', title: 'Daily work update', sub: 'Today and the last two weeks' })}
       ${lrow({ href: '#leaves', icon: 'sun', tone: 'blue', title: 'Leave', sub: pendingLeaves ? `${pendingLeaves} request${pendingLeaves === 1 ? '' : 's'} pending` : 'Apply and see past leave' })}
       ${lrow({ href: '#feedback', icon: 'chat', tone: 'amber', title: 'Complaints & suggestions', sub: 'To HR or the POSH committee, named or anonymous with a tracking code' })}
@@ -35,16 +33,8 @@ Views.me = () => {
       ${lrow({ href: '#attendance', icon: 'pin', tone: 'green', title: 'My attendance', sub: 'Check-ins of the last 31 days' })}
       ${lrow({ href: '#trips', icon: 'bike', title: 'My travel claims', sub: 'Approved, pending and rejected' })}
     </div>`)}
-    ${group('Language', `<div class="card"><div class="seg">${[['en', 'English'], ['gu', 'ગુજરાતી'], ['hi', 'हिन्दी']].map(([k, l]) => `<button type="button" data-action="lang" data-lang="${k}" aria-pressed="${lang() === k}">${l}</button>`).join('')}</div><p class="hint" style="margin-top:8px">Prototype: menus, buttons and common words are translated.</p></div>`)}
-    ${group('Security & privacy', `<div class="card flush">${['admin', 'hr', 'manager'].includes(u.role) ? lrow({ href: '#security', icon: 'shield', tone: 'green', title: 'Two-step sign-in', sub: 'Authenticator code after the PIN' }) : ''}${lrow({ href: '#privacy', icon: 'lock', title: 'Privacy & my data', sub: 'What is recorded, for how long, download my data' })}</div>`)}
-    ${group('For reviewers', reviewerNote())}
-    ${group('Appearance', `<div class="card"><div class="seg">${[['auto', 'sun', 'Automatic'], ['light', 'sun', 'Light'], ['dark', 'moon', 'Dark']].map(([k, icon, l]) => `<button type="button" data-action="theme" data-theme="${k}" aria-pressed="${theme === k}">${ic(icon)}${l}</button>`).join('')}</div></div>`)}
-    ${group('Account', `<div class="card flush">
-      ${lrow({ action: 'changePin', icon: 'lock', title: 'Change PIN', sub: '6 digits, known only to you' })}
-      ${lrow({ action: 'flushOutbox', icon: 'upload', title: 'Send saved items now', sub: KL.outboxCount ? `${KL.outboxCount} waiting` : 'Nothing waiting' })}
-      ${lrow({ action: 'logout', icon: 'logout', tone: 'red', title: 'Sign out', sub: 'On this phone' })}
-    </div>
-    <div class="foot"><img src="./logo.png" alt="Sajeevan" />Kshetralekha prototype v${esc(KL.me?.version || '')} · ${esc(KL.boot?.company?.name || '')}</div>`)}`;
+    ${group('Settings', `<div class="card flush">${lrow({ href: '#settings', icon: 'cog', title: 'Settings', sub: 'Language, appearance, PIN, sign out, administration' })}</div>`)}
+    <div class="foot"><img src="./logo.png" alt="Sajeevan" />Kshetralekha prototype v${esc(KL.me?.version || '')} · ${esc(KL.boot?.company?.name || '')}</div>`;
 };
 Actions.changePin = async () => {
   const v = await modal({ title: 'Change PIN', fields: [{ key: 'old', label: 'Current PIN', type: 'password', inputmode: 'numeric' }, { key: 'new', label: 'New PIN (6 digits)', type: 'password', inputmode: 'numeric' }, { key: 'again', label: 'New PIN again', type: 'password', inputmode: 'numeric' }], confirmText: 'Change' });

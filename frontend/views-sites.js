@@ -15,7 +15,7 @@ const subtypeText = (s) => (s.project_type === 'biochar' ? projectsMeta().biocha
 Views.sites = () => {
   const sites = mySites();
   if (!sites.length) return `${topbar('Sites', '#home')}${emptyState('pin', 'No site assigned to you', 'You can use HR, the Planner and your inbox. HR adds you to a site or project when you work at one.')}`;
-  return `${topbar('Sites', '#home', `<a class="btn small" href="#map">${ic('map')} Map</a>`)}
+  return `${topbar('Sites', '#home', isStaff() ? '' : `<a class="btn small" href="#map">${ic('map')} Map</a>`)}
     <p class="sub">${KL.user.all_sites ? 'Every project and its sites' : KL.user.projects?.length ? `Projects you manage: ${KL.user.projects.map((pk) => esc(projectsMeta()[pk]?.name || pk)).join(', ')}` : 'The sites you work at'}</p>
     <div class="pj-panels">${projectGroups(sites)}</div>`;
 };

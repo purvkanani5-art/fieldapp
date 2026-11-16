@@ -58,7 +58,7 @@ Views.dashboard = () => {
   const stock = d && !d.error ? d.stock : [];
   const bySite = {};
   for (const s of stock) (bySite[s.site] ||= []).push(s);
-  return `${topbar('Dashboard', '#manage', `<button type="button" class="btn icon-only" data-action="refreshDash" aria-label="Refresh">${ic('refresh')}</button>`)}${Views.dashboardBody()}
+  return `${topbar('Dashboard', '#home', `<button type="button" class="btn icon-only" data-action="refreshDash" aria-label="Refresh">${ic('refresh')}</button>`)}${Views.dashboardBody()}
     ${Object.keys(bySite).length ? group('Stock by site', Object.entries(bySite).map(([site, items]) => `<div class="card" style="margin-top:8px"><b>${esc(site)}</b><div class="kv" style="margin-top:6px">${items.map((i) => `<span>${esc(i.item)}</span><span class="${i.low ? 'muted' : ''}" style="${i.low ? 'color:var(--danger)' : ''}">${fmtNum(i.balance, 1)} ${esc(i.unit)}${i.low ? ' · low' : ''}</span>`).join('')}</div></div>`).join('')) : ''}`;
 };
 Actions.refreshDash = () => { invalidate('dashboard'); refreshMe().then(render); render(); };
@@ -98,7 +98,7 @@ Views.hrdesk = () => {
   data('hr:posh', () => api('/api/hr/posh'));
   const lv = data('leaves:team', () => api('/api/leaves?scope=team'));
   const users = data('admin:users', () => api('/api/admin/users'));
-  return `${topbar('HR desk', '#manage')}
+  return `${topbar('HR desk', '#home')}
     ${group('Employee documents', `<div class="card stack"><p class="hint">Upload a payslip from Zoho Payroll, a letter or an ID document; the employee sees it under Me → My documents and gets a notification.</p>
       ${users === null ? spinner() : users.error ? errorBox(users.error) : field('Employee', select('hr-user', F('hr-user', ''), users.rows.filter((u) => u.active).map((u) => [u.id, `${u.employee_id} · ${u.name}`]), { blank: 'Choose' }))}
       <div class="grid2">${field('Title', input('hr-title', F('hr-title'), { placeholder: 'e.g. Payslip October 2026' }))}${field('Category', select('hr-cat', F('hr-cat', 'Payslip'), ['Payslip', 'Offer letter', 'Appointment letter', 'ID card', 'Policy', 'Form 16', 'Other']))}</div>

@@ -75,13 +75,33 @@ Views.hr = () => {
 Views.hub = (group) => {
   const kd = kinds();
   const h = HUB[group] || HUB.hr;
-  if (kd === null) return `${topbar(h.title, isStaff() ? '#manage' : '#work')}${spinner()}`;
+  if (kd === null) return `${topbar(h.title, isStaff() ? '#home' : '#work')}${spinner()}`;
   if (kd.error) return `${topbar(h.title)}${errorBox(kd.error)}`;
   const list = Object.values(kd.kinds).filter((k) => k.group === group && !k.hidden);
   const rows = [...h.extra().map(([href, icon, tone, title, sub]) => lrow({ href, icon, tone, title, sub })),
     ...list.map((k) => lrow({ href: `#rec/${k.key}`, icon: k.icon, tone: k.approval ? 'amber' : '', title: k.label, sub: `${KDESC[k.key] || ''}${k.approval ? ' · needs approval' : ''}`, right: k.canCreate ? '' : tag('view', '') }))];
-  return `${topbar(h.title, isStaff() ? '#manage' : '#work')}<p class="sub">${esc(kd.groups[group] || '')}: ${list.length} registers, all with demo data. Open one to see it, or add your own.</p><div class="card flush">${rows.join('')}</div>`;
+  return `${topbar(h.title, isStaff() ? '#home' : '#work')}<p class="sub">${esc(kd.groups[group] || '')}: ${list.length} registers, all with demo data. Open one to see it, or add your own.</p><div class="card flush">${rows.join('')}</div>`;
 };
+
+{
+  const hubOne = Views.hub;
+  const HUB_TITLE = { hr: 'HR and money records', ops: 'Operations records' };
+  Views.hub = (g) => {
+    if (!isStaff()) return hubOne(g);
+    const kd = kinds();
+    const key = ['hr', 'money'].includes(g) ? 'hr' : 'ops';
+    const head = `<h1 class="large">${HUB_TITLE[key]}</h1>`;
+    if (kd === null) return `${head}${spinner()}`;
+    if (kd.error) return `${head}${errorBox(kd.error)}`;
+    const groups = key === 'hr' ? ['hr', 'money'] : ['ops', 'carbon', 'supply'];
+    const card = (gr) => {
+      const list = Object.values(kd.kinds).filter((k) => k.group === gr && !k.hidden);
+      return list.length ? group(kd.groups[gr] || gr, `<div class="card flush">${list.map((k) => lrow({ href: `#rec/${k.key}`, icon: k.icon, tone: k.approval ? 'amber' : '', title: k.label, sub: `${KDESC[k.key] || ''}${k.approval ? ' · needs approval' : ''}`, right: k.canCreate ? '' : tag('view', '') })).join('')}</div>`) : '';
+    };
+    const extra = key === 'ops' ? group('Stock', `<div class="card flush">${lrow({ href: '#registers', icon: 'box', tone: 'amber', title: 'Site registers', sub: 'Stock balances move with every batch, transfer and dispatch' })}</div>`) : '';
+    return `${head}${groups.map(card).join('')}${extra}`;
+  };
+}
 
 /* ---------------------------------------------------------------- records: list, detail, form */
 Views.rec = (arg) => {
@@ -560,7 +580,7 @@ Views.map = () => {
   const m = data('map', () => api('/api/map'));
   if (m && !m.error) KL.afterRender.push(() => drawMap(m));
   const n = m && !m.error ? m : { sites: [], plots: [], pins: [], people: [] };
-  return `${topbar('Map', isStaff() ? '#manage' : '#work')}
+  return `${topbar('Map', isStaff() ? '#home' : '#work')}
     <div class="chips" style="margin-bottom:10px">${tag(`${n.sites.length} sites`, 'ok')}${tag(`${n.plots.length} farm plots`, 'info')}${tag(`${n.pins.filter((p) => p.kind === 'application').length} biochar applications`, 'violet')}${tag(`${n.pins.filter((p) => p.kind === 'incident').length} incidents`, 'bad')}${isStaff() ? tag(`${n.people.length} people on site`, 'warn') : ''}</div>
     ${n.sites.length ? `<div class="chips" style="margin-bottom:10px"><button type="button" data-action="mapAll">${ic('map')} All</button>${n.sites.map((x) => `<button type="button" data-action="mapGo" data-lat="${x.lat}" data-lng="${x.lng}" data-zoom="${x.project_type === 'agroforestry' ? 12 : 16}">${esc(x.name.split(',')[0])}</button>`).join('')}</div>` : ''}
     <div id="kl-map" class="map-box">${m === null ? spinner() : m.error ? errorBox(m.error) : ''}</div>
@@ -591,7 +611,7 @@ async function drawMap(m) {
 Views.reports = () => {
   const month = F('rp-month', todayISO().slice(0, 7));
   const r = data(`reports:${month}`, () => api(`/api/reports/summary?month=${month}`));
-  const head = `${topbar('Reports', '#manage')}<input class="input" type="month" value="${esc(month)}" data-change="form" data-key="rp-month" style="max-width:220px;margin-bottom:12px" />`;
+  const head = `${topbar('Reports', '#home')}<input class="input" type="month" value="${esc(month)}" data-change="form" data-key="rp-month" style="max-width:220px;margin-bottom:12px" />`;
   if (r === null) return `${head}${spinner()}`;
   if (r.error) return `${head}${errorBox(r.error)}`;
   const days = Object.entries(r.production.byDay);
@@ -763,6 +783,6 @@ Object.assign(I18N.hi, { 'My work': 'मेरा काम', 'People & HR': '�
   'Sign in': 'साइन इन', 'Employee ID': 'कर्मचारी ID', 'Check out': 'चेक आउट', 'Team today': 'आज टीम', 'Late': 'देर', 'Approved': 'मंज़ूर', 'Rejected': 'अस्वीकृत', 'Present': 'उपस्थित', 'Absent': 'अनुपस्थित' });
 // the full dictionaries (i18n.gu.js, i18n.hi.js) win over these early word lists
 for (const L of ['gu', 'hi']) window.I18N_DATA[L] = { ...I18N[L], ...(window.I18N_DATA[L] || {}) };
-Actions.lang = (el) => { try { localStorage.setItem('kl.lang', el.dataset.lang); } catch { /* private */ } document.documentElement.lang = el.dataset.lang; render(); };
+Actions.lang = (el) => { try { localStorage.setItem('kl.lang', el.dataset.lang); } catch { /* private */ } document.documentElement.lang = el.dataset.lang; KL.closeModal?.(null); render(); };
 Actions.mapGo = (el) => { if (KL.leafletMap) KL.leafletMap.flyTo([Number(el.dataset.lat), Number(el.dataset.lng)], Number(el.dataset.zoom), { duration: 0.8 }); };
 Actions.mapAll = () => { if (KL.leafletMap && KL.leafletBounds.length) KL.leafletMap.flyToBounds(KL.leafletBounds, { padding: [30, 30], duration: 0.8 }); };

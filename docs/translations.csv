@@ -29,6 +29,7 @@ Account,એકાઉન્ટ,खाता
 "Accrual, used, pending and what is left","જમા, વપરાયેલી, બાકી અને કેટલી રહી","जमा, इस्तेमाल, बाकी और कितनी बची"
 Actions,ક્રિયાઓ,कार्रवाई
 Active,ચાલુ,सक्रिय
+Activity,પ્રવૃત્તિ,गतिविधि
 Add,ઉમેરો,जोड़ें
 Add an employee to this site,આ સાઇટમાં કર્મચારી ઉમેરો,इस साइट में कर्मचारी जोड़ें
 Add at {x},{x} પર ઉમેરો,{x} पर जोड़ें
@@ -219,6 +220,7 @@ Came in at,આવવાનો સમય,आने का समय
 Camera and GPS on a PC,PC પર કેમેરા અને GPS,PC पर कैमरा और GPS
 Cancel,રદ કરો,रद्द करें
 Car,કાર,कार
+Carbon,કાર્બન,कार्बन
 Carbon chain,કાર્બન સાંકળ,कार्बन चेन
 Carbon chain of custody,કાર્બન કસ્ટડીની સાંકળ,कार्बन कस्टडी की कड़ी
 Carbon chain of custody (all batches),કાર્બન કસ્ટડી સાંકળ (બધી બેચ),कार्बन कस्टडी चेन (सभी बैच)
@@ -633,6 +635,7 @@ Home,હોમ,होम
 Hours worked,કામના કલાક,काम के घंटे
 How many trees are alive,કેટલા ઝાડ જીવિત છે,कितने पेड़ ज़िंदा हैं
 How to complain:,ફરિયાદ કેવી રીતે કરવી:,शिकायत कैसे करें:
+HR and money records,HR અને પૈસાના રેકોર્ડ,HR और पैसों के रिकॉर्ड
 HR approves and locks,HR મંજૂર કરે અને લૉક કરે,HR मंज़ूर करे और लॉक करे
 HR desk,HR ડેસ્ક,HR डेस्क
 HR desk open,HR ડેસ્ક ખોલો,HR डेस्क खोलें
@@ -761,6 +764,7 @@ Labour entry,મજૂર એન્ટ્રી,मज़दूर एंट्�
 Labour entry: Mansukh Parmar,મજૂર એન્ટ્રી: મનસુખ પરમાર,मज़दूर एंट्री: मनसुख परमार
 Labour entry: {x},મજૂરી નોંધ: {x},मज़दूरी प्रविष्टि: {x}
 Language,ભાષા,भाषा
+"Language, appearance, PIN, sign out, administration","ભાષા, દેખાવ, PIN, સાઇન આઉટ, વહીવટ","भाषा, रूप, PIN, साइन आउट, प्रशासन"
 "Language, PIN, privacy","ભાષા, PIN, ગોપનીયતા","भाषा, PIN, गोपनीयता"
 Laptop,લેપટોપ,लैपटॉप
 Last gasifier run,છેલ્લો ગેસિફાયર રન,पिछला गैसीफायर रन
@@ -919,6 +923,7 @@ My employee record,મારો કર્મચારી રેકોર્ડ,�
 My HR,મારું HR,मेरा HR
 My leave,મારી રજા,मेरी छुट्टी
 "My record, leave, claims, settings","મારો રેકોર્ડ, રજા, દાવા, સેટિંગ્સ","मेरा रिकॉर्ड, छुट्टी, दावे, सेटिंग्स"
+My requests,મારી વિનંતીઓ,मेरे अनुरोध
 My site,મારી સાઇટ,मेरी साइट
 My tasks,મારાં કામ,मेरे काम
 My travel claims,મારા મુસાફરી દાવા,मेरे यात्रा दावे
@@ -1113,6 +1118,7 @@ Opening earned leave,શરૂઆતની કમાયેલી રજા,श�
 Opening leave,શરૂઆતની રજા,शुरुआती छुट्टी
 Opening sick leave,શરૂઆતની માંદગી રજા,शुरुआती बीमारी छुट्टी
 Operations,કામગીરી,कामकाज
+Operations records,કામગીરીના રેકોર્ડ,कामकाज के रिकॉर्ड
 Operations today,આજનું કામકાજ,आज का कामकाज
 Optional,મરજિયાત,वैकल्पिक
 ordered,ઓર્ડર કર્યો,ऑर्डर किया
@@ -1298,6 +1304,7 @@ Recent entries,તાજેતરની એન્ટ્રીઓ,हाल क�
 Record,રેકોર્ડ,रिकॉर्ड
 Record an application,ખેતરમાં નાખ્યાની નોંધ કરો,खेत में डालने का रिकॉर्ड करें
 Recorded with the date and time.,તારીખ અને સમય સાથે નોંધાયું.,तारीख और समय के साथ दर्ज हुआ।
+Records,રેકોર્ડ,रिकॉर्ड
 "Records, reporting lines, sites","રેકોર્ડ, કોણ કોને રિપોર્ટ કરે, સાઇટ્સ","रिकॉर्ड, रिपोर्टिंग, साइटें"
 "Records, sites and projects, reporting lines","રેકોર્ડ, સાઇટ્સ અને પ્રોજેક્ટ, રિપોર્ટિંગ લાઇન","रिकॉर्ड, साइटें और प्रोजेक्ट, रिपोर्टिंग लाइन"
 Recover over (months),કેટલા મહિનામાં વસૂલવું,कितने महीनों में वसूलना

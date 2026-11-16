@@ -2,7 +2,49 @@
    person switch, event wiring and start-up. */
 
 const TABS_FIELD_ALL = [['home', 'home', 'Today'], ['mysite', 'pin', 'Site'], ['+', 'plus', 'Add'], ['requests', 'receipt', 'Requests'], ['me', 'user', 'Me']];
-const TABS_STAFF = [['home', 'home', 'Home'], ['sites', 'pin', 'Sites'], ['planner', 'kanban', 'Planner'], ['hr', 'users', 'People'], ['inbox', 'bell', 'Inbox']];
+/* Office roles (director, managers, HR): five sections; each screen lives in exactly one of them, as a tab on the
+   section's page. Your own items are under your name (#me); language, account and administration under Settings. */
+const SECTIONS = [
+  { key: 'home', icon: 'home', label: 'Home', tabs: [['home', 'Home']] },
+  { key: 'inbox', icon: 'bell', label: 'Inbox', tabs: [['approvals', 'Approvals'], ['inbox', 'Messages']] },
+  { key: 'ops', icon: 'pin', label: 'Operations', tabs: [['sites', 'Sites'], ['planner', 'Planner'], ['hub/ops', 'Records'], ['carbon', 'Carbon'], ['map', 'Map']] },
+  { key: 'people', icon: 'users', label: 'People', tabs: [['people', 'Directory'], ['attsum', 'Attendance'], ['team', 'Activity'], ['monthend', 'Month end'], ['hub/hr', 'Records'], ['notices', 'Notices'], ['surveys', 'Surveys'], ['hrdesk', 'HR desk', 'hr']] },
+  { key: 'reports', icon: 'chart', label: 'Reports', tabs: [['reports', 'Reports'], ['dashboard', 'Dashboard']] },
+];
+const SECTION_OF = { home: 'home', approvals: 'inbox', inbox: 'inbox',
+  sites: 'ops', site: 'ops', mysite: 'ops', planner: 'ops', tasks: 'ops', carbon: 'ops', map: 'ops', registers: 'ops', farmers: 'ops', sign: 'ops', muster: 'ops', work: 'ops',
+  people: 'people', person: 'people', personedit: 'people', assign: 'people', attsum: 'people', team: 'people', monthend: 'people', hrreg: 'people', changes: 'people',
+  notices: 'people', notice: 'people', noticenew: 'people', surveys: 'people', survey: 'people', surveynew: 'people', hrdesk: 'people', poshdesk: 'people',
+  reports: 'reports', dashboard: 'reports',
+  me: 'me', leaves: 'me', trips: 'me', attendance: 'me', updates: 'me', feedback: 'me',
+  settings: 'settings', privacy: 'settings', security: 'settings', admin: 'settings', hrsettings: 'settings', messages: 'settings' };
+const sectionTabs = (s) => s.tabs.filter(([, , need]) => need !== 'hr' || hrRoleNow());
+function sectionOf(view) {
+  if (view === 'rec' || view === 'hub') {
+    const a = route().arg.split('/')[0];
+    const g = view === 'hub' ? a : kindDef(a)?.group;
+    return ['hr', 'money'].includes(g) ? 'people' : 'ops';
+  }
+  return SECTION_OF[view] || 'home';
+}
+const sectionHref = (key) => { const s = SECTIONS.find((x) => x.key === key); return s ? `#${s.tabs[0][0]}` : `#${key}`; };
+/** The tab strip at the top of a section's page; only on the section's own pages, not on a record or a person. */
+function sectionStrip(key, name, arg) {
+  const s = SECTIONS.find((x) => x.key === key);
+  const here = arg ? `${name}/${arg}` : name;
+  if (!s || !s.tabs.some(([r]) => r === here)) return '';
+  const tabs = sectionTabs(s);
+  if (tabs.length < 2) return '';
+  return `<nav class="tabs sect-tabs" aria-label="${esc(s.label)}">${tabs.map(([r, l]) => `<a href="#${r}" class="${r === here ? 'on' : ''}" ${r === here ? 'aria-current="page"' : ''}>${esc(l)}${r === 'approvals' && KL.me?.pendingApprovals ? ` <span class="badge">${KL.me.pendingApprovals}</span>` : ''}${r === 'inbox' && KL.me?.unread ? ` <span class="badge">${KL.me.unread}</span>` : ''}</a>`).join('')}</nav>`;
+}
+const LANG_SHORT = { en: 'EN', gu: 'ગુ', hi: 'हि' };
+const langBtn = () => `<button type="button" class="lang-btn" data-action="langPick" aria-label="Language" title="Language">${ic('globe')}<span class="notr">${LANG_SHORT[lang()] || 'EN'}</span></button>`;
+Actions.langPick = () => modal({ title: 'Language', noButtons: true,
+  html: `<div class="lang-pick notr">${[['en', 'English'], ['gu', 'ગુજરાતી'], ['hi', 'हिन्दी']].map(([k, l]) => `<button type="button" class="btn wide ${lang() === k ? 'primary' : ''}" data-action="lang" data-lang="${k}">${l}</button>`).join('')}</div>` });
+/** Phones: a slim bar on top with the language button (and Settings for office roles). */
+function appHead() {
+  return `<header class="apphead"><a class="brand" href="#home"><img src="./icon.svg" alt="" /><b>Kshetralekha</b></a><span class="sp"></span>${langBtn()}${isStaff() ? `<a class="btn ghost icon-only" href="#settings" aria-label="Settings" title="Settings">${ic('cog')}</a>` : ''}</header>`;
+}
 const fieldTabs = () => TABS_FIELD_ALL.filter(([k]) => k !== 'mysite' || (KL.boot?.mySites || []).some((s) => s.project_type !== 'office'));
 const TAB_OF = { attendance: 'work', trips: 'work', registers: 'work', farmers: 'work', sign: 'work', updates: 'me', leaves: 'me', feedback: 'me', dashboard: 'manage', approvals: 'manage', team: 'manage', hrdesk: 'manage', admin: 'manage',
   people: 'manage', personedit: 'manage', reports: 'manage', hrsettings: 'manage', messages: 'manage', privacy: 'me', security: 'me',
@@ -11,7 +53,7 @@ const FIELD_ONLY = new Set(['requests']);
 const STAFF_ROUTES = new Set(['manage', 'dashboard', 'approvals', 'team', 'hrdesk', 'admin', 'people', 'personedit', 'reports', 'hrsettings', 'messages', 'hr', 'assign', 'monthend', 'hrreg', 'noticenew']);
 const NEEDS_GPS = new Set(['attendance', 'trips', 'registers', 'sign', 'farmers']);
 
-const SECTION_LABEL = {'home': 'Home', 'sites': 'Sites', 'mysite': 'My site', 'planner': 'Planner', 'tasks': 'My tasks', 'hr': 'People', 'me': 'Me', 'inbox': 'Inbox', 'manage': 'Manage'};
+const SECTION_LABEL = {'home': 'Home', 'sites': 'Sites', 'mysite': 'My site', 'planner': 'Planner', 'tasks': 'My tasks', 'hr': 'People', 'me': 'Me', 'inbox': 'Inbox', 'manage': 'Manage', 'ops': 'Operations', 'people': 'People', 'reports': 'Reports', 'settings': 'Settings'};
 function route() {
   const h = location.hash.replace(/^#/, '') || 'home';
   const i = h.indexOf('/');
@@ -27,7 +69,8 @@ function tabOf(view) {
     if (view === 'rec') { const k = kindDef(route().arg.split('/')[0]); return k && ['expense', 'advance', 'regularisation'].includes(k.key) ? 'requests' : k && ['hr', 'money'].includes(k.group) ? 'me' : 'mysite'; }
     return FIELD_TAB[view] || 'home';
   }
-  if (view === 'planner' || view === 'tasks') return isStaff() ? 'planner' : 'tasks';
+  if (isStaff()) return sectionOf(view);
+  if (view === 'planner' || view === 'tasks') return 'tasks';
   if (view === 'rec') { const k = kindDef(route().arg.split('/')[0]); view = k && ['hr', 'money'].includes(k.group) ? 'hr' : 'site'; }
   if (SITE_VIEWS.has(view) || view === 'site') return isStaff() ? 'sites' : 'mysite';
   if (PEOPLE_VIEWS.has(view)) return isStaff() ? 'hr' : (['hr', 'hub', 'person', 'attsum'].includes(view) ? 'me' : TAB_OF[view] || view);
@@ -41,7 +84,11 @@ function badgeFor(k) {
   return '';
 }
 function tabBar(active) {
-  const tabs = isStaff() ? TABS_STAFF : fieldTabs();
+  if (isStaff()) {
+    const n = (KL.me?.pendingApprovals || 0) + (KL.me?.unread || 0);
+    return `<nav class="tabbar" aria-label="Main">${SECTIONS.map((s) => `<a href="${sectionHref(s.key)}" class="${active === s.key ? 'on' : ''}" ${active === s.key ? 'aria-current="page"' : ''}>${ic(s.icon)}<span>${s.label}</span>${s.key === 'inbox' && n ? `<span class="badge">${n}</span>` : ''}</a>`).join('')}</nav>`;
+  }
+  const tabs = fieldTabs();
   return `<nav class="tabbar ${isStaff() ? '' : 'fa-tabbar'}" aria-label="Main">${tabs.map(([k, icon, label]) => (k === '+' ? `<button type="button" class="fa-plus" data-action="plusOpen" aria-label="Add something new">${ic('plus')}</button>` : `<a href="#${k}" class="${active === k ? 'on' : ''}" ${active === k ? 'aria-current="page"' : ''}>${ic(icon)}<span>${label}</span>${badgeFor(k)}</a>`)).join('')}</nav>`;
 }
 /** Desktop sidebar, grouped by area. Each item shows only for roles that may open it (the same guards as render()). */
@@ -52,9 +99,10 @@ function navGroups() {
     return [[null, [['home', 'home', 'Today'], ...(hasSiteF ? [['mysite', 'pin', 'Site']] : []), ['requests', 'receipt', 'Requests'], ['me', 'user', 'Me']]],
       ['More', [['tasks', 'kanban', 'My tasks'], ['inbox', 'bell', 'Messages', KL.me?.unread || 0], ['attendance', 'pin', 'Check-in'], ['updates', 'note', 'Daily update']]]];
   }
-  const hrRole = ['admin', 'hr'].includes(KL.user.role);
   const pend = KL.me?.pendingApprovals || 0;
   const unread = KL.me?.unread || 0;
+  if (staff) return [[null, SECTIONS.map((s) => [sectionHref(s.key).slice(1), s.icon, s.label, s.key === 'inbox' ? pend + unread : 0])]];
+  const hrRole = ['admin', 'hr'].includes(KL.user.role);
   const hasSite = (KL.boot?.mySites || []).some((s) => s.project_type !== 'office');
   const g = [
     [null, [['home', 'home', 'Home']]],
@@ -77,7 +125,7 @@ function sideNav(active) {
   const pm = KL.boot?.projects || {};
   const ms = (KL.boot?.mySites || []).filter((s) => s.project_type !== 'office');
   const tree = Object.entries(pm).map(([key, p]) => [p, ms.filter((s) => s.project_type === key)]).filter(([, l]) => l.length);
-  const on = (k) => cur === k || cur.startsWith(`${k}/`) || (k === active && !navGroups().some(([, items]) => items.some(([x]) => x !== k && (cur === x || cur.startsWith(`${x}/`)))));
+  const on = (k) => isStaff() ? sectionOf(route().name) === SECTIONS.find((s) => s.tabs[0][0] === k)?.key : cur === k || cur.startsWith(`${k}/`) || (k === active && !navGroups().some(([, items]) => items.some(([x]) => x !== k && (cur === x || cur.startsWith(`${x}/`)))));
   const link = ([k, icon, label, badge]) => `<a class="nav ${on(k) ? 'on' : ''}" href="#${k}" title="${esc(label)}" ${on(k) ? 'aria-current="page"' : ''}>${ic(icon)}<span>${esc(label)}</span>${badge ? `<span class="badge">${badge}</span>` : ''}</a>`;
   return `<aside class="side" aria-label="Main navigation">
     <div class="side-top"><a class="brand" href="#home"><img src="./icon.svg" alt="" /><span><b>Kshetralekha</b><small>${esc(KL.boot?.company?.short || 'Sajeevan')}</small></span></a>
@@ -85,6 +133,7 @@ function sideNav(active) {
     <nav class="side-nav">${navGroups().map(([title, items]) => `<div class="nav-group">${title ? `<div class="label">${esc(title)}</div>` : ''}${items.map(link).join('')}${title === 'Operations' ? tree.map(([p, list]) => `<div class="nav-tree"><span class="tree-label">${ic(p.icon)}<span>${esc(p.name)}</span></span>${list.map((s) => `<a class="nav sub ${cur.startsWith(`site/${s.id}`) ? 'on' : ''}" href="#site/${esc(s.id)}" title="${esc(s.name)}"><span>${esc(s.name)}</span></a>`).join('')}</div>`).join('') : ''}</div>`).join('')}</nav>
     <div class="side-foot">
       <a class="me-chip ${cur === 'me' ? 'on' : ''}" href="#me">${avatar(u.name, 'sm')}<span><b>${esc(u.name)}</b><small>${esc(ROLE_TEXT[u.role] || u.role)}</small></span></a>
+      <div class="side-tools">${langBtn()}${isStaff() ? `<a class="btn ghost small ${cur.startsWith('settings') ? 'on' : ''}" href="#settings">${ic('cog')}<span>Settings</span></a>` : ''}</div>
       ${KL.boot?.demo ? `<button type="button" class="btn small wide" data-action="switchOpen">${ic('swap')}<span>View as someone else</span></button>` : ''}
     </div>
   </aside>`;
@@ -217,6 +266,11 @@ function render() {
     if (KL.ui.sheetTask !== arg) { KL.ui.sheetTask = arg; KL.ui.completing = null; invalidate(`planner:task:${arg}`); locate(); }
     name = isStaff() ? 'planner' : 'tasks'; arg = '';
   }
+  if (isStaff()) {
+    if (name === 'hr') { name = 'people'; arg = ''; }
+    if (name === 'manage') { name = 'home'; arg = ''; }
+    if (name === 'hub') arg = ['hr', 'money'].includes(arg) ? 'hr' : 'ops';
+  }
   let view = Views[name] ? name : 'home';
   if (STAFF_ROUTES.has(view) && !isStaff()) view = 'home';
   if (FIELD_ONLY.has(view) && isStaff()) view = 'me';
@@ -231,14 +285,15 @@ function render() {
   const scroll = entering ? 0 : window.scrollY;
   const boardX = entering ? 0 : $('.board')?.scrollLeft || 0;
   const tab = tabOf(view);
-  KL.ui.section = { href: `#${tab}`, label: SECTION_LABEL[tab] || tab };
+  KL.ui.section = { href: isStaff() ? sectionHref(tab) : `#${tab}`, label: SECTION_LABEL[tab] || tab };
   KL.ui.backLabel = '';
   // record details open in a drawer beside their list on wide screens; on phones they are a full screen
   const [rk, rid, rmode] = view === 'rec' ? String(arg).split('/') : [];
   const drawer = view === 'rec' && rid && rid !== 'new' && !rmode && innerWidth >= 1040;
   const main = drawer ? Views.rec(rk) : Views[view](arg);
   const side = drawer ? drawerShell(Views.rec(arg), `#rec/${rk}`) : '';
-  app.innerHTML = `${sideNav(tab)}<main class="view ${entering ? 'enter' : ''}" id="main">${main}</main>${side}${tabBar(tab)}${switcherPill()}`;
+  const strip = isStaff() && !drawer ? sectionStrip(tab, name, arg) : '';
+  app.innerHTML = `${appHead()}${sideNav(tab)}<main class="view ${entering ? 'enter' : ''} ${strip ? 'is-top' : ''}" id="main">${strip}${main}</main>${side}${tabBar(tab)}${switcherPill()}`;
   document.body.classList.toggle('has-drawer', Boolean(drawer));
   const canvas = $('#sig');
   if (canvas) {

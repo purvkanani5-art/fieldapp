@@ -236,7 +236,8 @@ Actions.meDocs = () => { setF('pf-tab', 'documents'); location.hash = '#person/m
 Views.settings = () => {
   let theme = 'auto';
   try { theme = localStorage.getItem('kl.theme') || 'auto'; } catch { /* private */ }
-  return `${topbar('Settings', '#me')}
+  const u = KL.user;
+  return `${topbar('Settings', isStaff() ? '#home' : '#me')}
     ${group('Language', `<div class="seg fa-seg">${[['en', 'English'], ['gu', 'ગુજરાતી'], ['hi', 'हिन्दी']].map(([k, l]) => `<button type="button" data-action="lang" data-lang="${k}" aria-pressed="${lang() === k}">${l}</button>`).join('')}</div>`)}
     ${group('Appearance', `<div class="seg fa-seg">${[['auto', 'Automatic'], ['light', 'Light'], ['dark', 'Dark']].map(([k, l]) => `<button type="button" data-action="theme" data-theme="${k}" aria-pressed="${theme === k}">${l}</button>`).join('')}</div>`)}
     ${group('Account', `<div class="fa-list">
@@ -245,6 +246,11 @@ Views.settings = () => {
       <button type="button" class="fa-row" data-action="flushOutbox"><span class="fa-ic">${ic('upload')}</span><span class="fa-tx"><b>Send saved items now</b><span>${KL.outboxCount ? `${KL.outboxCount} waiting` : 'Nothing waiting'}</span></span></button>
       <button type="button" class="fa-row" data-action="logout"><span class="fa-ic red">${ic('logout')}</span><span class="fa-tx"><b>Sign out</b><span>On this phone</span></span></button>
     </div>`)}
+    ${isStaff() ? group('Administration', `<div class="fa-list">
+      <a class="fa-row" href="#security"><span class="fa-ic">${ic('shield')}</span><span class="fa-tx"><b>Two-step sign-in</b><span>Authenticator code after the PIN</span></span><span class="chev">${ic('chevron')}</span></a>
+      <a class="fa-row" href="#admin"><span class="fa-ic">${ic('cog')}</span><span class="fa-tx"><b>Administration</b><span>Users, sites, registers, templates, company</span></span><span class="chev">${ic('chevron')}</span></a>
+      ${['admin', 'hr'].includes(u.role) ? `<a class="fa-row" href="#hrsettings"><span class="fa-ic">${ic('cog')}</span><span class="fa-tx"><b>HR settings</b><span>Approval chains, leave policy, work hours</span></span><span class="chev">${ic('chevron')}</span></a>` : ''}
+    </div>`) : ''}
     ${group('For reviewers', reviewerNote())}`;
 };
 
