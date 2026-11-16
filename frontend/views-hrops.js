@@ -2,7 +2,7 @@
    leave register, the change log, crew muster by a supervisor, complaints with tracking codes and the POSH notice,
    the notice board with read receipts, and surveys with eNPS. Backend: backend/hrops.py. */
 
-const monthName = (m) => new Date(`${m}-01T00:00:00`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+const monthName = (m) => new Date(`${m}-01T00:00:00`).toLocaleDateString(appLocale(), { month: 'long', year: 'numeric' });
 function prevMonth() { const d = new Date(); const y = d.getMonth() === 0 ? d.getFullYear() - 1 : d.getFullYear(); const m = d.getMonth() === 0 ? 12 : d.getMonth(); return `${y}-${String(m).padStart(2, '0')}`; }
 const hrRoleNow = () => ['admin', 'hr'].includes(KL.user.role);
 const apiLink = (path, text, icon = 'download') => `<a class="btn small" href="${esc(path)}${path.includes('?') ? '&' : '?'}token=${encodeURIComponent(KL.token)}" download>${ic(icon)} ${esc(text)}</a>`;

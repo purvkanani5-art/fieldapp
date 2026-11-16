@@ -31,7 +31,7 @@ Views.dashboardBody = () => {
   const chart = `<div class="chart">${days.map((x, i) => {
     const dt = new Date(x.date + 'T00:00:00');
     const today = i === days.length - 1;
-    return `<div class="bar ${today ? 'today' : ''} ${x.present ? '' : 'zero'}" title="${esc(dt.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }))}: ${x.present} checked in, ${fmtNum(x.km)} km"><i style="height:${Math.max(4, (x.present / top) * 100)}%;animation-delay:${i * 0.03}s"></i><small>${esc(dt.toLocaleDateString('en-IN', { weekday: 'narrow' }))}</small></div>`;
+    return `<div class="bar ${today ? 'today' : ''} ${x.present ? '' : 'zero'}" title="${esc(dt.toLocaleDateString(appLocale(), { weekday: 'short', day: 'numeric', month: 'short' }))}: ${x.present} checked in, ${fmtNum(x.km)} km"><i style="height:${Math.max(4, (x.present / top) * 100)}%;animation-delay:${i * 0.03}s"></i><small>${esc(dt.toLocaleDateString('en-IN', { weekday: 'narrow' }))}</small></div>`;
   }).join('')}</div>`;
   return `
     <div class="tiles auto" style="margin-top:16px">

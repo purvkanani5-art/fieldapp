@@ -160,6 +160,21 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
     holds language, theme, PIN, privacy, reviewer note. `projectGroups()` = project panel with its sites inside,
     used by everyone's Sites page and the sidebar tree. Managers/HR/director screens unchanged. Test: kl-e2e7 (18).
 
+22. **Fixed-word translation (2026-11-16)**: owner: "just have fixed words translation everywhere" (live machine
+   translation of typed text skipped for now). `frontend/i18n.js` translates every text node and placeholder /
+   aria-label / title through a MutationObserver, so screens need no changes; dictionaries `i18n.gu.js` and
+   `i18n.hi.js` (~1,960 texts each) are generated, with `{n}` (number) and `{x}` (any text) placeholders, `{1}` `{2}`
+   to reorder. Owner: "keep numbers and other normal generic stuff in english": digits 0-9, dates, times, units,
+   codes and brand names stay English (`appLocale()` is always en-IN). People's typed data is never translated.
+   Review sheet: `docs/translations.csv`. To add texts: run the collectors in D:\PersonalBooks\.cache
+   (kl-strings.mjs, then the scratchpad extract/build/clean scripts), translate the new keys, rebuild; quick fixes
+   go in `D:\PersonalBooks\.cache\kl-tr\overrides.json`. Too-loose patterns (`{x} to {x}`) are excluded so typed
+   text is not half-translated.
+23. **Release plan (2026-11-16)**: for now only the owner uses the live app; staff get it in versions once it is free of
+   bugs. The owner will rework the UI and tab grouping later (idea only, not started). Security items wait until the
+   field-staff release: one phone per account with HR approval for a new phone, hardening (image rebuilds, session
+   expiry, sign out everywhere, rate limits, headers, upload checks), Microsoft sign-in for office staff.
+
 ## Testing
 - `D:\PersonalBooks\.cache\kl-e2e.mjs` (2026-11-14): resets the demo, then manager assigns a photo-proof task →
   worker gets inbox item, ticks checklist, completes with sample photo → manager inbox "Task done" with note and

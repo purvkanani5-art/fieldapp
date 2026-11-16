@@ -97,7 +97,7 @@ Views.updates = () => {
   const sites = KL.boot?.mySites || [];
   return `${topbar('Daily work update', '#me')}
     <div class="card stack">
-      <b>${esc(new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' }))}${today ? ' · already sent, you can edit' : ''}</b>
+      <b>${esc(new Date().toLocaleDateString(appLocale(), { weekday: 'long', day: 'numeric', month: 'long' }))}${today ? ' · already sent, you can edit' : ''}</b>
       ${prompts.length ? `<p class="hint">${prompts.map(esc).join(' · ')}</p>` : ''}
       ${field('What did you do today?', textarea('upd-summary', F('upd-summary', today?.summary || ''), 'e.g. Visited 6 farmers in Vanthali, 4 agreements signed, 2 KMLs uploaded. Tomorrow: Mendarda cluster.'))}
       <div class="grid2">${field('Hours worked', input('upd-hours', F('upd-hours', today?.hours ?? ''), { type: 'number', inputmode: 'decimal', step: '0.5', min: 0 }))}

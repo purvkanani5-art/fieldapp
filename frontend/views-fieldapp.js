@@ -3,7 +3,7 @@
 
 const isField = () => KL.user && KL.user.role === 'field';
 /** "19 Nov" this year, "19 Nov 2025" otherwise (short dates for field screens). */
-const sd = (iso) => { const d = new Date(`${String(iso).slice(0, 10)}T00:00:00`); return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', ...(d.getFullYear() === new Date().getFullYear() ? {} : { year: 'numeric' }) }); };
+const sd = (iso) => { const d = new Date(`${String(iso).slice(0, 10)}T00:00:00`); return d.toLocaleDateString(appLocale(), { day: 'numeric', month: 'short', ...(d.getFullYear() === new Date().getFullYear() ? {} : { year: 'numeric' }) }); };
 const fieldSites = () => (KL.boot?.mySites || []).filter((s) => s.project_type !== 'office');
 
 /* ---------------------------------------------------------------- app bar (top of each field tab) */
@@ -39,7 +39,7 @@ function fieldToday() {
   const tasksAll = todo.tasksOpen;
   return `${fieldBar()}
     <h1 class="fa-h1">${esc(greet)}, ${esc(firstName(KL.user.name))}</h1>
-    <p class="fa-date">${esc(now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' }))}</p>
+    <p class="fa-date">${esc(now.toLocaleDateString(appLocale(), { weekday: 'long', day: 'numeric', month: 'long' }))}</p>
     ${hero}
     <div class="fa-h2"><h2>To do</h2>${todo.loading ? '' : `<span>${todo.items.length} ${todo.items.length === 1 ? 'thing' : 'things'}</span>`}</div>
     ${todo.loading && !todo.items.length ? spinner() : todo.items.length ? `<div class="fa-list">${todo.items.slice(0, 4).map(faRow).join('')}</div>` : `<div class="fa-list"><p class="fa-empty">All done for now.</p></div>`}

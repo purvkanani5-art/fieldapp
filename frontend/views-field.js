@@ -93,7 +93,7 @@ Actions.checkin = async () => {
     await refreshMe(); invalidate('attendance', 'dashboard', 'site'); render();
     if (!r.queued) {
       if (r.status === 'pending') toast('Check-in recorded as an exception, sent to your manager');
-      else await celebrate('Checked in', `${site.name} · ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`);
+      else await celebrate('Checked in', `${site.name} · ${new Date().toLocaleTimeString(appLocale(), { hour: '2-digit', minute: '2-digit' })}`);
     }
   } catch (e) { toast(e.message, 'error'); }
 };

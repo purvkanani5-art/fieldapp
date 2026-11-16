@@ -293,6 +293,7 @@ function bindEvents() {
 
 (async function start() {
   applyTheme();
+  startTranslation();
   bindEvents();
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('./sw.js').catch(() => {});
   KL.demoInfo = await api('/api/demo').catch(() => null);

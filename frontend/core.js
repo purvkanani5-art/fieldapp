@@ -32,8 +32,8 @@ function fmtDate(iso, withTime = true) {
   const d = new Date(iso.length === 10 ? iso + 'T00:00:00' : iso);
   if (Number.isNaN(d.getTime())) return iso;
   const thisYear = d.getFullYear() === new Date().getFullYear();
-  const date = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', ...(withTime && iso.length > 10 && thisYear ? {} : { year: 'numeric' }) });
-  return withTime && iso.length > 10 ? `${date}, ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}` : date;
+  const date = d.toLocaleDateString(appLocale(), { day: 'numeric', month: 'short', ...(withTime && iso.length > 10 && thisYear ? {} : { year: 'numeric' }) });
+  return withTime && iso.length > 10 ? `${date}, ${d.toLocaleTimeString(appLocale(), { hour: '2-digit', minute: '2-digit' })}` : date;
 }
 function timeAgo(iso) {
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
@@ -523,7 +523,7 @@ function photoBox(slot, label, facing = 'environment', stamp = []) {
   const attrs = `data-action="photo" data-slot="${esc(slot)}" data-facing="${esc(facing)}" data-kind="${kind}" data-stamp="${esc(JSON.stringify(stamp))}"`;
   if (!p) return `<button type="button" class="photo" ${attrs} style="width:100%;cursor:pointer;font:inherit"><span class="ph"><span class="ring">${ic('camera')}</span>${esc(label)}<small class="muted" style="font-weight:600">Time and GPS are stamped on the photo</small></span></button>`;
   return `<div class="stack">
-    <div class="photo has"><img src="${p.url}" alt="${esc(label)}" /><span class="stamp-chip">${ic('shield')} ${p.sample ? 'Sample · ' : ''}stamped ${esc(new Date(p.at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }))}</span></div>
+    <div class="photo has"><img src="${p.url}" alt="${esc(label)}" /><span class="stamp-chip">${ic('shield')} ${p.sample ? 'Sample · ' : ''}stamped ${esc(new Date(p.at).toLocaleTimeString(appLocale(), { hour: '2-digit', minute: '2-digit' }))}</span></div>
     <button type="button" class="btn small" ${attrs}>${ic('camera')} Retake</button>
   </div>`;
 }

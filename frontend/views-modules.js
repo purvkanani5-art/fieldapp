@@ -761,15 +761,8 @@ Object.assign(I18N.hi, { 'My work': 'मेरा काम', 'People & HR': '�
   Open: 'खोलें', Search: 'खोजें', Previous: 'पिछला', Next: 'अगला', Overview: 'सारांश', Job: 'नौकरी', Documents: 'दस्तावेज़', Assets: 'संपत्ति', Training: 'प्रशिक्षण', Goals: 'लक्ष्य',
   'Apply for leave': 'छुट्टी के लिए आवेदन', 'My leave': 'मेरी छुट्टी', Status: 'स्थिति', Type: 'प्रकार', Days: 'दिन', Apply: 'आवेदन करें', 'My site': 'मेरी साइट', Sites: 'साइटें',
   'Sign in': 'साइन इन', 'Employee ID': 'कर्मचारी ID', 'Check out': 'चेक आउट', 'Team today': 'आज टीम', 'Late': 'देर', 'Approved': 'मंज़ूर', 'Rejected': 'अस्वीकृत', 'Present': 'उपस्थित', 'Absent': 'अनुपस्थित' });
-function lang() { try { return localStorage.getItem('kl.lang') || 'en'; } catch { return 'en'; } }
-function translate(root) {
-  const L_ = I18N[lang()];
-  if (!L_) return;
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  const todo = [];
-  while (walker.nextNode()) { const n = walker.currentNode; const t = n.nodeValue.trim(); if (t && L_[t]) todo.push([n, t]); }
-  for (const [n, t] of todo) n.nodeValue = n.nodeValue.replace(t, L_[t]);
-}
-Actions.lang = (el) => { try { localStorage.setItem('kl.lang', el.dataset.lang); } catch { /* private */ } render(); };
+// the full dictionaries (i18n.gu.js, i18n.hi.js) win over these early word lists
+for (const L of ['gu', 'hi']) window.I18N_DATA[L] = { ...I18N[L], ...(window.I18N_DATA[L] || {}) };
+Actions.lang = (el) => { try { localStorage.setItem('kl.lang', el.dataset.lang); } catch { /* private */ } document.documentElement.lang = el.dataset.lang; render(); };
 Actions.mapGo = (el) => { if (KL.leafletMap) KL.leafletMap.flyTo([Number(el.dataset.lat), Number(el.dataset.lng)], Number(el.dataset.zoom), { duration: 0.8 }); };
 Actions.mapAll = () => { if (KL.leafletMap && KL.leafletBounds.length) KL.leafletMap.flyToBounds(KL.leafletBounds, { padding: [30, 30], duration: 0.8 }); };
