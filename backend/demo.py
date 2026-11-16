@@ -211,7 +211,7 @@ def seed_activity(db: Db) -> None:
             cin = local_day(days_ago, 8, R.randint(25, 59))
             cout = local_day(days_ago, 17, R.randint(5, 55))
             lat, lng, dist = near(s["lat"], s["lng"], s["radius_m"] * 0.7)
-            pending = emp == "EMP103" and days_ago == 1
+            pending = emp == "EMP103" and days_ago == (2 if local_day(1, 9, 0).weekday() == 6 else 1)  # the last working day (never a Sunday)
             if pending:
                 lat, lng, dist = near(s["lat"], s["lng"], 1)
                 lat += 380 / 111_320

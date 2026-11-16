@@ -1,0 +1,11 @@
+# Continuous copy of the database to Azure Blob storage (container "kshetralekha-db").
+# LITESTREAM_AZURE_ACCOUNT_NAME and LITESTREAM_AZURE_ACCOUNT_KEY come from the container's secrets.
+dbs:
+  - path: /data/kshetralekha.sqlite
+    replicas:
+      - type: abs
+        account-name: ${LITESTREAM_AZURE_ACCOUNT_NAME}
+        bucket: kshetralekha-db
+        path: db
+        retention: 168h
+        snapshot-interval: 24h

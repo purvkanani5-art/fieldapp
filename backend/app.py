@@ -182,6 +182,57 @@ app.include_router(modules.make_router(UserDep, DbDep, save_upload=save_upload, 
 # ------------------------------------------------------------------ prototype: demo accounts
 
 
+# ------------------------------------------------------------------ live server: health check, nightly job, file retries
+
+
+@app.get("/api/health")
+def health():
+    """For Azure's health probe and uptime checks: no sign-in, no personal data."""
+    out = {"ok": True, "version": APP_VERSION, "time": now_iso(), "storage": "sharepoint" if store.remote else "local"}
+    if store.remote:
+        out["pendingFiles"] = store.pending_count()
+    return out
+
+
+@app.post("/api/cron/nightly")
+def cron_nightly(request: Request):
+    """Called once a night by a scheduled job with the shared key: closes missed check-outs, retries files waiting
+    for SharePoint and copies the database to the Backups library."""
+    key = os.environ.get("KL_CRON_KEY", "")
+    if not key or request.headers.get("X-Cron-Key", "") != key:
+        raise HTTPException(403, "Not allowed")
+    db = Db()
+    try:
+        closed = modules.close_missed_checkouts(db)
+    finally:
+        db.close()
+    out = {"closedCheckouts": closed}
+    if store.remote:
+        out["filesSent"] = store.retry_pending()
+        out["backup"] = store.backup_database()
+    return out
+
+
+def _retry_files_forever() -> None:
+    import threading
+    import time
+
+    def loop() -> None:
+        while True:
+            time.sleep(120)
+            try:
+                if store.pending_count():
+                    store.retry_pending()
+            except Exception as e:  # noqa: BLE001 - keep trying; the nightly job also retries
+                print("file retry failed:", e, file=sys.stderr)
+
+    threading.Thread(target=loop, name="sharepoint-retry", daemon=True).start()
+
+
+if store.remote:
+    _retry_files_forever()
+
+
 @app.get("/api/demo")
 def demo_info(db: DbDep):
     """The demo accounts, for the sign-in screen's one-tap buttons (prototype only)."""
@@ -1030,12 +1081,9 @@ def get_file(file_id: str, user: UserDep, db: DbDep, download: int = 0):
     headers = {"X-SHA256": f["sha256"]}
     if download:
         headers["Content-Disposition"] = f'attachment; filename="{f["name"]}"'
+    if not (FILES_DIR / f["path"]).exists():
+        store.get(f["path"])  # live server: fetch from SharePoint into the local cache (the disk is temporary)
     return FileResponse(FILES_DIR / f["path"], media_type=f["mime"], headers=headers)
-
-
-@app.get("/api/health")
-def health():
-    return {"ok": True, "version": APP_VERSION, "time": now_iso()}
 
 
 app.mount("/", StaticFiles(directory=FRONTEND, html=True), name="frontend")

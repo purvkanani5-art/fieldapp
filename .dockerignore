@@ -1,0 +1,14 @@
+.git
+.github
+.venv
+.secrets
+*.env
+data
+site
+docs
+design-system
+.claude
+skills-lock.json
+**/__pycache__
+**/*.pyc
+frontend/local/wheels

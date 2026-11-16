@@ -4,6 +4,7 @@ farmer-agreement template. Runs once on an empty database."""
 from __future__ import annotations
 
 import json
+import os
 
 from auth import hash_pin
 from db import Db, now_iso
@@ -74,6 +75,9 @@ def seed_if_empty() -> None:
         fid = db.insert("files", {"path": rel, "name": "authorised-signature.png", "mime": "image/png", "size": len(sig), "sha256": sha,
                                   "kind": "company_signature", "created_at": now})
         db.set_setting("company_signature_file", fid)
+        if os.environ.get("KL_DEMO", "1") != "1":
+            seed_production(db, now)
+            return
 
         site_ids, by_name = {}, {}
         for name, ptype, sub, lat, lng, radius, addr in SITES:
@@ -100,18 +104,40 @@ def seed_if_empty() -> None:
             for p in projects:
                 db.insert("user_projects", {"user_id": uid[emp], "project": p})
 
-        db.insert("templates", {"name": "Agroforestry Farmer Agreement", "project_type": "agroforestry", "body": TEMPLATE_BODY,
-                                "fields": json.dumps(TEMPLATE_FIELDS), "active": 1})
-        db.insert("templates", {"name": "Biomass Supply Declaration", "project_type": "biochar",
-                                "body": "I, {{name}} of village {{village}}, declare that the biomass supplied to {{company}} on {{supply_date}} ({{biomass_kg}} kg of {{biomass_type}}) is agricultural residue from my own land bearing survey number {{survey_no}}, and that no standing trees were felled for it.",
-                                "fields": json.dumps([
-                                    {"key": "supply_date", "label": "Supply date", "type": "text", "required": True},
-                                    {"key": "biomass_kg", "label": "Quantity (kg)", "type": "number", "required": True},
-                                    {"key": "biomass_type", "label": "Type of residue", "type": "text", "required": True},
-                                    {"key": "survey_no", "label": "Survey number", "type": "text", "required": False},
-                                ]), "active": 1})
+        add_templates(db)
         for emp in uid:
             db.notify(uid[emp], "Welcome to Kshetralekha", "This is the prototype. Your PIN is 1234; change it from Me → Change PIN.", "#me")
         db.audit(None, "seed", "database", None, "demo data")
     finally:
         db.close()
+
+
+def add_templates(db: Db) -> None:
+    """The documents farmers sign on the phone (editable later under Admin → Document templates)."""
+    db.insert("templates", {"name": "Agroforestry Farmer Agreement", "project_type": "agroforestry", "body": TEMPLATE_BODY,
+                            "fields": json.dumps(TEMPLATE_FIELDS), "active": 1})
+    db.insert("templates", {"name": "Biomass Supply Declaration", "project_type": "biochar",
+                            "body": "I, {{name}} of village {{village}}, declare that the biomass supplied to {{company}} on {{supply_date}} ({{biomass_kg}} kg of {{biomass_type}}) is agricultural residue from my own land bearing survey number {{survey_no}}, and that no standing trees were felled for it.",
+                            "fields": json.dumps([
+                                {"key": "supply_date", "label": "Supply date", "type": "text", "required": True},
+                                {"key": "biomass_kg", "label": "Quantity (kg)", "type": "number", "required": True},
+                                {"key": "biomass_type", "label": "Type of residue", "type": "text", "required": True},
+                                {"key": "survey_no", "label": "Survey number", "type": "text", "required": False},
+                            ]), "active": 1})
+
+
+def seed_production(db: Db, now: str) -> None:
+    """Live start: company settings (done by the caller), the document templates and one admin account from the
+    server's settings. Real sites, staff and stock items are added by HR or imported; no demo data."""
+    emp = os.environ.get("KL_ADMIN_EMP", "EMP001").strip().upper()
+    pin = os.environ.get("KL_ADMIN_PIN", "").strip()
+    if not (pin.isdigit() and len(pin) >= 6):
+        raise RuntimeError("Production start needs KL_ADMIN_PIN (6 or more digits) for the first admin account")
+    company = os.environ.get("KL_COMPANY_NAME", "").strip()
+    if company:
+        db.set_setting("company", {"name": company, "address": os.environ.get("KL_COMPANY_ADDRESS", ""), "short": company.split()[0]})
+    pin_hash, salt = hash_pin(pin)
+    db.insert("users", {"employee_id": emp, "name": os.environ.get("KL_ADMIN_NAME", "Administrator"), "role": "admin", "designation": "Director",
+                        "pin_hash": pin_hash, "pin_salt": salt, "must_change_pin": 1, "active": 1, "created_at": now})
+    add_templates(db)
+    db.audit(None, "seed", "database", None, "production start: admin and templates")
