@@ -179,7 +179,7 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
    the same links in several places (Administration in the sidebar and in People). Now five sections, each screen in
    exactly one: Home · Inbox (Approvals, Messages) · Operations (Sites, Planner, Records, Carbon, Map) · People
    (Directory, Attendance, Activity, Month end, Records, Notices, Surveys, HR desk) · Reports (Reports, Dashboard), as
-   tabs on the section page ( in app.js). Settings (gear) holds language, appearance, account, two-step,
+   tabs on the section page (SECTIONS in app.js). Settings (gear) holds language, appearance, account, two-step,
    Administration, HR settings; your own items are under your name (#me). Language button on every screen (phone top
    bar, sidebar foot). Old link-list pages (#hr, #manage, hub/*) redirect. Field-staff app unchanged.
 
