@@ -54,6 +54,7 @@ Administration,વહીવટ,प्रशासन
 "Adv. Hetal Desai, Sahyog Trust","એડ. હેતલ દેસાઈ, સહયોગ ટ્રસ્ટ","एड. हेतल देसाई, सहयोग ट्रस्ट"
 Advance,એડવાન્સ,एडवांस
 Advance recovery sent to Zoho Payroll,એડવાન્સની વસૂલાત Zoho Payroll માં મોકલી,एडवांस की वसूली Zoho Payroll को भेजी
+Advance types,એડવાન્સના પ્રકાર,एडवांस के प्रकार
 "Advance, ₹{n}","એડવાન્સ, ₹{n}","एडवांस, ₹{n}"
 Advance: {x},એડવાન્સ: {x},एडवांस: {x}
 Advances & loans,એડવાન્સ અને લોન,एडवांस और लोन
@@ -134,6 +135,8 @@ Ash / char out (kg),નીકળેલી રાખ / ચાર (kg),निक�
 Ash / char out (kg) (optional),નીકળેલી રાખ / ચાર (kg) (મરજિયાત),निकली राख / चार (kg) (वैकल्पिक)
 Ask for an attendance correction,હાજરી સુધારો માગો,हाजिरी सुधार माँगें
 Asset,સંપત્તિ,संपत्ति
+Asset categories,સાધનોની શ્રેણીઓ,सामान की श्रेणियाँ
+Asset condition,સાધનની હાલત,सामान की हालत
 Asset issued to you: {x},તમને આપેલી વસ્તુ: {x},आपको दिया गया सामान: {x}
 Asset: {x},વસ્તુ: {x},सामान: {x}
 Assets,સંપત્તિ,सामान
@@ -193,6 +196,7 @@ batches waiting for the lab,બેચ લેબની રાહ જુએ છે
 "Bills with receipt photos; manager, then HR above ₹{n}","રસીદના ફોટા સાથે બિલ; મેનેજર, પછી ₹{n} થી વધુ હોય તો HR","रसीद की फ़ोटो के साथ बिल; मैनेजर, फिर ₹{n} से ऊपर HR"
 Biochar,બાયોચાર,बायोचार
 Biochar (whole project),બાયોચાર (આખો પ્રોજેક્ટ),बायोचार (पूरा प्रोजेक्ट)
+Biochar application methods,બાયોચાર નાખવાની રીતો,बायोचार डालने के तरीके
 Biochar applied on farms,ખેતરોમાં નાખેલો બાયોચાર,खेतों में डाला गया बायोचार
 Biochar applied to farms,ખેતરમાં નાખેલો બાયોચાર,खेतों में डाला गया बायोचार
 Biochar out (kg),નીકળેલો બાયોચાર (kg),निकला बायोचार (kg)
@@ -212,6 +216,7 @@ Breakdown repair,બ્રેકડાઉન રિપેર,ब्रेकड�
 Broadcast and tilled,છાંટીને ખેડ્યું,छिड़ककर जुताई की
 Bucket,ખાનું,खाना
 Bucket not found,ખાનું મળ્યું નહીં,खाना नहीं मिला
+built in,મૂળ,मूल
 by {x},{x} દ્વારા,{x} द्वारा
 "By {x} on {x}. Corrections, leave and muster for this month are blocked. The export below is the frozen copy.","{1} દ્વારા, {2} એ. આ મહિનાના સુધારા, રજા અને ટુકડીની હાજરી બંધ છે. નીચેનો એક્સપોર્ટ અંતિમ નકલ છે.","{1} द्वारा, {2} को। इस महीने के सुधार, छुट्टी और टोली की हाजिरी बंद हैं। नीचे का एक्सपोर्ट अंतिम प्रति है।"
 by {x} · export ready for Zoho Payroll,{x} દ્વારા · Zoho Payroll માટે એક્સપોર્ટ તૈયાર,{x} द्वारा · Zoho Payroll के लिए एक्सपोर्ट तैयार
@@ -274,9 +279,11 @@ Choose,પસંદ કરો,चुनें
 Choose a document,દસ્તાવેજ પસંદ કરો,दस्तावेज़ चुनें
 Choose a person to sign in as them. You can switch person at any time.,જે વ્યક્તિ તરીકે સાઇન ઇન કરવું હોય તે પસંદ કરો. ગમે ત્યારે વ્યક્તિ બદલી શકો છો.,जिस व्यक्ति के रूप में साइन इन करना है उसे चुनें. आप कभी भी व्यक्ति बदल सकते हैं.
 Choose a photo file,ફોટો ફાઇલ પસંદ કરો,फ़ोटो फ़ाइल चुनें
+Choose a role from the list,યાદીમાંથી ભૂમિકા પસંદ કરો,सूची से भूमिका चुनें
 Choose a site,સાઇટ પસંદ કરો,साइट चुनें
 Choose complaint or suggestion and write a few words,ફરિયાદ કે સૂચન પસંદ કરો અને થોડા શબ્દો લખો,शिकायत या सुझाव चुनें और कुछ शब्द लिखें
 Choose file and upload,ફાઇલ પસંદ કરી અપલોડ કરો,फ़ाइल चुनें और अपलोड करें
+Choose the access level,ઍક્સેસ લેવલ પસંદ કરો,एक्सेस लेवल चुनें
 Choose the checklist above.,ઉપરથી ચેકલિસ્ટ પસંદ કરો.,ऊपर से चेकलिस्ट चुनें.
 Choose the employee,કર્મચારી પસંદ કરો,कर्मचारी चुनें
 Choose the employee first,પહેલાં કર્મચારી પસંદ કરો,पहले कर्मचारी चुनें
@@ -291,6 +298,7 @@ Close,બંધ કરો,बंद करें
 Closed,બંધ,बंद
 closed,બંધ,बंद
 Closes on,બંધ થવાની તારીખ,बंद होने की तारीख
+Code {x} is already used,કોડ {x} પહેલેથી વપરાયો છે,कोड {x} पहले से इस्तेमाल हुआ है
 Collapse the menu,મેનુ નાનું કરો,मेनू छोटा करें
 Comment on: {x},ટિપ્પણી: {x},टिप्पणी: {x}
 Comments,ટિપ્પણીઓ,टिप्पणियाँ
@@ -384,6 +392,7 @@ decision must be ok or rejected,નિર્ણય બરાબર અથવા 
 Declared area,જાહેર કરેલ વિસ્તાર,घोषित क्षेत्रफल
 "Deesa, Deesa","ડીસા, ડીસા","डीसा, डीसा"
 Delete,કાઢી નાખો,हटाएँ
+Delete {x}?,{x} કાઢી નાખવું?,{x} हटाएँ?
 Deleted,કાઢી નાખ્યું,हटा दिया
 demo,ડેમો,डेमो
 Demo data rebuilt,ડેમો ડેટા ફરી બનાવ્યો,डेमो डेटा फिर से बनाया
@@ -456,6 +465,7 @@ Employees,કર્મચારીઓ,कर्मचारी
 employees,કર્મચારીઓ,कर्मचारी
 Employees ({n}),કર્મચારીઓ ({n}),कर्मचारी ({n})
 Employment,નોકરી,नौकरी
+Employment types,નોકરીના પ્રકાર,नौकरी के प्रकार
 Employment: all,નોકરીનો પ્રકાર: બધા,रोज़गार: सभी
 Empty file,ખાલી ફાઇલ,खाली फ़ाइल
 End reading {x} is below the start reading {x},અંતિમ રીડિંગ {1} શરૂઆતના રીડિંગ {2} થી ઓછું છે,अंतिम रीडिंग {1} शुरुआती रीडिंग {2} से कम है
@@ -473,11 +483,13 @@ equipment needing attention,ધ્યાન માગતા સાધનો,ध�
 Equipment now,સાધનની હાલની હાલત,उपकरण की अभी की हालत
 Equipment now (optional),સાધનની હાલની હાલત (મરજિયાત),उपकरण की अभी की हालत (वैकल्पिक)
 Equipment service,સાધનોની સર્વિસ,उपकरण सर्विस
+Equipment types,સાધનોના પ્રકાર,उपकरण के प्रकार
 Equipment: {x},સાધન: {x},उपकरण: {x}
 ESIC number,ESIC નંબર,ESIC नंबर
 Estimated cost,અંદાજિત ખર્ચ,अनुमानित खर्च
 "Every batch from feedstock to farm, with checks","દરેક બેચ કાચા માલથી ખેતર સુધી, તપાસ સાથે","हर बैच कच्चे माल से खेत तक, जाँच के साथ"
 "Every change to attendance, leave, balances, corrections, assignments and HR settings: who, when, the old and new value and the reason. Nothing here can be edited or deleted.","હાજરી, રજા, બાકી, સુધારા, સોંપણી અને HR સેટિંગ્સમાં દરેક ફેરફાર: કોણે, ક્યારે, જૂની અને નવી કિંમત અને કારણ. અહીં કંઈ બદલી કે કાઢી શકાતું નથી.","हाजिरी, छुट्टी, बाकी, सुधार, ज़िम्मेदारी और HR सेटिंग्स में हर बदलाव: किसने, कब, पुरानी और नई वैल्यू और कारण. यहाँ कुछ बदला या हटाया नहीं जा सकता."
+Every dropdown in the app. Add with the Add button; delete with the bin. Items already used in a record stay.,એપની દરેક ડ્રોપડાઉન યાદી. ઉમેરો બટનથી ઉમેરો; કચરાપેટીથી કાઢી નાખો. રેકોર્ડમાં વપરાયેલી વસ્તુઓ રહે છે.,ऐप की हर ड्रॉपडाउन सूची। जोड़ें बटन से जोड़ें; कूड़ेदान से हटाएँ। किसी रिकॉर्ड में इस्तेमाल हुई चीज़ें रहती हैं।
 "Every employee, every day: P, H, L, A, WO, HO, MC, with paid days, loss-of-pay days and overtime. Crew marked by a supervisor and contract workers on the crew muster are included.","દરેક કર્મચારી, દરેક દિવસ: P, H, L, A, WO, HO, MC, પગારના દિવસો, પગાર કપાતના દિવસો અને ઓવરટાઇમ સાથે. સુપરવાઇઝરે નોંધેલી ટુકડી અને ટુકડીની હાજરીમાંના કોન્ટ્રાક્ટ કામદારો પણ સામેલ છે.","हर कर्मचारी, हर दिन: P, H, L, A, WO, HO, MC, वेतन वाले दिन, वेतन कटौती के दिन और ओवरटाइम के साथ। सुपरवाइज़र द्वारा दर्ज टोली और टोली की हाजिरी वाले ठेका मज़दूर भी शामिल हैं।"
 Every project and its sites,દરેક પ્રોજેક્ટ અને તેની સાઇટ્સ,हर प्रोजेक्ट और उसकी साइटें
 Everyone,બધા,सभी
@@ -491,9 +503,11 @@ exception awaiting approval,અપવાદ મંજૂરીની રાહ �
 Exception pending,અપવાદ બાકી,अपवाद बाकी
 Exit,નોકરી છોડવી,नौकरी छोड़ना
 Exit checklist and final settlement,છોડવાની ચેકલિસ્ટ અને અંતિમ હિસાબ,छोड़ने की चेकलिस्ट और अंतिम हिसाब
+Exit reasons,નોકરી છોડવાના કારણો,नौकरी छोड़ने के कारण
 Exit: {x},નોકરી છોડી: {x},नौकरी छोड़ी: {x}
 Exits & settlement,છોડવું અને હિસાબ,नौकरी छोड़ना और हिसाब
 Expense,ખર્ચ,खर्च
+Expense categories,ખર્ચની શ્રેણીઓ,खर्च की श्रेणियाँ
 Expense claim,ખર્ચ દાવો,खर्च दावा
 "Expense claim, ₹{n}","ખર્ચ દાવો, ₹{n}","खर्च दावा, ₹{n}"
 Expense claim: Food,ખર્ચ દાવો: ભોજન,खर्च दावा: भोजन
@@ -517,6 +531,7 @@ Farmer name is required,ખેડૂતનું નામ જરૂરી છ�
 Farmer not found,ખેડૂત મળ્યા નથી,किसान नहीं मिला
 Farmer or signing,ખેડૂત કે સહી,किसान या हस्ताक्षर
 Farmer payment,ખેડૂત ચુકવણી,किसान भुगतान
+Farmer payment purposes,ખેડૂત ચુકવણીના હેતુ,किसान भुगतान के उद्देश्य
 Farmer payment: Savitaben Chavda,ખેડૂત ચુકવણી: સવિતાબેન ચાવડા,किसान भुगतान: सविताबेन चावडा
 Farmer payment: {x},ખેડૂત ચુકવણી: {x},किसान भुगतान: {x}
 Farmer payment: {x} Bhai Patel,ખેડૂત ચુકવણી: {x} ભાઈ પટેલ,किसान भुगतान: {x} भाई पटेल
@@ -529,6 +544,7 @@ Feedstock (optional),કાચો માલ (મરજિયાત),कच्च
 Feedstock and output recorded with photo,કાચો માલ અને ઉત્પાદન ફોટા સાથે નોંધ્યા,कच्चा माल और उत्पादन फ़ोटो के साथ दर्ज
 Feedstock moisture %,કાચા માલમાં ભેજ %,कच्चे माल में नमी %
 Feedstock moisture % (optional),કાચા માલમાં ભેજ % (મરજિયાત),कच्चे माल में नमी % (वैकल्पिक)
+Feedstock types,કાચા માલના પ્રકાર,कच्चे माल के प्रकार
 Feedstock used (kg),વપરાયેલો કાચો માલ (kg),इस्तेमाल हुआ कच्चा माल (kg)
 "Feedstock → kiln → lab → farm. Each step carries a photo, GPS, time and a SHA-256 hash, so a verifier can follow any batch.","કાચો માલ → ભઠ્ઠી → લેબ → ખેતર. દરેક પગલામાં ફોટો, GPS, સમય અને SHA-256 hash હોય છે, જેથી ચકાસનાર કોઈપણ બેચ અનુસરી શકે.","कच्चा माल → भट्ठी → लैब → खेत। हर क़दम में फ़ोटो, GPS, समय और SHA-256 hash होता है, ताकि जाँचकर्ता किसी भी बैच को देख सके।"
 Female,સ્ત્રી,महिला
@@ -595,7 +611,10 @@ Give a reason for rejecting,નામંજૂર કરવાનું કા�
 Give the bucket a name,ખાનાનું નામ લખો,खाने का नाम दें
 Give the document a title,દસ્તાવેજનું શીર્ષક લખો,दस्तावेज़ का शीर्षक दें
 Give the notice a title and some text,સૂચનાનું શીર્ષક અને થોડું લખાણ લખો,सूचना का शीर्षक और कुछ लिखावट दें
+Give the office a name,ઓફિસને નામ આપો,ऑफ़िस को नाम दें
 Give the plan a name,પ્લાનનું નામ લખો,योजना का नाम दें
+Give the project a name,પ્રોજેક્ટને નામ આપો,प्रोजेक्ट को नाम दें
+Give the rate per km,km દીઠ દર આપો,प्रति km दर दें
 Give the survey a title and at least one question,સર્વેનું શીર્ષક અને ઓછામાં ઓછો એક સવાલ લખો,सर्वे का शीर्षक और कम से कम एक सवाल दें
 Give the task a title,કામનું શીર્ષક લખો,काम का शीर्षक दें
 Given by,કોણે આપી,किसने दी
@@ -617,6 +636,7 @@ Groundnut shell {n} → {n} kg,મગફળીના ફોતરાં {n} → 
 Group by,આ પ્રમાણે જૂથ,इसके अनुसार समूह
 GSTIN,GSTIN,GSTIN
 GSTIN (optional),GSTIN (વૈકલ્પિક),GSTIN (वैकल्पिक)
+Gujarati and Hindi names (optional),ગુજરાતી અને હિન્દી નામ (જરૂરી નથી),गुजराती और हिंदी नाम (ज़रूरी नहीं)
 H/Corg ratio,H/Corg ગુણોત્તર,H/Corg अनुपात
 H/Corg ratio (optional),H/Corg ગુણોત્તર (મરજિયાત),H/Corg अनुपात (वैकल्पिक)
 Half,અડધો,आधा
@@ -632,6 +652,7 @@ High-tech · industrial plant,આધુનિક ટેકનોલોજી · 
 History of changes,ફેરફારોનો ઇતિહાસ,बदलावों का इतिहास
 HO,HO,HO
 Holiday,જાહેર રજા,त्योहार की छुट्टी
+Holiday types,રજાના દિવસના પ્રકાર,छुट्टी के दिन के प्रकार
 Holiday: {x},રજાનો દિવસ: {x},छुट्टी का दिन: {x}
 Holidays,રજાના દિવસો,छुट्टी के दिन
 Holidays & shifts,રજાના દિવસો અને શિફ્ટ,छुट्टी के दिन और शिफ्ट
@@ -669,12 +690,15 @@ in progress,ચાલુ છે,चालू है
 In progress,ચાલુ છે,चालू है
 in stock,સ્ટોકમાં,स्टॉक में
 In the nursery now,હમણાં નર્સરીમાં,अभी नर्सरी में
+in use · {n},વપરાશમાં · {n},इस्तेमाल में · {n}
 "in writing to the IC within {n} months of the incident (the IC can allow {n} more months). Choose ""Sexual harassment (POSH)"" above, or contact a member directly or write to","ઘટનાના {n} મહિનાની અંદર IC ને લેખિતમાં (IC બીજા {n} મહિના આપી શકે). ઉપર ""જાતીય સતામણી (POSH)"" પસંદ કરો, અથવા સીધો સભ્યનો સંપર્ક કરો કે અહીં લખો","घटना के {n} महीने के अंदर IC को लिखित में (IC {n} महीने और दे सकती है). ऊपर ""यौन उत्पीड़न (POSH)"" चुनें, या सीधे किसी सदस्य से संपर्क करें या यहाँ लिखें"
 "In Zoho Payroll, import the CSV into the pay run and match the columns once (Employee ID, Paid Days, LOP Days, Overtime Hours, leave). Advance recovery is an amount for Zoho to deduct.","Zoho Payroll માં CSV ને પે રનમાં ઇમ્પોર્ટ કરો અને એક વાર કૉલમ મેળવો (Employee ID, Paid Days, LOP Days, Overtime Hours, રજા). એડવાન્સની વસૂલાત એ Zoho એ કાપવાની રકમ છે.","Zoho Payroll में CSV को पे रन में इम्पोर्ट करें और एक बार कॉलम मिलाएँ (Employee ID, Paid Days, LOP Days, Overtime Hours, छुट्टी)। एडवांस की वसूली वह रकम है जो Zoho काटेगा।"
 Inbox,ઇનબોક્સ,इनबॉक्स
 Incentives and carbon share paid to farmers,ખેડૂતોને ચૂકવેલું પ્રોત્સાહન અને કાર્બન હિસ્સો,किसानों को दिया गया प्रोत्साहन और कार्बन हिस्सा
 Incident,ઘટના,घटना
 Incident ({x}): {x},ઘટના ({x}): {x},घटना ({x}): {x}
+Incident severity,ઘટનાની ગંભીરતા,घटना की गंभीरता
+Incident types,ઘટનાના પ્રકાર,घटना के प्रकार
 Incident: Fire,ઘટના: આગ,घटना: आग
 Incident: Spill / pollution,ઘટના: ઢોળાવ / પ્રદૂષણ,घटना: रिसाव / प्रदूषण
 Incident: {x},ઘટના: {x},घटना: {x}
@@ -703,6 +727,7 @@ Issued,આપ્યું,दिया गया
 Issued on,આપ્યાની તારીખ,देने की तारीख
 Issued on (optional),આપ્યાની તારીખ (મરજિયાત),देने की तारीख (वैकल्पिक)
 Issued to,કોને આપ્યું,किसे दिया
+It disappears from the dropdown. You can add it again later.,તે ડ્રોપડાઉનમાંથી નીકળી જશે. પછીથી ફરી ઉમેરી શકો છો.,यह ड्रॉपडाउन से हट जाएगा। बाद में फिर जोड़ सकते हैं।
 Item,વસ્તુ,वस्तु
 "Items, one per line","બાબતો, એક લીટીમાં એક","चीज़ें, एक लाइन में एक"
 Job,નોકરી,नौकरी
@@ -719,6 +744,7 @@ joins {x},{x} એ જોડાશે,{x} को जुड़ेंगे
 JSON for an API pull,API થી ખેંચવા માટે JSON,API से लेने के लिए JSON
 "Juna Deesa, Juna Deesa","જૂના ડીસા, જૂના ડીસા","जूना डीसा, जूना डीसा"
 Just mine,ફક્ત મારાં,सिर्फ़ मेरे
+Keep at least one item in the list,યાદીમાં ઓછામાં ઓછી એક વસ્તુ રાખો,सूची में कम से कम एक चीज़ रखें
 Keep your face in the oval. Time and GPS are stamped on the photo.,તમારો ચહેરો અંડાકારમાં રાખો. ફોટા પર સમય અને GPS છપાય છે.,अपना चेहरा अंडाकार में रखें. फ़ोटो पर समय और GPS छपता है.
 "Kept for: photos {n} years (carbon-credit audits need them), attendance {n} years, farmer documents {n} years. Bank, PAN and salary are visible only to HR and you.","કેટલો સમય રખાય: ફોટા {n} વર્ષ (કાર્બન ક્રેડિટ ઓડિટ માટે જરૂરી), હાજરી {n} વર્ષ, ખેડૂતના દસ્તાવેજો {n} વર્ષ. બેંક, PAN અને પગાર ફક્ત HR અને તમે જ જોઈ શકો.","कितने समय रखा जाता है: फ़ोटो {n} साल (कार्बन क्रेडिट ऑडिट के लिए ज़रूरी), हाजिरी {n} साल, किसान के दस्तावेज़ {n} साल. बैंक, PAN और वेतन सिर्फ़ HR और आप देख सकते हैं."
 "Keshod, Junagadh","કેશોદ, જૂનાગઢ","केशोद, जूनागढ़"
@@ -805,6 +831,7 @@ Leave policy and work hours,રજા નીતિ અને કામના ક
 Leave register,રજા રજિસ્ટર,छुट्टी रजिस्टर
 Leave request sent to your manager,રજાની વિનંતી મેનેજરને મોકલી,छुट्टी का अनुरोध मैनेजर को भेजा
 Leave requests,રજાની વિનંતીઓ,छुट्टी के अनुरोध
+Leave types,રજાના પ્રકાર,छुट्टी के प्रकार
 "Leave types, comma-separated","રજાના પ્રકાર, અલ્પવિરામથી અલગ","छुट्टी के प्रकार, कॉमा से अलग"
 Leave {x},રજા {x},छुट्टी {x}
 "Leave, claims, purchases, trips, check-in exceptions","રજા, દાવા, ખરીદી, મુસાફરી, ચેક-ઇન અપવાદ","छुट्टी, दावे, ख़रीद, यात्राएँ, चेक-इन अपवाद"
@@ -815,6 +842,7 @@ Left site while checked in: {x},ચેક-ઇન ચાલુ હતું ત�
 Legend,સંકેતો,संकेत
 Lemon,લીંબુ,नींबू
 Light,આછું,हल्का
+Lists,યાદીઓ,सूचियाँ
 Loaded vehicle,ભરેલું વાહન,लदा हुआ वाहन
 Loader,લોડર,लोडर
 Loan,લોન,लोन
@@ -847,6 +875,7 @@ Maintenance entry: Breakdown repair,જાળવણી એન્ટ્રી: �
 Maintenance entry: {x},જાળવણી નોંધ: {x},रखरखाव प्रविष्टि: {x}
 Maintenance history,જાળવણીનો ઇતિહાસ,रखरखाव का इतिहास
 Maintenance log,જાળવણી નોંધ,रखरखाव लॉग
+Maintenance types,જાળવણીના પ્રકાર,रखरखाव के प्रकार
 Male,પુરુષ,पुरुष
 "Maliya, Vanthali","માળિયા, વંથલી","मालिया, वंथली"
 Manage,સંચાલન,प्रबंधन
@@ -980,6 +1009,7 @@ New production batch,નવી ઉત્પાદન બેચ,नया उत�
 New purchase request,નવી ખરીદી વિનંતી,नया ख़रीद अनुरोध
 New request,નવી વિનંતી,नया अनुरोध
 New review,નવી સમીક્ષા,नई समीक्षा
+"New role, e.g. Kiln operator","નવી ભૂમિકા, દા.ત. ભઠ્ઠી ઓપરેટર","नई भूमिका, जैसे भट्ठी ऑपरेटर"
 New sapling distribution,નવું રોપા વિતરણ,नया पौधा वितरण
 New shift,નવી શિફ્ટ,नई शिफ्ट
 New stock transfer,નવું સ્ટોક ટ્રાન્સફર,नया स्टॉक ट्रांसफ़र
@@ -1085,10 +1115,13 @@ Offer letter signed,ઓફર લેટર પર સહી થઈ,ऑफ़र 
 Offer letter signed ID and address proof collected Bank details and PAN UAN / ESIC registration Phone and app PIN issued Safety induction Site introduction,ઓફર લેટર પર સહી ID અને સરનામાનો પુરાવો લીધો બેંક વિગતો અને PAN UAN / ESIC નોંધણી ફોન અને એપ PIN આપ્યો સલામતી તાલીમ સાઇટ પરિચય,ऑफ़र लेटर पर हस्ताक्षर ID और पते का सबूत लिया बैंक विवरण और PAN UAN / ESIC पंजीकरण फ़ोन और ऐप PIN दिया सुरक्षा प्रशिक्षण साइट परिचय
 Office,ઓફિસ,ऑफ़िस
 "Office accounts can add a 6-digit code from an authenticator app (Microsoft Authenticator, Google Authenticator) after the PIN.","ઓફિસ એકાઉન્ટ PIN પછી ઓથેન્ટિકેટર એપ (Microsoft Authenticator, Google Authenticator) નો 6-અંકનો કોડ ઉમેરી શકે છે.","ऑफ़िस खाते PIN के बाद ऑथेंटिकेटर ऐप (Microsoft Authenticator, Google Authenticator) का 6-अंकों का कोड जोड़ सकते हैं।"
+"Office name, e.g. Rajkot","ઓફિસનું નામ, દા.ત. રાજકોટ","ऑफ़िस का नाम, जैसे राजकोट"
 "Office number '{x}' must be two digits, 01 to 99","ઓફિસ નંબર '{x}' બે અંકનો હોવો જોઈએ, 01 થી 99","ऑफ़िस नंबर '{x}' दो अंकों का होना चाहिए, 01 से 99"
+"Office number must be two digits, 01 to 99","ઓફિસ નંબર બે અંકનો હોવો જોઈએ, 01 થી 99","ऑफ़िस नंबर दो अंकों का होना चाहिए, 01 से 99"
 Office number {x} is used twice,ઓફિસ નંબર {x} બે વાર વપરાયો છે,ऑफ़िस नंबर {x} दो बार इस्तेमाल हुआ है
 "Office number {x} must be two digits, 01 to 99","ઓફિસ નંબર {x} બે અંકનો હોવો જોઈએ, 01 થી 99","ऑफ़िस नंबर {x} दो अंकों का होना चाहिए, 01 से 99"
 Office staff will sign in with Microsoft here once the company tenant is connected.,કંપનીનું Microsoft એકાઉન્ટ જોડાય પછી ઓફિસ સ્ટાફ અહીં Microsoft થી સાઇન ઇન કરશે.,कंपनी का Microsoft खाता जुड़ने के बाद ऑफ़िस स्टाफ़ यहाँ Microsoft से साइन इन करेगा.
+Office {x} already exists,ઓફિસ {x} પહેલેથી છે,ऑफ़िस {x} पहले से है
 "On a computer, drag cards between columns. On a phone, open a task to move it.",કમ્પ્યુટર પર કાર્ડને કૉલમ વચ્ચે ખેંચો. ફોન પર કામ ખોલીને તેને ખસેડો.,कंप्यूटर पर कार्ड को कॉलम के बीच खींचें। फ़ोन पर काम खोलकर उसे खिसकाएँ।
 on site,સાઇટ પર,साइट पर
 On site now,હમણાં સાઇટ પર,अभी साइट पर
@@ -1103,6 +1136,8 @@ Only an admin can create admins,ફક્ત એડમિન જ એડમિન
 Only HR (or the Internal Committee for POSH) can reply,ફક્ત HR (અથવા POSH માટે આંતરિક સમિતિ) જવાબ આપી શકે,सिर्फ़ HR (या POSH के लिए आंतरिक समिति) जवाब दे सकते हैं
 Only managers can change plans,ફક્ત મેનેજર જ પ્લાન બદલી શકે,सिर्फ़ मैनेजर ही योजना बदल सकते हैं
 Only the director (admin) can unlock a month,ફક્ત ડિરેક્ટર (એડમિન) જ મહિનો અનલૉક કરી શકે,सिर्फ़ डायरेक्टर (एडमिन) ही महीना अनलॉक कर सकते हैं
+Only the director can add a director-level role,ડિરેક્ટર-લેવલની ભૂમિકા ફક્ત ડિરેક્ટર ઉમેરી શકે,डायरेक्टर-लेवल की भूमिका केवल डायरेक्टर जोड़ सकते हैं
+Only the director can change this list,આ યાદી ફક્ત ડિરેક્ટર બદલી શકે,यह सूची केवल डायरेक्टर बदल सकते हैं
 Only the people on this task or a manager can change it,આ કામ પરના લોકો અથવા મેનેજર જ બદલી શકે,इस काम पर लगे लोग या मैनेजर ही बदल सकते हैं
 Only the person who made it or a manager can change it,જેણે બનાવ્યું તે અથવા મેનેજર જ બદલી શકે,जिसने बनाया वही या मैनेजर ही बदल सकते हैं
 Only the site supervisor or a manager can mark crew attendance,ફક્ત સાઇટ સુપરવાઇઝર કે મેનેજર જ ટુકડીની હાજરી પૂરી શકે,सिर्फ़ साइट सुपरवाइज़र या मैनेजर ही टोली की हाजिरी लगा सकते हैं
@@ -1150,6 +1185,7 @@ PAN,PAN,PAN
 Pass,પાસ,पास
 "Pay, leave and attendance","પગાર, રજા અને હાજરી","वेतन, छुट्टी और हाजिरी"
 "Pay, PF, ESI, PT, LWF, TDS, Form {n} and salary payment are in Zoho. Each month HR locks attendance and imports the file (or Zoho pulls the JSON).","પગાર, PF, ESI, PT, LWF, TDS, ફોર્મ {n} અને પગાર ચુકવણી Zoho માં છે. દર મહિને HR હાજરી લૉક કરે છે અને ફાઇલ ઇમ્પોર્ટ કરે છે (અથવા Zoho JSON ખેંચે છે).","वेतन, PF, ESI, PT, LWF, TDS, फ़ॉर्म {n} और वेतन भुगतान Zoho में हैं। हर महीने HR हाजिरी लॉक करता है और फ़ाइल इम्पोर्ट करता है (या Zoho JSON ले लेता है)।"
+Payment methods,ચુકવણીની રીતો,भुगतान के तरीके
 Payslip {x},પગાર સ્લિપ {x},वेतन पर्ची {x}
 Payslips and documents,પગાર સ્લિપ અને દસ્તાવેજો,वेतन पर्ची और दस्तावेज़
 "Payslips from Zoho Payroll, letters and ID copies that HR uploads appear here.","Zoho Payroll ની પગાર સ્લિપ, પત્રો અને HR અપલોડ કરે તે ID નકલો અહીં દેખાય છે.","Zoho Payroll की वेतन पर्ची, पत्र और HR द्वारा अपलोड की गई ID कॉपियाँ यहाँ दिखती हैं."
@@ -1258,7 +1294,9 @@ Progress % (optional),પ્રગતિ % (મરજિયાત),प्रग�
 "Progress must be not started, in progress or completed","પ્રગતિ શરૂ નથી, ચાલુ છે કે પૂરું હોવી જોઈએ","प्रगति शुरू नहीं, चालू या पूरा होनी चाहिए"
 Project,પ્રોજેક્ટ,प्रोजेक्ट
 Project managers confirm their team's month,પ્રોજેક્ટ મેનેજર પોતાની ટીમનો મહિનો પાકો કરે છે,प्रोजेक्ट मैनेजर अपनी टीम का महीना पक्का करते हैं
+"Project name, e.g. Solar","પ્રોજેક્ટનું નામ, દા.ત. સોલાર","प्रोजेक्ट का नाम, जैसे सोलर"
 Project: all,પ્રોજેક્ટ: બધા,प्रोजेक्ट: सभी
+Projects,પ્રોજેક્ટ્સ,प्रोजेक्ट
 "Projects you manage: Biochar, Gasifier","તમે સંભાળો છો તે પ્રોજેક્ટ: બાયોચાર, ગેસિફાયર","आपके प्रोजेक्ट: बायोचार, गैसीफायर"
 Proof of payment,ચુકવણીનો પુરાવો,भुगतान का सबूत
 Prosopis wood,ગાંડા બાવળનું લાકડું,विलायती बबूल की लकड़ी
@@ -1344,6 +1382,7 @@ Report,જાણ કરો,रिपोर्ट करें
 Report incident,ઘટના નોંધાવો,घटना दर्ज करें
 Reporting lines,કોણ કોને રિપોર્ટ કરે,कौन किसे रिपोर्ट करता है
 Reporting office,રિપોર્ટિંગ ઓફિસ,रिपोर्टिंग ऑफ़िस
+Reporting offices,રિપોર્ટિંગ ઓફિસો,रिपोर्टिंग ऑफ़िस
 "Reporting offices, one per line: number | name. The 2-digit number is the middle of every employee code: BIO01001 = Biochar, office 01, person 001","રિપોર્ટિંગ ઓફિસો, દરેક લાઇનમાં એક: નંબર | નામ. 2 અંકનો નંબર દરેક કર્મચારી કોડની વચ્ચે આવે છે: BIO01001 = બાયોચાર, ઓફિસ 01, વ્યક્તિ 001","रिपोर्टिंग ऑफ़िस, हर लाइन में एक: नंबर | नाम। 2 अंकों का नंबर हर कर्मचारी कोड के बीच में आता है: BIO01001 = बायोचार, ऑफ़िस 01, व्यक्ति 001"
 Reports,રિપોર્ટ,रिपोर्ट
 Reports to,કોને રિપોર્ટ કરે,किसे रिपोर्ट करते हैं
@@ -1363,6 +1402,7 @@ Returned,પાછું આપ્યું,वापस किया
 Returned on,પાછું આપ્યાની તારીખ,वापसी की तारीख
 Returned on (optional),પાછું આપ્યાની તારીખ (મરજિયાત),वापसी की तारीख (वैकल्पिक)
 Review,સમીક્ષા,समीक्षा
+Review ratings,મૂલ્યાંકન રેટિંગ,समीक्षा रेटिंग
 Review: {x},સમીક્ષા: {x},समीक्षा: {x}
 "Reviewers: this web prototype leaves out what only the phone app can do (push notifications, background location). See Me → For reviewers.","સમીક્ષકો: આ વેબ નમૂનામાં ફક્ત ફોન એપ જ કરી શકે તે નથી (પુશ સૂચનાઓ, બેકગ્રાઉન્ડ લોકેશન). જુઓ હું → સમીક્ષકો માટે.","समीक्षक: इस वेब नमूने में वह नहीं है जो सिर्फ़ फ़ोन ऐप कर सकता है (पुश सूचनाएँ, बैकग्राउंड लोकेशन). देखें मैं → समीक्षकों के लिए."
 Reviews,સમીક્ષા,समीक्षा
@@ -1371,7 +1411,9 @@ Rice husk {n} → {n} kg,ડાંગરનું ભૂસું {n} → {n} kg
 Ride safe. Photograph the odometer again when you arrive.,સાચવીને જજો. પહોંચો ત્યારે ફરી ઓડોમીટરનો ફોટો લેજો.,सँभलकर जाएँ। पहुँचने पर फिर ओडोमीटर की फ़ोटो लें।
 Role,ભૂમિકા,भूमिका
 Role (optional),ભૂમિકા (મરજિયાત),भूमिका (वैकल्पिक)
+Role (Settings > Lists > Roles),ભૂમિકા (સેટિંગ્સ > યાદીઓ > ભૂમિકાઓ),भूमिका (सेटिंग्स > सूचियाँ > भूमिकाएँ)
 Role: all,ભૂમિકા: બધી,भूमिका: सभी
+Roles,ભૂમિકાઓ,भूमिकाएँ
 Root cause (after investigation),મૂળ કારણ (તપાસ પછી),असली कारण (जाँच के बाद)
 Root cause (after investigation) (optional),મૂળ કારણ (તપાસ પછી) (મરજિયાત),मूल कारण (जाँच के बाद) (वैकल्पिक)
 Root zone,મૂળ પાસે,जड़ के पास
@@ -1648,6 +1690,9 @@ Thank you,આભાર,धन्यवाद
 "Thank you, your answers are in","આભાર, તમારા જવાબ મળી ગયા","धन्यवाद, आपके जवाब मिल गए"
 That bucket is not in this plan,એ ખાનું આ પ્લાનમાં નથી,वह खाना इस योजना में नहीं है
 That code is not right. Use the current 6-digit code from the authenticator app.,આ કોડ ખોટો છે. ઓથેન્ટિકેટર એપમાંથી હાલનો 6 અંકનો કોડ નાખો.,यह कोड गलत है। ऑथेंटिकेटर ऐप से अभी का 6 अंकों का कोड डालें।
+The 2-digit number is the middle of the employee code: BIO01001,2 અંકનો નંબર કર્મચારી કોડની વચ્ચે આવે છે: BIO01001,2 अंकों का नंबर कर्मचारी कोड के बीच में आता है: BIO01001
+The 3-letter code starts the employee code; built-in projects stay,3 અક્ષરનો કોડ કર્મચારી કોડની શરૂઆત છે; મૂળ પ્રોજેક્ટ્સ રહે છે,3 अक्षरों का कोड कर्मचारी कोड की शुरुआत है; मूल प्रोजेक्ट रहते हैं
+The access level decides what the person can see,ઍક્સેસ લેવલ નક્કી કરે છે કે વ્યક્તિ શું જોઈ શકે,एक्सेस लेवल तय करता है कि व्यक्ति क्या देख सकता है
 "The employee code is made from the project and office, e.g. BIO01001.","કર્મચારી કોડ પ્રોજેક્ટ અને ઓફિસ પરથી બને છે, દા.ત. BIO01001.","कर्मचारी कोड प्रोजेक्ट और ऑफ़िस से बनता है, जैसे BIO01001।"
 The farmer has not signed yet,ખેડૂતે હજુ સહી કરી નથી,किसान ने अभी तक हस्ताक्षर नहीं किए
 The farmer's signature is missing,ખેડૂતની સહી બાકી છે,किसान के हस्ताक्षर नहीं हैं
@@ -1657,6 +1702,7 @@ The KML has no polygon (plot boundary),KML માં પ્લોટની હ�
 The leave-site check runs only while the app is open. Tracking a checked-in worker with the app closed needs the native app.,સાઇટ છોડવાની તપાસ એપ ખુલ્લી હોય ત્યારે જ ચાલે છે. એપ બંધ હોય ત્યારે ચેક-ઇન કરેલા કામદારને ટ્રેક કરવા ફોન એપ જોઈએ.,साइट छोड़ने की जाँच सिर्फ़ ऐप खुला होने पर चलती है. ऐप बंद होने पर चेक-इन किए कामगार को ट्रैक करने के लिए फ़ोन ऐप चाहिए.
 "the office, every site, company vehicles, farm visits and work trips.","ઓફિસ, દરેક સાઇટ, કંપનીનાં વાહનો, ખેતરની મુલાકાતો અને કામની મુસાફરી.","ऑफ़िस, हर साइट, कंपनी के वाहन, खेत के दौरे और काम की यात्राएँ."
 The plan has no bucket,પ્લાનમાં કોઈ ખાનું નથી,योजना में कोई खाना नहीं है
+"The project code must be 3 letters, e.g. SOL","પ્રોજેક્ટ કોડ 3 અક્ષરનો હોવો જોઈએ, દા.ત. SOL","प्रोजेक्ट कोड 3 अक्षरों का होना चाहिए, जैसे SOL"
 The signature looks empty. Ask the farmer to sign again.,સહી ખાલી લાગે છે. ખેડૂતને ફરી સહી કરવા કહો.,हस्ताक्षर खाली लगते हैं। किसान से फिर से हस्ताक्षर करवाएँ।
 "The start and end photos, readings and GPS points go to your manager. The app also shows them the straight-line distance between the two points.","શરૂઆત અને અંતના ફોટા, રીડિંગ અને GPS પોઇન્ટ તમારા મેનેજરને જાય છે. એપ તેમને બંને પોઇન્ટ વચ્ચેનું સીધી લીટીનું અંતર પણ બતાવે છે.","शुरू और अंत की फ़ोटो, रीडिंग और GPS पॉइंट आपके मैनेजर को जाते हैं. ऐप उन्हें दोनों पॉइंट के बीच की सीधी दूरी भी दिखाता है."
 The two new PINs differ,બંને નવા PIN અલગ છે,दोनों नए PIN अलग हैं
@@ -1699,6 +1745,9 @@ travel,મુસાફરી,यात्रा
 Travel allowance,મુસાફરી ભથ્થું,यात्रा भत्ता
 travel approved this month,આ મહિને મંજૂર મુસાફરી,इस महीने मंज़ूर यात्रा
 "Travel rates per km, one per line: Vehicle | rate","દર km મુસાફરી દર, દરેક લીટીમાં એક: વાહન | દર","प्रति km यात्रा दर, हर पंक्ति में एक: वाहन | दर"
+"Travel rates, leave types and reporting offices are in Settings > Lists.","મુસાફરી દર, રજાના પ્રકાર અને રિપોર્ટિંગ ઓફિસો સેટિંગ્સ > યાદીઓમાં છે.","यात्रा दर, छुट्टी के प्रकार और रिपोर्टिंग ऑफ़िस सेटिंग्स > सूचियाँ में हैं।"
+Travel vehicles and rate per km,મુસાફરીના વાહનો અને km દીઠ દર,यात्रा के वाहन और प्रति km दर
+Tree species,ઝાડની જાતો,पेड़ की प्रजातियाँ
 Trend lines show the last six months ({x} to {x}).,રેખાઓ છેલ્લા છ મહિના બતાવે છે ({x} થી {x}).,रेखाएँ पिछले छह महीने दिखाती हैं ({x} से {x})।
 Trip is not waiting for approval,મુસાફરી મંજૂરીની રાહ જોતી નથી,यात्रा मंज़ूरी के इंतज़ार में नहीं है
 Trip started,મુસાફરી શરૂ થઈ,यात्रा शुरू हुई
@@ -1716,6 +1765,8 @@ Two-wheeler,ટુ-વ્હીલર,दोपहिया
 Two-wheeler | {n} Car | {n} Public transport | {n},ટુ-વ્હીલર | {n} કાર | {n} જાહેર વાહન | {n},दोपहिया | {n} कार | {n} सार्वजनिक वाहन | {n}
 Type,પ્રકાર,प्रकार
 Type (optional),પ્રકાર (મરજિયાત),प्रकार (वैकल्पिक)
+Type a name,નામ લખો,नाम लिखें
+Type a name first,પહેલાં નામ લખો,पहले नाम लिखें
 "type must be in, out or count","પ્રકાર આવક, જાવક અથવા ગણતરી હોવો જોઈએ","प्रकार आवक, जावक या गिनती होना चाहिए"
 Type the worker name,કામદારનું નામ લખો,मज़दूर का नाम लिखें
 Type: all,પ્રકાર: બધા,प्रकार: सभी
@@ -1725,6 +1776,7 @@ Uniform,યુનિફોર્મ,वर्दी
 Unit,એકમ,इकाई
 Unit (optional),એકમ (વૈકલ્પિક),इकाई (वैकल्पिक)
 Unknown audience,અજાણ્યા વાચકો,अनजान पाठक
+Unknown list,અજાણી યાદી,अनजान सूची
 Unknown record type,અજાણ્યો રેકોર્ડ પ્રકાર,अनजान रिकॉर्ड प्रकार
 Unknown status,અજાણી સ્થિતિ,अनजान स्थिति
 Unknown vehicle type,અજાણ્યો વાહન પ્રકાર,अनजान वाहन प्रकार
@@ -1762,6 +1814,7 @@ Vehicle,વાહન,वाहन
 Vehicle (optional),વાહન (વૈકલ્પિક),वाहन (वैकल्पिक)
 Vehicle no,વાહન નંબર,वाहन नंबर
 Vehicle no (optional),વાહન નંબર (વૈકલ્પિક),वाहन नंबर (वैकल्पिक)
+"Vehicle, e.g. Tractor","વાહન, દા.ત. ટ્રેક્ટર","वाहन, जैसे ट्रैक्टर"
 Version,આવૃત્તિ,संस्करण
 Version (optional),આવૃત્તિ (મરજિયાત),संस्करण (वैकल्पिक)
 Very likely,ચોક્કસ,ज़रूर
@@ -1980,6 +2033,8 @@ Zoom out,નાનું કરો,छोटा करें
 {x} by {x},"{1}, {2} દ્વારા","{1}, {2} द्वारा"
 {x} confirmed {x} attendance,{1} એ {2} ની હાજરી પાકી કરી,{1} ने {2} की हाजिरी पक्की की
 {x} is approved and locked,{x} મંજૂર અને લૉક છે,{x} मंज़ूर और लॉक है
+{x} is built in and stays,{x} મૂળ છે અને રહેશે,{x} मूल है और रहेगा
+{x} is in use ({x}) and cannot be deleted,{1} વપરાશમાં છે ({2}) અને કાઢી શકાય નહીં,{1} इस्तेमाल में है ({2}) और हटाया नहीं जा सकता
 {x} is not kept at the sending site,મોકલનાર સાઇટ પર {x} રાખવામાં આવતું નથી,भेजने वाली साइट पर {x} नहीं रखा जाता
 {x} is not kept at this site,આ સાઇટ પર {x} રાખવામાં આવતું નથી,इस साइट पर {x} नहीं रखा जाता
 {x} is open,{x} ખુલ્લો છે,{x} खुला है

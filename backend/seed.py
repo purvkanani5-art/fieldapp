@@ -63,6 +63,18 @@ DEMO_OFFICES = [{"code": "01", "name": "Ahmedabad (head office)"}, {"code": "02"
                 {"code": "04", "name": "Surat"}, {"code": "05", "name": "Banaskantha"}]
 
 
+def migrate_admin_code(db: Db) -> None:
+    """Owner's request 2026-11-17: the director's starting code EMP001 becomes ADM01001 (management, office 01). Once."""
+    if os.environ.get("KL_DEMO", "1") == "1" or db.setting("admin_code_migrated"):
+        return
+    old = os.environ.get("KL_ADMIN_EMP", "EMP001").strip().upper()
+    u = db.one("SELECT id FROM users WHERE employee_id = ? AND role = 'admin'", old)
+    if u and not db.one("SELECT 1 FROM users WHERE employee_id = 'ADM01001'"):
+        db.run("UPDATE users SET employee_id = 'ADM01001' WHERE id = ?", u["id"])
+        db.audit(u["id"], "employee_code", "user", u["id"], f"{old} -> ADM01001")
+    db.set_setting("admin_code_migrated", True)
+
+
 def seed_if_empty() -> None:
     db = Db()
     try:

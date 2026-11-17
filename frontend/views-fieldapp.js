@@ -90,6 +90,7 @@ function siteAddTiles(s) {
   if (s.project_type === 'biochar') t.push(go(`#site/${s.id}/stock`, 'box', 'Stock in or out'), rec('batch', 'flame', s.subtype === 'plant' ? 'Plant run' : 'Kiln batch'), go('', 'checklist', 'Daily safety check', { check: s.id }), go('#farmers', 'sprout', 'Farmer or signing'));
   else if (s.project_type === 'gasifier') t.push(go(`#site/${s.id}/stock`, 'box', 'Stock in or out'), rec('gas_run', 'sun', 'Generation run'), rec('maintenance', 'cog', 'Equipment service'), go('', 'checklist', 'Daily safety check', { check: s.id }));
   else if (s.project_type === 'agroforestry') t.push(rec('nursery', 'sprout', 'Nursery entry'), rec('sapling', 'tree', 'Saplings planted'), rec('survival', 'leaf', 'Survival check'), go('#farmers', 'users', 'Farmer or signing'));
+  else t.push(go(`#site/${s.id}/stock`, 'box', 'Stock in or out'), go('', 'checklist', 'Daily safety check', { check: s.id }), go('#updates', 'note', 'Daily update')); // a project added in Settings > Lists
   if (sup) t.push(go(`#muster/${s.id}`, 'users', 'Crew attendance'));
   if (s.project_type !== 'agroforestry') t.push(rec('incident', 'alert', 'Report incident'));
   return t;
@@ -150,7 +151,8 @@ function fieldSite(s) {
   let stats = [];
   if (s.project_type === 'biochar') stats = [item(bal(/biochar|char/i), 'biochar'), item(bal(/biomass|feed/i), 'biomass'), item(bal(/diesel/i), 'diesel')];
   else if (s.project_type === 'gasifier') stats = [{ v: fmtNum(st.kwh), l: 'kWh this month' }, { v: fmtNum(st.hours, 1), l: 'run hours' }, item(bal(/feed|biomass|wood/i), 'feedstock')];
-  else stats = [{ v: fmtNum(st.inNursery), l: 'in nursery' }, { v: fmtNum(st.planted), l: 'planted' }, { v: fmtNum(st.farmers), l: 'farmers' }];
+  else if (s.project_type === 'agroforestry') stats = [{ v: fmtNum(st.inNursery), l: 'in nursery' }, { v: fmtNum(st.planted), l: 'planted' }, { v: fmtNum(st.farmers), l: 'farmers' }];
+  else stats = sum.items.filter((i) => i.kind === 'input' || i.kind === 'product').slice(0, 3).map((i) => item(i, i.name.toLowerCase()));
   stats = stats.filter(Boolean);
   const today = [];
   const t = KL.cache['m:checklist_template'];

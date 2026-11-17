@@ -802,7 +802,7 @@ function applyTheme() {
   const dark = t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0c120f' : '#f5f3ec');
 }
-const PROJECT_ICON = { biochar: 'flame', agroforestry: 'tree', gasifier: 'cog', office: 'building', other: 'pin' };
+const PROJECT_ICON = new Proxy({ biochar: 'flame', agroforestry: 'tree', gasifier: 'cog', office: 'building', other: 'pin' }, { get: (o, k) => o[k] || KL.boot?.projects?.[k]?.icon });
 
 /* ---------------------------------------------------------------- line icons (24-unit grid, stroked) */
 const ICONS = {

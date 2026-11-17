@@ -1055,3 +1055,26 @@ body.side-mini .side-tools span { display: none; }
 .sect-tabs { margin: 4px 0 8px; }
 .sect-tabs .badge { margin-left: 4px; }
 main.is-top .page-head .back, main.is-top .page-head .crumbs { display: none; }
+
+/* ---------------------------------------------------------------- Settings > Lists (2026-11-17) */
+.lc-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); align-items: start; }
+.lc { padding: 0; overflow: hidden; }
+.lc-head { display: grid; gap: 2px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.lc-head .hint { font-size: 13px; }
+.lc-rows { display: grid; }
+.lc-row { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 2px 6px 2px 14px; border-bottom: 1px solid var(--border); }
+.lc-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.lc-name b { font-weight: 500; }
+.lc-name small, .lc-name span { color: var(--text-2); font-size: 13px; }
+.lc-name .ic { width: 18px; height: 18px; color: var(--text-2); }
+.lc-del { color: var(--text-2); }
+.lc-del:hover { color: #b42318; }
+.lc-used .tag, .lc-row .tag { white-space: nowrap; }
+.lc-add { display: grid; gap: 8px; padding: 12px 14px; background: var(--surface-2); }
+.lc-inputs { display: flex; gap: 8px; flex-wrap: wrap; }
+.lc-inputs .input { flex: 1 1 140px; min-width: 0; }
+.lc-inputs .lc-short { flex: 0 0 76px; }
+.lc-tr summary { cursor: pointer; font-size: 13px; color: var(--text-2); padding: 2px 0; }
+.lc-tr .lc-inputs { margin-top: 6px; }
+.lc-add .btn { justify-self: start; }
+.lc-inputs .lc-icon { flex: 0 0 110px; }

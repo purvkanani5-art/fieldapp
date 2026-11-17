@@ -496,6 +496,13 @@ def reset() -> None:
                 child.unlink(missing_ok=True)
     init_db()
     seed_if_empty()
+    import lists
+    from db import Db as _Db
+    _d = _Db()
+    try:
+        lists.sync(_d)  # the reset wiped saved lists: back to the shipped options
+    finally:
+        _d.close()
     import demo_modules
     import hrops
     import modules

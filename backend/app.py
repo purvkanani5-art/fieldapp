@@ -23,13 +23,14 @@ import auth  # noqa: E402
 from db import Db, init_db, new_id, now_iso  # noqa: E402
 from geo import haversine_m, kml_summary, within_fence  # noqa: E402
 from pdfgen import render_document  # noqa: E402
-from seed import seed_if_empty  # noqa: E402
+from seed import migrate_admin_code, seed_if_empty  # noqa: E402
 from storage import FILES_DIR, store  # noqa: E402
 
 import demo  # noqa: E402
 import demo_modules  # noqa: E402
 import hrops  # noqa: E402
 import modules  # noqa: E402
+import lists  # noqa: E402
 import planner  # noqa: E402
 
 APP_VERSION = "0.5.0"
@@ -38,6 +39,12 @@ FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
 
 init_db()
 seed_if_empty()
+_db = Db()
+try:
+    migrate_admin_code(_db)
+    lists.sync(_db)  # saved lists (Settings > Lists) into the record definitions
+finally:
+    _db.close()
 _db0 = Db()
 planner.init(_db0)
 modules.init(_db0)
@@ -174,6 +181,7 @@ def doc_no(db: Db) -> str:
 
 # ------------------------------------------------------------------ planner
 
+app.include_router(lists.router(UserDep, DbDep))
 app.include_router(planner.make_router(UserDep, DbDep, save_upload=save_upload, is_staff=is_staff))
 app.include_router(hrops.make_router(UserDep, DbDep, save_upload=save_upload, is_staff=is_staff, site_allowed=site_allowed, demo=DEMO))
 app.include_router(modules.make_router(UserDep, DbDep, save_upload=save_upload, save_bytes=save_bytes, is_staff=is_staff, site_allowed=site_allowed, demo=DEMO))
@@ -338,7 +346,7 @@ def bootstrap(user: UserDep, db: DbDep):
     return {
         "company": db.setting("company"), "travel": db.setting("travel"), "leaveTypes": db.setting("leave_types"),
         "updatePrompts": db.setting("update_prompts"), "offices": db.setting("offices", []) or [], "sites": sites, "mySites": mine, "items": items, "templates": templates, "people": people,
-        "demo": DEMO, "projects": modules.PROJECTS,
+        "demo": DEMO, "projects": modules.PROJECTS, **lists.boot_extra(db),
     }
 
 
@@ -924,11 +932,8 @@ def export_site(site_id: str, user: UserDep, db: DbDep):
 
 # Employee codes: project code + reporting office (2 digits, list in Administration > Company) + running number, e.g. BIO01001.
 # Generated when HR adds someone; never reused, never changed by a transfer (the code shows where the person started).
-PROJECT_CODE = {"biochar": "BIO", "gasifier": "GAS", "agroforestry": "AGR", "management": "ADM"}
-
-
 def next_employee_code(db: Db, project: str, office: str) -> str:
-    prefix = PROJECT_CODE.get(str(project or "").strip().lower())
+    prefix = lists.project_codes(db).get(str(project or "").strip().lower())
     office = str(office or "").strip()
     if not prefix:
         raise HTTPException(422, "Choose the project")
@@ -966,11 +971,17 @@ def admin_user_save(payload: dict, user: UserDep, db: DbDep):
         emp = next_employee_code(db, payload.get("project", ""), payload.get("office", ""))
     name = str(payload.get("name", "")).strip()
     role = payload.get("role", "field")
+    designation = str(payload.get("designation", ""))[:80]
+    if payload.get("roleName"):  # a role from Settings > Lists: its access level becomes the role
+        r = next((x for x in lists.roles(db) if x["name"] == payload["roleName"]), None)
+        if not r:
+            raise HTTPException(422, "Choose a role from the list")
+        role, designation = r["level"], r["name"]
     if not emp or len(name) < 2 or role not in ("admin", "manager", "hr", "field"):
         raise HTTPException(422, "Employee ID, name and a valid role are required")
     if role == "admin" and user["role"] != "admin":
         raise HTTPException(403, "Only an admin can create admins")
-    row = {"employee_id": emp, "name": name, "role": role, "designation": str(payload.get("designation", ""))[:80], "phone": str(payload.get("phone", ""))[:20],
+    row = {"employee_id": emp, "name": name, "role": role, "designation": designation, "phone": str(payload.get("phone", ""))[:20],
            "email": str(payload.get("email", ""))[:120], "active": 1 if payload.get("active", True) else 0}
     uid = payload.get("id")
     if uid:

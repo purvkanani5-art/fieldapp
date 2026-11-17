@@ -513,7 +513,7 @@ Actions.personSave = async (el) => {
   const kd = KL.cache['m:kinds'];
   const profile = {};
   for (const f of kd.profileFields) profile[f.key] = F(`pe-${f.key}`, '');
-  try { await api(`/api/hr/profile/${el.dataset.id}`, { json: { profile, managerId: F('pe-manager', ''), reason: F('pe-reason', '') } }); clearF('pe-reason'); invalidate('hr'); KL.ui.peInit = null; await reloadBoot(); toast('Saved'); location.hash = `#person/${el.dataset.id}`; } catch (e) { toast(e.message, 'error'); }
+  try { await api(`/api/hr/profile/${el.dataset.id}`, { json: { profile, managerId: F('pe-manager', ''), reason: F('pe-reason', '') } }); clearF('pe-reason'); invalidate('hr'); KL.ui.peInit = null; await reloadBoot(); if (el.dataset.id === KL.user.id) await refreshMe(); toast('Saved'); location.hash = `#person/${el.dataset.id}`; } catch (e) { toast(e.message, 'error'); }
 };
 
 /* ---------------------------------------------------------------- attendance summary */

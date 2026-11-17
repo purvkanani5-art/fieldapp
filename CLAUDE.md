@@ -190,6 +190,18 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
    (Administration > Company; demo 01-05, production starts with 01 Ahmedabad). Existing codes (EMP001, demo EMP…)
    unchanged. Test: .cache/kl_empcode_check.py (16).
 
+26. **Settings > Lists (2026-11-17)**: owner: every dropdown editable in a new Settings tab, "adding new as a role and
+   deleting it with a dustbin icon ... i dont want a paragraph based one"; an item in use cannot be deleted.
+   `backend/lists.py` owns them: roles (name + access level field/manager/hr/admin; picking a role sets users.role and
+   users.designation), reporting offices, projects (built-ins BIO/GAS/AGR + ADM management stay; added projects get
+   the general site screens Overview/Stock/Safety/Team and general + tiles), leave types, travel vehicles with rate,
+   employment types and the record forms' option lists (FORM_LISTS). Saved in settings (`roles`, `offices`,
+   `projects_custom`, `lists`, `leave_types`, `travel`); `lists.sync()` copies them into KINDS / PROJECTS at start-up,
+   after a change and after a demo reset. Optional Gujarati/Hindi names per item (`list_tr`, merged in i18n.js).
+   HR edits People lists; the director edits all. Company page lost its paragraph boxes. Production start-up renames
+   the director's EMP001 to ADM01001 once (`migrate_admin_code`, owner asked "change mine too").
+   Tests: .cache/kl_lists_check.py (31), kl-lists-ui.mjs, kl-mecard.mjs (card shows designation, refreshes on save).
+
 ## Testing
 - `D:\PersonalBooks\.cache\kl-e2e.mjs` (2026-11-14): resets the demo, then manager assigns a photo-proof task →
   worker gets inbox item, ticks checklist, completes with sample photo → manager inbox "Task done" with note and

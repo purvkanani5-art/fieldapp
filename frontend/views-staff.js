@@ -144,22 +144,26 @@ Actions.userEdit = async (el) => {
   const u = el.dataset.id ? users.rows.find((x) => x.id === el.dataset.id) : null;
   const siteOpts = KL.boot.sites.map((s) => s.name);
   const offices = KL.boot.offices || [];
+  const roleOpts = (KL.boot.roles || []).filter((r) => r.level !== 'admin' || isAdmin());
+  const projOpts = (KL.boot.projectList || []).map((p) => p.name);
   if (!u && !offices.length) { toast('Add the reporting offices in Administration > Company first', 'error'); return; }
   const v = await modal({ title: u ? `Edit ${u.name}` : 'New employee', message: u ? '' : 'The employee code is made from the project and office, e.g. BIO01001.', fields: [
     ...(u ? [{ key: 'employee_id', label: 'Employee code', value: u.employee_id }]
-      : [{ key: 'project', label: 'Project', type: 'select', options: ['Biochar', 'Gasifier', 'Agroforestry', 'Management'], value: 'Biochar' },
+      : [{ key: 'project', label: 'Project', type: 'select', options: projOpts, value: projOpts[0] },
         { key: 'office', label: 'Reporting office', type: 'select', options: offices.map((o) => `${o.code} · ${o.name}`), value: `${offices[0].code} · ${offices[0].name}` }]),
     { key: 'name', label: 'Full name', value: u?.name || '' },
-    { key: 'role', label: 'Role', type: 'select', options: isAdmin() ? ['field', 'manager', 'hr', 'admin'] : ['field', 'manager', 'hr'], value: u?.role || 'field' },
-    { key: 'designation', label: 'Designation', value: u?.designation || '' }, { key: 'phone', label: 'Mobile', type: 'tel', value: u?.phone || '' }, { key: 'email', label: 'Email (if any, for Microsoft sign-in later)', type: 'email', value: u?.email || '' },
+    { key: 'roleName', label: 'Role (Settings > Lists > Roles)', type: 'select', options: roleOpts.map((r) => r.name), value: roleOpts.some((r) => r.name === u?.designation) ? u.designation : (roleOpts.find((r) => r.level === (u?.role || 'field')) || roleOpts[0] || {}).name },
+    { key: 'phone', label: 'Mobile', type: 'tel', value: u?.phone || '' }, { key: 'email', label: 'Email (if any, for Microsoft sign-in later)', type: 'email', value: u?.email || '' },
     { key: 'sites', label: 'Sites (comma-separated names, blank = all)', value: (u?.sites || []).map(siteName).join(', '), placeholder: siteOpts.join(', ') },
     ...(u ? [{ key: 'active', label: 'Status', type: 'select', options: ['active', 'inactive'], value: u.active ? 'active' : 'inactive' }] : [{ key: 'pin', label: 'Starting PIN (4–6 digits, employee changes it)', value: '1234', inputmode: 'numeric' }]),
   ], confirmText: u ? 'Save' : 'Create' });
   if (!v) return;
   const sites = v.sites ? v.sites.split(',').map((n) => KL.boot.sites.find((s) => s.name.toLowerCase() === n.trim().toLowerCase())?.id).filter(Boolean) : [];
   try {
-    const r = await api('/api/admin/users', { json: { ...v, id: u?.id, sites, active: u ? v.active === 'active' : true, project: (v.project || '').toLowerCase(), office: (v.office || '').split(' · ')[0] } });
-    invalidate('admin:users'); render();
+    const r = await api('/api/admin/users', { json: { ...v, id: u?.id, sites, active: u ? v.active === 'active' : true, project: (KL.boot.projectList || []).find((p) => p.name === v.project)?.key || '', office: (v.office || '').split(' · ')[0] } });
+    invalidate('admin:users');
+    if (u && u.id === KL.user.id) await refreshMe(); // your own name or designation: update the menu card now
+    render();
     if (u) toast('Saved');
     else await modal({ title: `Employee code ${r.employeeId}`, message: `${v.name} signs in with ${r.employeeId} and the starting PIN ${v.pin}. Give both to them; the app asks for a new PIN at the first sign-in.`, noButtons: true, html: '<div class="actions"><button type="button" class="btn primary wide" data-modal="confirm">Done</button></div>' });
     if (u && (await modal({ title: 'Reset PIN too?', message: 'Signs the employee out of every phone and sets a new starting PIN.', confirmText: 'Reset PIN', cancelText: 'No' }))) {
@@ -177,7 +181,7 @@ Actions.siteEdit = async (el) => {
   const s = el.dataset.id ? KL.boot.sites.find((x) => x.id === el.dataset.id) : null;
   const g = KL.ui.gps;
   const v = await modal({ title: s ? `Edit ${s.name}` : 'New site', fields: [
-    { key: 'name', label: 'Name', value: s?.name || '' }, { key: 'project_type', label: 'Project', type: 'select', options: ['biochar', 'agroforestry', 'gasifier', 'office'], value: s?.project_type || 'biochar' },
+    { key: 'name', label: 'Name', value: s?.name || '' }, { key: 'project_type', label: 'Project', type: 'select', options: [...(KL.boot.projectList || []).filter((p) => p.key !== 'management').map((p) => p.key), 'office'], value: s?.project_type || 'biochar' },
     { key: 'subtype', label: 'Biochar type (biochar sites only)', type: 'select', options: ['kiln', 'plant', ''], value: s?.subtype || 'kiln' },
     { key: 'strict', label: 'Check-in rule', type: 'select', options: ['Allow exceptions', 'Strict'], value: s?.strict ? 'Strict' : 'Allow exceptions' },
     { key: 'lat', label: `Latitude${g ? ' (your location is ' + g.lat.toFixed(5) + ')' : ''}`, value: s?.lat ?? g?.lat?.toFixed(6) ?? '', inputmode: 'decimal' }, { key: 'lng', label: 'Longitude', value: s?.lng ?? g?.lng?.toFixed(6) ?? '', inputmode: 'decimal' },
@@ -228,21 +232,15 @@ function adminCompany() {
   return `${topbar('Company & rates', '#admin')}
     <div class="card stack">
       ${field('Company name', input('co-name', F('co-name', c.name)))}${field('Short name (shown on Home)', input('co-short', F('co-short', c.short || '')))}${field('Address (on letterhead)', input('co-address', F('co-address', c.address || '')))}
-      ${field('Travel rates per km, one per line: Vehicle | rate', textarea('co-rates', F('co-rates', Object.entries(tr.vehicles).map(([k, v]) => `${k} | ${v}`).join('\n'))))}
-      ${field('Leave types, comma-separated', input('co-leave', F('co-leave', (KL.boot.leaveTypes || []).join(', '))))}
-      ${field('Reporting offices, one per line: number | name. The 2-digit number is the middle of every employee code: BIO01001 = Biochar, office 01, person 001', textarea('co-offices', F('co-offices', (KL.boot.offices || []).map((o) => `${o.code} | ${o.name}`).join('\n'))))}
+      <p class="hint">Travel rates, leave types and reporting offices are in Settings > Lists.</p>
       <button type="button" class="btn primary wide" data-action="companySave">Save</button>
     </div>
     <div class="card stack" style="margin-top:10px"><b>Authorised signature</b><p class="hint">A PNG of the director's signature with a transparent or white background. It is placed in the company's box on every farmer document.</p><button type="button" class="btn" data-action="companySig">Upload signature image</button></div>`;
 }
 Actions.companySave = async () => {
-  const c = KL.boot.company, tr = KL.boot.travel;
-  const ratesDefault = Object.entries(tr.vehicles).map(([k, v]) => `${k} | ${v}`).join('\n');
-  const vehicles = {};
-  for (const line of F('co-rates', ratesDefault).split('\n')) { const [k, v] = line.split('|').map((x) => x && x.trim()); if (k && v !== undefined && !Number.isNaN(Number(v))) vehicles[k] = Number(v); }
-  const offices = F('co-offices', (KL.boot.offices || []).map((o) => `${o.code} | ${o.name}`).join('\n')).split('\n').map((line) => line.split('|').map((x) => x.trim())).filter(([code]) => code).map(([code, name]) => ({ code: code.padStart(2, '0'), name: name || '' }));
+  const c = KL.boot.company;
   try {
-    await api('/api/admin/settings', { json: { offices, company: { name: F('co-name', c.name), short: F('co-short', c.short || ''), address: F('co-address', c.address || '') }, travel: { ...tr, vehicles }, leave_types: F('co-leave', (KL.boot.leaveTypes || []).join(', ')).split(',').map((x) => x.trim()).filter(Boolean) } });
+    await api('/api/admin/settings', { json: { company: { name: F('co-name', c.name), short: F('co-short', c.short || ''), address: F('co-address', c.address || '') } } });
     await reloadBoot(); toast('Saved'); render();
   } catch (e) { toast(e.message, 'error'); }
 };

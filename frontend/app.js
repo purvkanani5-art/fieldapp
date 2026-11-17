@@ -132,7 +132,7 @@ function sideNav(active) {
       <button type="button" class="btn ghost icon-only side-toggle" data-action="sideToggle" aria-label="Collapse the menu" title="Collapse the menu">${ic('back')}</button></div>
     <nav class="side-nav">${navGroups().map(([title, items]) => `<div class="nav-group">${title ? `<div class="label">${esc(title)}</div>` : ''}${items.map(link).join('')}${title === 'Operations' ? tree.map(([p, list]) => `<div class="nav-tree"><span class="tree-label">${ic(p.icon)}<span>${esc(p.name)}</span></span>${list.map((s) => `<a class="nav sub ${cur.startsWith(`site/${s.id}`) ? 'on' : ''}" href="#site/${esc(s.id)}" title="${esc(s.name)}"><span>${esc(s.name)}</span></a>`).join('')}</div>`).join('') : ''}</div>`).join('')}</nav>
     <div class="side-foot">
-      <a class="me-chip ${cur === 'me' ? 'on' : ''}" href="#me">${avatar(u.name, 'sm')}<span><b>${esc(u.name)}</b><small>${esc(ROLE_TEXT[u.role] || u.role)}</small></span></a>
+      <a class="me-chip ${cur === 'me' ? 'on' : ''}" href="#me">${avatar(u.name, 'sm')}<span><b>${esc(u.name)}</b><small>${esc(u.designation || ROLE_TEXT[u.role] || u.role)}</small></span></a>
       <div class="side-tools">${langBtn()}${isStaff() ? `<a class="btn ghost small ${cur.startsWith('settings') ? 'on' : ''}" href="#settings">${ic('cog')}<span>Settings</span></a>` : ''}</div>
       ${KL.boot?.demo ? `<button type="button" class="btn small wide" data-action="switchOpen">${ic('swap')}<span>View as someone else</span></button>` : ''}
     </div>
@@ -143,7 +143,7 @@ try { if (localStorage.getItem('kl.side') === 'mini') document.body.classList.ad
 function switcherPill() {
   if (!KL.boot?.demo) return '';
   const u = KL.user;
-  return `<button type="button" class="switcher" data-action="switchOpen" aria-label="View the app as someone else">${avatar(u.name, 'sm')}<span>${esc(firstName(u.name))}</span><span class="role">${esc(ROLE_TEXT[u.role] || u.role)}</span>${ic('swap')}</button>`;
+  return `<button type="button" class="switcher" data-action="switchOpen" aria-label="View the app as someone else">${avatar(u.name, 'sm')}<span>${esc(firstName(u.name))}</span><span class="role">${esc(u.designation || ROLE_TEXT[u.role] || u.role)}</span>${ic('swap')}</button>`;
 }
 
 /* ---------------------------------------------------------------- sign-in */

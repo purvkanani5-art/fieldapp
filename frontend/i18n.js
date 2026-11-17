@@ -17,8 +17,10 @@ let TR = null;
 function trTable() {
   const L = lang();
   if (L === 'en') return null;
-  if (TR && TR.lang === L) return TR;
-  const dict = window.I18N_DATA[L] || {};
+  const added = (typeof KL !== 'undefined' && KL.boot?.listTr) || null;
+  if (TR && TR.lang === L && TR.added === added) return TR;
+  const dict = { ...(window.I18N_DATA[L] || {}) };
+  for (const [en, t] of Object.entries(added || {})) if (t?.[L]) dict[en] = t[L];
   const exact = new Map();
   const pats = [];
   const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -33,7 +35,7 @@ function trTable() {
     } else exact.set(k, v);
   }
   pats.sort((a, b) => b.size - a.size); // the most specific pattern first
-  TR = { lang: L, exact, pats, memo: new Map() };
+  TR = { lang: L, added, exact, pats, memo: new Map() };
   return TR;
 }
 /** Translation of one trimmed text, or null when there is none. */

@@ -6,6 +6,7 @@ const SITE_TABS = {
   biochar: (s) => [['overview', 'home', 'Overview'], ['stock', 'box', 'Stock'], ['production', 'flame', s.subtype === 'plant' ? 'Plant runs' : 'Kiln batches'], ['farmers', 'sprout', 'Farmers'], ['safety', 'shield', 'Safety'], ['team', 'users', 'Team']],
   gasifier: () => [['overview', 'home', 'Overview'], ['stock', 'box', 'Stock'], ['generation', 'sun', 'Generation'], ['equipment', 'cog', 'Equipment'], ['safety', 'shield', 'Safety'], ['team', 'users', 'Team']],
   agroforestry: () => [['overview', 'home', 'Overview'], ['nursery', 'sprout', 'Nursery'], ['plantation', 'tree', 'Plantation'], ['farmers', 'users', 'Farmers'], ['team', 'users', 'Team']],
+  general: () => [['overview', 'home', 'Overview'], ['stock', 'box', 'Stock'], ['safety', 'shield', 'Safety'], ['team', 'users', 'Team']], // projects added in Settings > Lists
 };
 const projectsMeta = () => KL.boot?.projects || {};
 const mySites = () => (KL.boot?.mySites || []).filter((s) => s.project_type !== 'office');
@@ -28,7 +29,7 @@ Views.site = (arg) => {
   const s = (KL.boot?.mySites || []).find((x) => x.id === id);
   const back = mySites().length > 1 || isStaff() ? '#sites' : '#home';
   if (!s) return `${topbar('Site', back)}${emptyState('pin', 'Site not found or not yours')}`;
-  const tabs = (SITE_TABS[s.project_type] || SITE_TABS.agroforestry)(s);
+  const tabs = (SITE_TABS[s.project_type] || SITE_TABS.general)(s);
   const tab = tabs.some(([k]) => k === tab0) ? tab0 : 'overview';
   KL.ui.siteBack = `#site/${id}/${tab}`;
   const sum = data(`site:${id}`, () => api(`/api/sites/${id}/summary`));
