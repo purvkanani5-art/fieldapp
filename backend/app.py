@@ -337,7 +337,7 @@ def bootstrap(user: UserDep, db: DbDep):
     people = db.all("SELECT id, employee_id, name, role, designation FROM users WHERE active = 1 ORDER BY name")
     return {
         "company": db.setting("company"), "travel": db.setting("travel"), "leaveTypes": db.setting("leave_types"),
-        "updatePrompts": db.setting("update_prompts"), "sites": sites, "mySites": mine, "items": items, "templates": templates, "people": people,
+        "updatePrompts": db.setting("update_prompts"), "offices": db.setting("offices", []) or [], "sites": sites, "mySites": mine, "items": items, "templates": templates, "people": people,
         "demo": DEMO, "projects": modules.PROJECTS,
     }
 
@@ -922,6 +922,30 @@ def export_site(site_id: str, user: UserDep, db: DbDep):
 # ------------------------------------------------------------------ admin
 
 
+# Employee codes: project code + reporting office (2 digits, list in Administration > Company) + running number, e.g. BIO01001.
+# Generated when HR adds someone; never reused, never changed by a transfer (the code shows where the person started).
+PROJECT_CODE = {"biochar": "BIO", "gasifier": "GAS", "agroforestry": "AGR", "management": "ADM"}
+
+
+def next_employee_code(db: Db, project: str, office: str) -> str:
+    prefix = PROJECT_CODE.get(str(project or "").strip().lower())
+    office = str(office or "").strip()
+    if not prefix:
+        raise HTTPException(422, "Choose the project")
+    if office not in {o["code"] for o in db.setting("offices", []) or []}:
+        raise HTTPException(422, "Choose the reporting office")
+    head = prefix + office
+    used = [int(m.group(1)) for r in db.all("SELECT employee_id FROM users WHERE employee_id LIKE ?", head + "%")
+            if (m := re.fullmatch(re.escape(head) + r"(\d{3,})", r["employee_id"]))]
+    return f"{head}{(max(used) + 1 if used else 1):03d}"
+
+
+@app.get("/api/admin/next-employee-code")
+def admin_next_employee_code(project: str, office: str, user: UserDep, db: DbDep):
+    require(user, "admin", "hr")
+    return {"employeeId": next_employee_code(db, project, office)}
+
+
 @app.get("/api/admin/users")
 def admin_users(user: UserDep, db: DbDep):
     require(user, "admin", "hr")
@@ -936,7 +960,10 @@ def admin_users(user: UserDep, db: DbDep):
 @app.post("/api/admin/users")
 def admin_user_save(payload: dict, user: UserDep, db: DbDep):
     require(user, "admin", "hr")
-    emp = str(payload.get("employee_id", "")).strip().upper()
+    if payload.get("id"):
+        emp = str(payload.get("employee_id", "")).strip().upper()
+    else:
+        emp = next_employee_code(db, payload.get("project", ""), payload.get("office", ""))
     name = str(payload.get("name", "")).strip()
     role = payload.get("role", "field")
     if not emp or len(name) < 2 or role not in ("admin", "manager", "hr", "field"):
@@ -962,7 +989,7 @@ def admin_user_save(payload: dict, user: UserDep, db: DbDep):
     for sid in payload.get("sites") or []:
         db.insert("user_sites", {"user_id": uid, "site_id": sid})
     db.audit(user["id"], "user_save", "user", uid, emp)
-    return {"id": uid}
+    return {"id": uid, "employeeId": emp}
 
 
 @app.post("/api/admin/users/{uid}/reset-pin")
@@ -1045,6 +1072,16 @@ def admin_template_save(payload: dict, user: UserDep, db: DbDep):
 @app.post("/api/admin/settings")
 def admin_settings(payload: dict, user: UserDep, db: DbDep):
     require(user, "admin")
+    if "offices" in payload:
+        clean = []
+        for o in payload["offices"] or []:
+            code = str(o.get("code", "")).strip()
+            if not re.fullmatch(r"\d{2}", code) or code == "00":
+                raise HTTPException(422, f"Office number '{code}' must be two digits, 01 to 99")
+            if code in (c["code"] for c in clean):
+                raise HTTPException(422, f"Office number {code} is used twice")
+            clean.append({"code": code, "name": str(o.get("name", "")).strip()[:60]})
+        db.set_setting("offices", clean)
     for key in ("company", "travel", "leave_types", "update_prompts"):
         if key in payload:
             db.set_setting(key, payload[key])

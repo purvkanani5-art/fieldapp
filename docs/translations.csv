@@ -44,6 +44,7 @@ Add something new,કંઈક નવું ઉમેરો,कुछ नया 
 "Add staff, roles, sites, reset a PIN","સ્ટાફ, ભૂમિકા, સાઇટ્સ ઉમેરો, PIN રીસેટ કરો","स्टाफ़, भूमिका, साइटें जोड़ें, PIN रीसेट करें"
 Add task,કામ ઉમેરો,काम जोड़ें
 Add the first one.,પહેલું ઉમેરો.,पहला जोड़ें.
+Add the reporting offices in Administration > Company first,પહેલાં વહીવટ > કંપનીમાં રિપોર્ટિંગ ઓફિસો ઉમેરો,पहले प्रशासन > कंपनी में रिपोर्टिंग ऑफ़िस जोड़ें
 Add to {x},{x} માં ઉમેરો,{x} में जोड़ें
 Added,ઉમેર્યું,जोड़ा गया
 Address,સરનામું,पता
@@ -279,6 +280,8 @@ Choose file and upload,ફાઇલ પસંદ કરી અપલોડ ક�
 Choose the checklist above.,ઉપરથી ચેકલિસ્ટ પસંદ કરો.,ऊपर से चेकलिस्ट चुनें.
 Choose the employee,કર્મચારી પસંદ કરો,कर्मचारी चुनें
 Choose the employee first,પહેલાં કર્મચારી પસંદ કરો,पहले कर्मचारी चुनें
+Choose the project,પ્રોજેક્ટ પસંદ કરો,प्रोजेक्ट चुनें
+Choose the reporting office,રિપોર્ટિંગ ઓફિસ પસંદ કરો,रिपोर्टिंग ऑफ़िस चुनें
 Choose the site,સાઇટ પસંદ કરો,साइट चुनें
 Choose the site you have reached.,તમે જે સાઇટ પર પહોંચ્યા છો તે પસંદ કરો.,जिस साइट पर आप पहुँचे हैं वह चुनें.
 Choose what the complaint is about,ફરિયાદ શેના વિશે છે તે પસંદ કરો,"शिकायत किस बारे में है, चुनें"
@@ -438,6 +441,8 @@ Edit {x},{x} બદલો,{x} बदलें
 Emergency contact,ઇમરજન્સી સંપર્ક,इमरजेंसी संपर्क
 Emergency phone,ઇમરજન્સી ફોન,इमरजेंसी फ़ोन
 Employee,કર્મચારી,कर्मचारी
+Employee code,કર્મચારી કોડ,कर्मचारी कोड
+Employee code {x},કર્મચારી કોડ {x},कर्मचारी कोड {x}
 Employee directory,કર્મચારી યાદી,कर्मचारी सूची
 Employee documents,કર્મચારી દસ્તાવેજો,कर्मचारी दस्तावेज़
 Employee ID,કર્મચારી ID,कर्मचारी ID
@@ -845,6 +850,7 @@ Maintenance log,જાળવણી નોંધ,रखरखाव लॉग
 Male,પુરુષ,पुरुष
 "Maliya, Vanthali","માળિયા, વંથલી","मालिया, वंथली"
 Manage,સંચાલન,प्रबंधन
+Management,મેનેજમેન્ટ,मैनेजमेंट
 Manager,મેનેજર,मैनेजर
 Manager → Director,મેનેજર → ડિરેક્ટર,मैनेजर → डायरेक्टर
 Manager → Director (≥ ₹{n}),મેનેજર → ડિરેક્ટર (≥ ₹{n}),मैनेजर → डायरेक्टर (≥ ₹{n})
@@ -1079,6 +1085,9 @@ Offer letter signed,ઓફર લેટર પર સહી થઈ,ऑफ़र 
 Offer letter signed ID and address proof collected Bank details and PAN UAN / ESIC registration Phone and app PIN issued Safety induction Site introduction,ઓફર લેટર પર સહી ID અને સરનામાનો પુરાવો લીધો બેંક વિગતો અને PAN UAN / ESIC નોંધણી ફોન અને એપ PIN આપ્યો સલામતી તાલીમ સાઇટ પરિચય,ऑफ़र लेटर पर हस्ताक्षर ID और पते का सबूत लिया बैंक विवरण और PAN UAN / ESIC पंजीकरण फ़ोन और ऐप PIN दिया सुरक्षा प्रशिक्षण साइट परिचय
 Office,ઓફિસ,ऑफ़िस
 "Office accounts can add a 6-digit code from an authenticator app (Microsoft Authenticator, Google Authenticator) after the PIN.","ઓફિસ એકાઉન્ટ PIN પછી ઓથેન્ટિકેટર એપ (Microsoft Authenticator, Google Authenticator) નો 6-અંકનો કોડ ઉમેરી શકે છે.","ऑफ़िस खाते PIN के बाद ऑथेंटिकेटर ऐप (Microsoft Authenticator, Google Authenticator) का 6-अंकों का कोड जोड़ सकते हैं।"
+"Office number '{x}' must be two digits, 01 to 99","ઓફિસ નંબર '{x}' બે અંકનો હોવો જોઈએ, 01 થી 99","ऑफ़िस नंबर '{x}' दो अंकों का होना चाहिए, 01 से 99"
+Office number {x} is used twice,ઓફિસ નંબર {x} બે વાર વપરાયો છે,ऑफ़िस नंबर {x} दो बार इस्तेमाल हुआ है
+"Office number {x} must be two digits, 01 to 99","ઓફિસ નંબર {x} બે અંકનો હોવો જોઈએ, 01 થી 99","ऑफ़िस नंबर {x} दो अंकों का होना चाहिए, 01 से 99"
 Office staff will sign in with Microsoft here once the company tenant is connected.,કંપનીનું Microsoft એકાઉન્ટ જોડાય પછી ઓફિસ સ્ટાફ અહીં Microsoft થી સાઇન ઇન કરશે.,कंपनी का Microsoft खाता जुड़ने के बाद ऑफ़िस स्टाफ़ यहाँ Microsoft से साइन इन करेगा.
 "On a computer, drag cards between columns. On a phone, open a task to move it.",કમ્પ્યુટર પર કાર્ડને કૉલમ વચ્ચે ખેંચો. ફોન પર કામ ખોલીને તેને ખસેડો.,कंप्यूटर पर कार्ड को कॉलम के बीच खींचें। फ़ोन पर काम खोलकर उसे खिसकाएँ।
 on site,સાઇટ પર,साइट पर
@@ -1334,6 +1343,8 @@ Reply to your {x},તમારી {x} નો જવાબ,आपकी {x} क�
 Report,જાણ કરો,रिपोर्ट करें
 Report incident,ઘટના નોંધાવો,घटना दर्ज करें
 Reporting lines,કોણ કોને રિપોર્ટ કરે,कौन किसे रिपोर्ट करता है
+Reporting office,રિપોર્ટિંગ ઓફિસ,रिपोर्टिंग ऑफ़िस
+"Reporting offices, one per line: number | name. The 2-digit number is the middle of every employee code: BIO01001 = Biochar, office 01, person 001","રિપોર્ટિંગ ઓફિસો, દરેક લાઇનમાં એક: નંબર | નામ. 2 અંકનો નંબર દરેક કર્મચારી કોડની વચ્ચે આવે છે: BIO01001 = બાયોચાર, ઓફિસ 01, વ્યક્તિ 001","रिपोर्टिंग ऑफ़िस, हर लाइन में एक: नंबर | नाम। 2 अंकों का नंबर हर कर्मचारी कोड के बीच में आता है: BIO01001 = बायोचार, ऑफ़िस 01, व्यक्ति 001"
 Reports,રિપોર્ટ,रिपोर्ट
 Reports to,કોને રિપોર્ટ કરે,किसे रिपोर्ट करते हैं
 Reports to {x},{x} ને રિપોર્ટ કરે છે,{x} को रिपोर्ट करते हैं
@@ -1637,6 +1648,7 @@ Thank you,આભાર,धन्यवाद
 "Thank you, your answers are in","આભાર, તમારા જવાબ મળી ગયા","धन्यवाद, आपके जवाब मिल गए"
 That bucket is not in this plan,એ ખાનું આ પ્લાનમાં નથી,वह खाना इस योजना में नहीं है
 That code is not right. Use the current 6-digit code from the authenticator app.,આ કોડ ખોટો છે. ઓથેન્ટિકેટર એપમાંથી હાલનો 6 અંકનો કોડ નાખો.,यह कोड गलत है। ऑथेंटिकेटर ऐप से अभी का 6 अंकों का कोड डालें।
+"The employee code is made from the project and office, e.g. BIO01001.","કર્મચારી કોડ પ્રોજેક્ટ અને ઓફિસ પરથી બને છે, દા.ત. BIO01001.","कर्मचारी कोड प्रोजेक्ट और ऑफ़िस से बनता है, जैसे BIO01001।"
 The farmer has not signed yet,ખેડૂતે હજુ સહી કરી નથી,किसान ने अभी तक हस्ताक्षर नहीं किए
 The farmer's signature is missing,ખેડૂતની સહી બાકી છે,किसान के हस्ताक्षर नहीं हैं
 The file is empty,ફાઇલ ખાલી છે,फ़ाइल खाली है
@@ -1982,6 +1994,7 @@ Zoom out,નાનું કરો,छोटा करें
 {x} must be a number,{x} સંખ્યા હોવી જોઈએ,{x} संख्या होनी चाहिए
 {x} open task{x} here,અહીં {1} કામ{2} બાકી,यहाँ {1} काम{2} बाकी
 {x} sees only what is ticked here. Leave everything empty for someone who only uses HR and the Planner.,{x} ફક્ત અહીં ટિક કરેલું જ જુએ છે. જે ફક્ત HR અને પ્લાનર વાપરે તેના માટે બધું ખાલી રાખો.,"{x} सिर्फ़ यहाँ टिक किया हुआ ही देखते हैं। जो सिर्फ़ HR और प्लानर इस्तेमाल करते हैं, उनके लिए सब खाली छोड़ें।"
+{x} signs in with {x} and the starting PIN {x}. Give both to them; the app asks for a new PIN at the first sign-in.,{1} {2} અને શરૂઆતના PIN {3} થી સાઇન ઇન કરશે. બંને તેમને આપો; પહેલી વાર સાઇન ઇન વખતે એપ નવો PIN માગશે.,{1} {2} और शुरुआती PIN {3} से साइन इन करेंगे। दोनों उन्हें दें; पहली बार साइन इन पर ऐप नया PIN माँगेगा।
 {x} {x} left (alert below {x}),{x} {x} બાકી (ચેતવણી {x} થી નીચે),{x} {x} बाकी (चेतावनी {x} से नीचे)
 {x}: closed at {x}. Ask for an attendance correction if that is wrong.,{1}: {2} વાગ્યે બંધ કર્યું. ખોટું હોય તો હાજરી સુધારવા વિનંતી કરો.,{1}: {2} बजे बंद किया। गलत हो तो हाजिरी सुधार का अनुरोध करें।
 "{x}: {n} checked in, {n} km","{x}: {n} ચેક-ઇન, {n} km","{x}: {n} चेक-इन, {n} km"

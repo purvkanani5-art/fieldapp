@@ -59,9 +59,15 @@ TEMPLATE_FIELDS = [
 ]
 
 
+DEMO_OFFICES = [{"code": "01", "name": "Ahmedabad (head office)"}, {"code": "02", "name": "Rajkot"}, {"code": "03", "name": "Junagadh"},
+                {"code": "04", "name": "Surat"}, {"code": "05", "name": "Banaskantha"}]
+
+
 def seed_if_empty() -> None:
     db = Db()
     try:
+        if db.setting("offices") is None:  # reporting offices: the middle of every employee code (BIO01001)
+            db.set_setting("offices", DEMO_OFFICES if os.environ.get("KL_DEMO", "1") == "1" else [{"code": "01", "name": "Ahmedabad (head office)"}])
         if db.one("SELECT 1 FROM users LIMIT 1"):
             return
         now = now_iso()
