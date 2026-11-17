@@ -107,6 +107,9 @@ def F(key: str, label: str, type: str = "text", **kw) -> dict:  # noqa: A002
     return {"key": key, "label": label, "type": type, **kw}
 
 
+STOCK_KINDS = ("batch", "application", "transfer", "dispatch", "gas_run")  # saving them posted stock movements
+SELF_STATUS_KINDS = ("goal",)  # statuses the person may move on their own record
+
 KINDS: dict[str, dict] = {
     # ---------- people
     "holiday": {"label": "Holidays", "one": "Holiday", "group": "hr", "icon": "calendar", "create": "hr", "scope": "all", "title": "name",
@@ -603,7 +606,7 @@ def find_item(db: Db, site_id: str, *, kind: str | None = None, like: tuple[str,
 
 
 def balance(db: Db, item_id: str) -> float:
-    r = db.one("SELECT balance_after FROM movements WHERE item_id = ? ORDER BY at DESC, rowid DESC LIMIT 1", item_id)
+    r = db.one("SELECT balance_after FROM movements WHERE item_id = ? ORDER BY rowid DESC LIMIT 1", item_id)
     return float(r["balance_after"]) if r else 0.0
 
 
@@ -756,16 +759,29 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
                 raise HTTPException(403, "Only the person who made it or a manager can change it")
             if k.get("approval") and old["status"] in ("approved", "rejected") and not is_staff(user):
                 raise HTTPException(409, "Already decided; it can no longer be changed")
+            if k.get("approval") and not is_staff(user) and db.one("SELECT 1 FROM approval_steps WHERE kind = ? AND ref_id = ? AND status <> 'pending'", kind, old["id"]):
+                raise HTTPException(409, "An approver has already acted on it; ask them to reject it and file a new one")
+            if kind in ("batch", "application", "gas_run") or (kind in ("transfer", "dispatch") and old["status"] not in ("pending", "")):
+                raise HTTPException(409, "This moved stock; record a correction in the register instead of changing it")
         elif not can_create(user, k):
             raise HTTPException(403, f"Only {'HR' if k.get('create') == 'hr' else 'managers'} can add {k['label'].lower()}")
+        if not is_staff(user) and data.get("person") not in (None, "", user["id"]):
+            data.pop("person")  # field staff file only for themselves (a hand-made request could otherwise name someone else)
         for f in k["fields"]:
             if f.get("required") and str(data.get(f["key"], "")).strip() == "":
                 raise HTTPException(422, f"{f['label']} is required")
             if f["type"] in ("number", "money") and str(data.get(f["key"], "")).strip() != "":
                 try:
-                    float(data[f["key"]])
+                    v = float(data[f["key"]])
                 except ValueError as e:
                     raise HTTPException(422, f"{f['label']} must be a number") from e
+                if v < 0:  # a typo like -500 would turn a stock "out" into an "in"
+                    raise HTTPException(422, f"{f['label']} cannot be below zero")
+        if kind == "regularisation":
+            if str(data.get("date", "")) > local_today().isoformat():
+                raise HTTPException(422, "Attendance cannot be corrected for a future day")
+            if data.get("in_time") and data.get("out_time") and str(data["out_time"]) <= str(data["in_time"]):
+                raise HTTPException(422, "Left at must be after Came in at")
         if kind == "regularisation":
             import hrops
 
@@ -794,14 +810,14 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
         if isinstance(photo, FormFile) and photo.filename:
             fid = await save_upload(db, photo, f"Records/{k['label']}", f"record_{kind}", user, lat=num(lat, None) if lat else None, lng=num(lng, None) if lng else None,
                                     name=f"{datetime.now():%Y-%m-%d %H-%M-%S} {k['one']}.jpg")
-        elif k.get("photo") == "Receipt" and not old and kind == "expense" and num(data.get("amount")) > 500:
+        elif k.get("photo") == "Receipt" and kind == "expense" and num(data.get("amount")) > 500 and not fid:
             raise HTTPException(422, "A receipt photo is needed for claims over ₹500")
         title = title_for(kind, k, data, db)
         row = {"title": title, "site_id": site_id, "user_id": subject, "data": json.dumps(data), "file_id": fid, "updated_at": now_iso()}
         if lat:
             row.update(lat=num(lat, None), lng=num(lng, None))
         if old:
-            if form.get("status") and form.get("status") in (k.get("statuses") or []):
+            if form.get("status") and form.get("status") in (k.get("statuses") or []) and is_staff(user):  # managers move the status
                 row["status"] = form.get("status")
             db.update("records", old["id"], row)
             rec_id = old["id"]
@@ -961,8 +977,10 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
         st = payload.get("status")
         if st not in (k.get("statuses") or []):
             raise HTTPException(422, "Unknown status")
-        if not (is_staff(user) or rec["created_by"] == user["id"]):
-            raise HTTPException(403, "Not allowed")
+        if not is_staff(user) and not (rec["created_by"] == user["id"] and kind in SELF_STATUS_KINDS):
+            raise HTTPException(403, "Your manager updates the status")  # e.g. the reporter cannot close their own incident
+        if k.get("approval") and st in ("approved", "rejected"):
+            raise HTTPException(409, "Approve or reject it from Approvals")  # never skip the approval chain
         if kind == "purchase_request" and st in ("ordered", "received") and rec["status"] not in ("approved", "ordered"):
             raise HTTPException(409, "Approve the request first")
         patch: dict = {"status": st, "updated_at": now_iso()}
@@ -1010,7 +1028,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
             raise HTTPException(404, "Not found")
         if not (is_staff(user) or (rec["created_by"] == user["id"] and rec["status"] in ("pending", "open"))):
             raise HTTPException(403, "Not allowed")
-        if kind in ("batch", "application", "transfer", "dispatch"):
+        if kind in STOCK_KINDS:
             raise HTTPException(409, "This moved stock; record a correction in the register instead of deleting it")
         db.run("DELETE FROM records WHERE id = ?", rid)
         db.run("DELETE FROM approval_steps WHERE kind = ? AND ref_id = ?", KINDS[kind].get("approval") or kind, rid)
@@ -1267,8 +1285,10 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
         tasks = db.all("SELECT t.id, t.title, t.due_date, t.progress, t.priority FROM tasks t JOIN plans p ON p.id = t.plan_id WHERE p.site_id = ? AND t.progress != 'completed' "
                        "ORDER BY t.due_date IS NULL, t.due_date LIMIT 6", sid)
         recent = []
-        for x in db.all("SELECT id, kind, title, status, user_id, created_at FROM records WHERE site_id = ? AND kind NOT IN ('profile', 'policy_ack') ORDER BY created_at DESC LIMIT 8", sid):
-            if x["kind"] in KINDS:
+        for x in db.all("SELECT * FROM records WHERE site_id = ? AND kind NOT IN ('profile', 'policy_ack') ORDER BY created_at DESC LIMIT 40", sid):
+            if len(recent) >= 8:
+                break
+            if x["kind"] in KINDS and visible(user, KINDS[x["kind"]], x):  # not colleagues' expense claims or corrections
                 recent.append({**x, "user_name": user_name(db, x["user_id"]), "label": KINDS[x["kind"]]["one"], "icon": KINDS[x["kind"]]["icon"]})
         return {"site": s, "project": PROJECTS.get(s["project_type"]), "members": members, "onSite": on_site, "items": items, "stats": stats, "tasks": tasks, "recent": recent}
 

@@ -103,6 +103,9 @@ CREATE TABLE IF NOT EXISTS feedback (
   id TEXT PRIMARY KEY, user_id TEXT, type TEXT NOT NULL CHECK (type IN ('complaint','suggestion')), text TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'open', response TEXT DEFAULT '', responded_by TEXT, responded_at TEXT, created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS client_requests (
+  id TEXT PRIMARY KEY, path TEXT NOT NULL, status INTEGER NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS leaves (
   id TEXT PRIMARY KEY, user_id TEXT NOT NULL, from_date TEXT NOT NULL, to_date TEXT NOT NULL, type TEXT NOT NULL,
   reason TEXT DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', decided_by TEXT, decided_at TEXT, decision_note TEXT DEFAULT '',
@@ -199,10 +202,14 @@ class Db:
         """Tell every active user in the roles (optionally only those assigned to the site, admins always)."""
         marks = ", ".join("?" for _ in roles)
         users = self.all(f"SELECT id, role FROM users WHERE active = 1 AND role IN ({marks})", *roles)  # noqa: S608
+        site = self.one("SELECT project_type FROM sites WHERE id = ?", site_id) if site_id else None
         for u in users:
-            if site_id and u["role"] != "admin":
-                ok = self.one("SELECT 1 FROM user_sites WHERE user_id = ? AND site_id = ?", u["id"], site_id)
-                has_any = self.one("SELECT 1 FROM user_sites WHERE user_id = ?", u["id"])
+            if site_id and u["role"] not in ("admin", "hr"):  # HR sees every site, like the director
+                # a manager hears about a site they work at OR a site of a project they manage (user_projects);
+                # someone with no sites and no projects at all still hears everything, as before
+                ok = self.one("SELECT 1 FROM user_sites WHERE user_id = ? AND site_id = ?", u["id"], site_id) or (
+                    site and self.one("SELECT 1 FROM user_projects WHERE user_id = ? AND project = ?", u["id"], site["project_type"]))
+                has_any = self.one("SELECT 1 FROM user_sites WHERE user_id = ?", u["id"]) or self.one("SELECT 1 FROM user_projects WHERE user_id = ?", u["id"])
                 if has_any and not ok:
                     continue  # assigned elsewhere
             self.notify(u["id"], title, body, link)

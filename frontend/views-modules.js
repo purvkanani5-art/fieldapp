@@ -685,6 +685,24 @@ function consentView() {
 }
 Actions.consent = async () => { try { await api('/api/me/consent', { json: {} }); await refreshMe(); KL.user.consent_at = KL.user.consent_at || new Date().toISOString(); render(); } catch (e) { toast(e.message, 'error'); } };
 
+/** First sign-in with the starting PIN from HR: choose your own before using the app. */
+function setPinView() {
+  return `<div class="auth"><div class="panel" style="margin-top:8vh"><div class="card stack">
+    <div class="row" style="gap:12px"><img src="./icon.svg" alt="" style="width:48px;border-radius:14px" /><div><b style="font-family:var(--font);font-size:20px">Set your own PIN</b><p class="hint">HR gave you a starting PIN. Choose a 6-digit PIN only you know.</p></div></div>
+    <label class="field"><span>Starting PIN</span><input class="input" id="sp-old" type="password" inputmode="numeric" autocomplete="current-password" /></label>
+    <label class="field"><span>New PIN (6 digits)</span><input class="input" id="sp-new" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" /></label>
+    <label class="field"><span>New PIN again</span><input class="input" id="sp-again" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" /></label>
+    <button type="button" class="btn primary wide" data-action="setPin">Save PIN</button>
+    <button type="button" class="btn ghost wide" data-action="logout">Sign out</button>
+  </div></div></div>`;
+}
+Actions.setPin = async () => {
+  const v = (id) => $(`#${id}`)?.value?.trim() || '';
+  if (!/^\d{6}$/.test(v('sp-new'))) return toast('New PIN must be exactly 6 digits', 'error');
+  if (v('sp-new') !== v('sp-again')) return toast('The two new PINs differ', 'error');
+  try { await api('/api/auth/pin', { json: { old: v('sp-old'), new: v('sp-new') } }); await refreshMe(); toast('PIN changed'); render(); } catch (e) { toast(e.message, 'error'); }
+};
+
 Views.security = () => {
   const s = data('2fa', () => api('/api/auth/2fa'));
   const setup = KL.ui.tfa;
@@ -725,6 +743,10 @@ const DutyWatch = {
     if (!site) return;
     getFix({ fresh: true }).then((fix) => {
       KL.ui.gps = fix;
+      // crossing the boundary changes the check-out screen (reason box): redraw it, else the button only shows a toast
+      const inNow = insideSite(site);
+      if (this.wasInside !== undefined && inNow !== this.wasInside && ['attendance', 'home'].includes(route().name)) render();
+      this.wasInside = inNow;
       const d = distanceM(fix.lat, fix.lng, site.lat, site.lng);
       if (d > site.radius_m + Math.min(fix.accuracy || 0, 50)) {
         this.outCount += 1;

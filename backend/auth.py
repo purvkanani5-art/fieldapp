@@ -2,7 +2,7 @@
 
 Office staff will later sign in with Microsoft (Entra ID): the same `users` row gets its `entra_oid` filled and
 the token issued here is the same, so nothing else in the app changes. PINs are hashed with PBKDF2 (standard
-library only); tokens are HMAC-signed with a secret kept in data/secret.key.
+library only); tokens are HMAC-signed with a secret kept in the database (settings.token_secret).
 """
 
 from __future__ import annotations
@@ -22,10 +22,27 @@ TOKEN_DAYS = 30
 MAX_FAILURES = 5
 
 
+_SECRET_CACHE: list[str] = []
+
+
 def _secret() -> bytes:
-    if not SECRET_PATH.exists():
-        SECRET_PATH.write_bytes(secrets.token_bytes(32))
-    return SECRET_PATH.read_bytes()
+    """Token signing key, kept in the database: the live server's disk is temporary (only the database is restored
+    by Litestream), so a key in a file was lost on every cold start and signed everyone out. KL_SECRET overrides."""
+    env = os.environ.get("KL_SECRET", "").strip()
+    if env:
+        return env.encode()
+    from db import Db
+    db = Db()
+    try:
+        s = db.setting("token_secret")
+        if not s:  # first run, or a demo reset wiped it: keep the key already in use so nobody is signed out
+            s = _SECRET_CACHE[0] if _SECRET_CACHE else (SECRET_PATH.read_bytes().hex() if SECRET_PATH.exists() else secrets.token_hex(32))
+            db.set_setting("token_secret", s)
+    finally:
+        db.close()
+    if not _SECRET_CACHE:
+        _SECRET_CACHE.append(s)
+    return bytes.fromhex(s)
 
 
 # The browser build (GitHub Pages demo, data only on that device) sets KL_PBKDF2_ITER lower: there is no OpenSSL

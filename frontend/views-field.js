@@ -86,11 +86,13 @@ Actions.checkin = async () => {
   if (!site || !p || !g) return toast('Pick the site, wait for location and take the selfie', 'error');
   const inside = insideSite(site);
   const reason = F('att-reason', '').trim();
-  if (!inside && !reason) return toast('Write why you are checking in from outside the boundary', 'error');
+  if (!inside && !reason) { render(); return toast('Write why you are checking in from outside the boundary', 'error'); }
   try {
     const r = await submitEvidence('/api/attendance/checkin', { siteId, lat: g.lat, lng: g.lng, accuracy: g.accuracy, takenAt: p.at, override: inside ? '' : reason }, photoFile('checkin', 'checkin.jpg'), 'Check-in');
     clearPhotos('checkin'); clearF('att-reason');
-    await refreshMe(); invalidate('attendance', 'dashboard', 'site'); render();
+    if (r.queued) { KL.me = { ...(KL.me || {}), openAttendance: { id: 'queued', site_id: siteId, site_name: site.name, checkin_at: p.at, status: inside ? 'ok' : 'pending', queued: true } }; saveMe(); } // offline: show "checked in" so check-out is possible
+    else await refreshMe();
+    invalidate('attendance', 'dashboard', 'site'); render();
     if (!r.queued) {
       if (r.status === 'pending') toast('Check-in recorded as an exception, sent to your manager');
       else await celebrate('Checked in', `${site.name} · ${new Date().toLocaleTimeString(appLocale(), { hour: '2-digit', minute: '2-digit' })}`);
@@ -105,11 +107,13 @@ Actions.checkout = async () => {
   const site = siteById(att.site_id);
   const inside = insideSite(site);
   const reason = F('att-reason', '').trim();
-  if (!inside && !reason) return toast('Write why you are checking out from here', 'error');
+  if (!inside && !reason) { render(); return toast('Write why you are checking out from here', 'error'); }
   try {
     const r = await submitEvidence('/api/attendance/checkout', { lat: g.lat, lng: g.lng, accuracy: g.accuracy, takenAt: p.at, override: inside ? '' : reason }, photoFile('checkout', 'checkout.jpg'), 'Check-out');
     clearPhotos('checkout'); clearF('att-reason');
-    await refreshMe(); invalidate('attendance', 'dashboard'); render();
+    if (r.queued) { KL.me = { ...(KL.me || {}), openAttendance: null }; saveMe(); }
+    else await refreshMe();
+    invalidate('attendance', 'dashboard'); render();
     if (!r.queued) await celebrate('Checked out', `${duration(att.checkin_at)} at ${att.site_name}. See you tomorrow.`);
   } catch (e) { toast(e.message, 'error'); }
 };
@@ -168,8 +172,12 @@ Actions.tripStart = async () => {
   if (!g || !p || !reading) return toast('Reading, location and the odometer photo are needed', 'error');
   try {
     const r = await submitEvidence('/api/trips/start', { vehicle: F('trip-vehicle', Object.keys(KL.boot.travel.vehicles)[0]), reading, purpose: F('trip-purpose', ''), siteId: F('trip-site', ''), lat: g.lat, lng: g.lng, takenAt: p.at }, photoFile('tripStart', 'odometer-start.jpg'), 'Trip start');
+    const vehicle = F('trip-vehicle', Object.keys(KL.boot.travel.vehicles)[0]);
     clearPhotos('tripStart'); clearF('trip-reading', 'trip-purpose');
-    await refreshMe(); invalidate('trips'); render();
+    // offline: the trip is "on the road" on this phone; its end is sent to /api/trips/open/end after the start
+    if (r.queued) { KL.me = { ...(KL.me || {}), openTrip: { id: 'open', vehicle, start_reading: Number(reading), start_at: p.at, rate_per_km: KL.boot.travel.vehicles[vehicle] || 0, queued: true } }; saveMe(); }
+    else await refreshMe();
+    invalidate('trips'); render();
     if (!r.queued) await celebrate('Trip started', 'Ride safe. Photograph the odometer again when you arrive.');
   } catch (e) { toast(e.message, 'error'); }
 };
@@ -180,7 +188,9 @@ Actions.tripEnd = async () => {
   try {
     const r = await submitEvidence(`/api/trips/${trip.id}/end`, { reading, lat: g.lat, lng: g.lng, takenAt: p.at }, photoFile('tripEnd', 'odometer-end.jpg'), 'Trip end');
     clearPhotos('tripEnd'); clearF('trip-end-reading');
-    await refreshMe(); invalidate('trips', 'dashboard'); render();
+    if (r.queued) { KL.me = { ...(KL.me || {}), openTrip: null }; saveMe(); }
+    else await refreshMe();
+    invalidate('trips', 'dashboard'); render();
     if (!r.queued) await celebrate(`${fmtNum(r.km, 1)} km claimed`, `${rupees(r.amount ?? 0)} sent to your manager for approval.`);
   } catch (e) { toast(e.message, 'error'); }
 };
@@ -322,7 +332,9 @@ Views.sign = (farmerId) => {
   if (f.error) return `${topbar('Sign a document', `#farmers/${farmerId}`)}${errorBox(f.error)}`;
   const proj = siteById(f.site_id)?.project_type;
   const templates = KL.boot.templates.filter((x) => !proj || x.project_type === proj || x.project_type === 'other').length ? KL.boot.templates.filter((x) => !proj || x.project_type === proj || x.project_type === 'other') : KL.boot.templates;
-  const tid = F('sign-template', templates[0]?.id || '');
+  const picked = F('sign-template', templates[0]?.id || '');
+  const tid = templates.some((x) => x.id === picked) ? picked : templates[0]?.id || ''; // the last farmer's choice may not fit this project
+  if (tid !== picked) setF('sign-template', tid);
   const t = templates.find((x) => x.id === tid);
   const plot = f.plots[0];
   const defaults = { survey_no: plot?.survey_no, area_ha: plot?.area_ha_kml || plot?.area_ha_declared };

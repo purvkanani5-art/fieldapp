@@ -107,6 +107,7 @@ Actions.plusOpen = () => {
   const site = s ? siteAddTiles(s).filter((x) => x.label !== 'Farmer or signing' && x.label !== 'Equipment service' && x.label !== 'Survival check').slice(0, 3) : [];
   const tail = [{ icon: 'chat', label: 'Complaint or idea', href: '#feedback' }];
   const tiles = [...common, ...site, ...tail].slice(0, 8);
+  data('m:checklist_template', () => api('/api/m/checklist_template')); // so "Daily safety check" opens the checklist itself
   modal({ title: 'Add new', html: `<div class="fa-tiles">${tiles.map(tileBtn).join('')}</div>`, noButtons: true });
 };
 Actions.siteAdd = (el) => {
@@ -126,7 +127,8 @@ Actions.faGo = (el) => {
   }
   if (el.dataset.check) {
     const t = KL.cache['m:checklist_template'];
-    const tpl = t && !t.error ? t.rows.find((x) => x.site_id === el.dataset.check) : null;
+    // this site's checklist, else a company-wide one (no site)
+    const tpl = t && !t.error ? (t.rows.find((x) => x.site_id === el.dataset.check) || t.rows.find((x) => !x.site_id)) : null;
     if (tpl) return Actions.startChecklist({ dataset: { id: tpl.id } });
     location.hash = '#rec/checklist_template';
     return;
@@ -253,6 +255,7 @@ Views.settings = () => {
       <a class="fa-row" href="#admin"><span class="fa-ic">${ic('cog')}</span><span class="fa-tx"><b>Administration</b><span>Users, sites, registers, templates, company</span></span><span class="chev">${ic('chevron')}</span></a>
       ${['admin', 'hr'].includes(u.role) ? `<a class="fa-row" href="#hrsettings"><span class="fa-ic">${ic('cog')}</span><span class="fa-tx"><b>HR settings</b><span>Approval chains, leave policy, work hours</span></span><span class="chev">${ic('chevron')}</span></a>` : ''}
     </div>`) : ''}
+    ${failedItems()}
     ${group('For reviewers', reviewerNote())}`;
 };
 

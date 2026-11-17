@@ -195,8 +195,11 @@ async function signedIn(r) {
   closeCamera();
   KL.token = r.token; KL.user = r.user;
   KL.cache = {}; KL.stale = {}; KL.ui.photos = {}; KL.ui.forms = {}; KL.ui.gps = null; KL.ui.sheetTask = null; KL.ui.completing = null; KL.ui.signed = null;
+  KL.ui.track = null; KL.ui.trackCode = null; // the previous person's anonymous complaint thread
   localStorage.setItem('kl.token', KL.token); localStorage.setItem('kl.user', JSON.stringify(KL.user));
+  await Outbox.flush(); // this person's saved items first, so the server's view below is current
   await boot();
+  await Outbox.count();
   KL.lastRoute = '';
   if (location.hash === '#home' || !location.hash) render(); else location.hash = '#home';
   Outbox.flush();
@@ -236,10 +239,11 @@ async function boot() {
   try {
     const [me, b] = await Promise.all([api('/api/me'), api('/api/bootstrap')]);
     KL.me = me; KL.user = me.user; KL.boot = b;
-    localStorage.setItem('kl.user', JSON.stringify(KL.user)); localStorage.setItem('kl.boot', JSON.stringify(b));
+    localStorage.setItem('kl.user', JSON.stringify(KL.user)); localStorage.setItem('kl.boot', JSON.stringify(b)); saveMe();
   } catch (e) {
     if (e.status === 401) return;
     KL.boot = KL.boot || JSON.parse(localStorage.getItem('kl.boot') || 'null'); // offline: last known lists
+    try { KL.me = KL.me || JSON.parse(localStorage.getItem('kl.me') || 'null'); } catch { /* none */ } // and the last known open check-in / trip
   }
 }
 
@@ -261,6 +265,7 @@ function render() {
     return;
   }
   if (!KL.user.consent_at && KL.boot.demo !== undefined) { app.innerHTML = consentView(); hideSplash(); return; }
+  if (KL.user.must_change_pin) { app.innerHTML = setPinView(); hideSplash(); return; }
   let { name, arg } = route();
   if (name === 'task' && arg) {
     if (KL.ui.sheetTask !== arg) { KL.ui.sheetTask = arg; KL.ui.completing = null; invalidate(`planner:task:${arg}`); locate(); }
@@ -312,6 +317,7 @@ function render() {
 }
 Actions.retryBoot = async () => { await boot(); render(); };
 
+const inFlight = new Set(); // actions still saving: a second tap on the same button is ignored (gloves, lag, weak signal)
 function bindEvents() {
   const roots = [$('#app'), $('#modal'), $('#sheet')];
   for (const root of roots) {
@@ -320,7 +326,13 @@ function bindEvents() {
       const el = e.target.closest('[data-action]');
       if (!el || el.disabled || !root.contains(el)) return;
       const fn = Actions[el.dataset.action];
-      if (fn) { e.preventDefault(); e.stopPropagation(); fn(el, e); }
+      if (fn) {
+        e.preventDefault(); e.stopPropagation();
+        const key = `${el.dataset.action}|${JSON.stringify({ ...el.dataset })}`;
+        if (inFlight.has(key)) return;
+        const r = fn(el, e);
+        if (r && typeof r.then === 'function') { inFlight.add(key); el.classList.add('busy'); r.finally(() => { inFlight.delete(key); el.classList.remove('busy'); }); }
+      }
     });
     root.addEventListener('change', (e) => { const el = e.target.closest('[data-change]'); const fn = el && Changes[el.dataset.change]; if (fn) fn(el, e); });
     root.addEventListener('input', (e) => { const el = e.target.closest('[data-input]'); const fn = el && Inputs[el.dataset.input]; if (fn) fn(el, e); });
@@ -339,10 +351,10 @@ function bindEvents() {
     else if (id === 'tc-item') { e.preventDefault(); Actions.taskCheckAdd(); }
     else if (e.target.matches?.('[role="button"][data-action]')) { e.preventDefault(); e.target.click(); }
   });
-  window.addEventListener('hashchange', () => { if (route().name !== 'sign') KL.sig = null; if (route().name !== 'task' && KL.ui.sheetTask && KL.lastRoute?.startsWith('#task/')) KL.ui.sheetTask = null; render(); });
+  window.addEventListener('hashchange', () => { if (route().name !== 'sign') KL.sig = null; if (route().name !== 'task' && KL.ui.sheetTask) { KL.ui.sheetTask = null; KL.ui.completing = null; } render(); });
   window.addEventListener('online', () => { Outbox.flush(); render(); });
   window.addEventListener('offline', () => render());
-  document.addEventListener('visibilitychange', async () => { if (document.visibilityState === 'visible' && KL.token) { await refreshMe(); Outbox.flush(); render(); } });
+  document.addEventListener('visibilitychange', async () => { if (document.visibilityState === 'visible' && KL.token) { await Outbox.flush(); await refreshMe(); render(); } });
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyTheme);
 }
 
@@ -354,14 +366,13 @@ function bindEvents() {
   KL.demoInfo = await api('/api/demo').catch(() => null);
   render();
   if (KL.token) {
+    await Outbox.count();
+    if (navigator.onLine) await Outbox.flush(); // first: a check-out saved offline must reach the server before it closes the day
     await boot();
-    const queued = await Outbox.all().catch(() => []);
-    KL.outboxCount = queued.length;
-    KL.outboxItems = queued.map((x) => ({ id: x.id, label: x.label, path: x.path, createdAt: x.createdAt }));
+    await Outbox.count();
     render();
-    Outbox.flush();
   }
   setInterval(() => { for (const el of $$('[data-since]')) el.textContent = duration(el.dataset.since); }, 30000);
   DutyWatch.start();
-  setInterval(async () => { if (document.visibilityState === 'visible' && KL.token) { const before = `${KL.me?.unread}/${KL.me?.pendingApprovals}`; await refreshMe(); if (`${KL.me?.unread}/${KL.me?.pendingApprovals}` !== before) { invalidate('inbox', 'planner', 'm-approvals'); render(); } } }, 30000);
+  setInterval(async () => { if (document.visibilityState === 'visible' && KL.token) { const before = `${KL.me?.unread}/${KL.me?.pendingApprovals}`; await refreshMe(); if (`${KL.me?.unread}/${KL.me?.pendingApprovals}` !== before) { invalidate('inbox', 'planner', 'm-approvals', 'leaves', 'hr:balances', 'hr:waiting', 'm:expense', 'm:advance', 'm:regularisation', 'm:purchase_request', 'trips', 'attendance', 'notices', 'surveys'); render(); } } }, 30000);
 })();

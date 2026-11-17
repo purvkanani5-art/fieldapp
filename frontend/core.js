@@ -89,17 +89,23 @@ function modal({ title, message = '', html = '', fields = [], confirmText = 'OK'
 class ApiError extends Error {
   constructor(message, status, data) { super(message); this.status = status; this.data = data; }
 }
-async function api(path, { method, json, form } = {}) {
+async function api(path, { method, json, form, clientId, timeout } = {}) {
   const headers = {};
   if (KL.token) headers.Authorization = `Bearer ${KL.token}`;
+  if (clientId) headers['X-Client-Id'] = clientId; // the server answers a resend with the first reply, never saves twice
   let body;
   if (form) body = form;
   else if (json !== undefined) { headers['Content-Type'] = 'application/json'; body = JSON.stringify(json); }
   let res;
+  // weak signal: give up after a while instead of spinning for minutes (photos get longer); counts as offline
+  const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = ctl ? setTimeout(() => ctl.abort(), timeout || (form ? 90000 : 30000)) : null;
   try {
-    res = await fetch(path, { method: method || (body ? 'POST' : 'GET'), headers, body });
+    res = await fetch(path, { method: method || (body ? 'POST' : 'GET'), headers, body, signal: ctl?.signal });
   } catch (e) {
     throw new ApiError('offline', 0, null);
+  } finally {
+    if (timer) clearTimeout(timer);
   }
   let data = null;
   const text = await res.text();
@@ -112,7 +118,8 @@ async function api(path, { method, json, form } = {}) {
 }
 function logout() {
   KL.token = ''; KL.user = null; KL.me = null; KL.boot = null; KL.cache = {}; KL.stale = {}; KL.ui.sheetTask = null;
-  localStorage.removeItem('kl.token'); localStorage.removeItem('kl.user');
+  KL.ui.track = null; KL.ui.trackCode = null; // a shared phone: the next person must not see an anonymous complaint thread
+  localStorage.removeItem('kl.token'); localStorage.removeItem('kl.user'); localStorage.removeItem('kl.me');
   location.hash = '#home';
   render();
 }
@@ -137,7 +144,10 @@ function invalidate(...keys) {
   for (const k of keys) for (const c of Object.keys(KL.cache)) if (c === k || c.startsWith(k + ':')) drop(c);
 }
 async function refreshMe() {
-  try { KL.me = await api('/api/me'); KL.user = KL.me.user; localStorage.setItem('kl.user', JSON.stringify(KL.user)); } catch { /* offline: keep what we have */ }
+  try { KL.me = await api('/api/me'); KL.user = KL.me.user; localStorage.setItem('kl.user', JSON.stringify(KL.user)); saveMe(); } catch { /* offline: keep what we have */ }
+}
+/** Keep the last known "me" (open check-in, open trip) on the phone, so an offline start still shows the right screen. */
+function saveMe() { try { if (KL.me) localStorage.setItem('kl.me', JSON.stringify(KL.me)); } catch { /* full or private */ }
 }
 
 /* ---------------------------------------------------------------- outbox (IndexedDB) */
@@ -160,43 +170,54 @@ const Outbox = {
     const db = await this.open();
     item.id = item.id || crypto.randomUUID();
     item.createdAt = new Date().toISOString();
+    item.seq = Date.now() + (this.seqBump = ((this.seqBump || 0) + 1) % 1000) / 1000; // sent in the order saved
+    item.userId = item.userId || KL.user?.id || ''; // sent only when the same person is signed in
     await new Promise((resolve, reject) => { const t = db.transaction('outbox', 'readwrite'); t.objectStore('outbox').put(item); t.oncomplete = resolve; t.onerror = () => reject(t.error); });
     KL.outboxCount = (KL.outboxCount || 0) + 1;
     KL.outboxItems = [...(KL.outboxItems || []), { id: item.id, label: item.label, path: item.path, createdAt: item.createdAt }];
     return item.id;
   },
+  async put(item) {
+    const db = await this.open();
+    await new Promise((resolve) => { const t = db.transaction('outbox', 'readwrite'); t.objectStore('outbox').put(item); t.oncomplete = resolve; t.onerror = resolve; });
+  },
   async remove(id) {
     const db = await this.open();
     await new Promise((resolve) => { const t = db.transaction('outbox', 'readwrite'); t.objectStore('outbox').delete(id); t.oncomplete = resolve; t.onerror = resolve; });
+  },
+  async count() {
+    const all = await this.all().catch(() => []);
+    const mine = all.filter((x) => !x.userId || x.userId === KL.user?.id);
+    KL.outboxCount = mine.filter((x) => !x.failed).length;
+    KL.outboxItems = mine.map((x) => ({ id: x.id, label: x.label, path: x.path, createdAt: x.createdAt, failed: x.failed || '' }));
+    return mine;
   },
   flushing: false,
   async flush() {
     if (this.flushing || !navigator.onLine || !KL.token) return;
     this.flushing = true;
     try {
-      const items = await this.all();
+      const me = KL.user?.id;
+      const items = (await this.all()).filter((it) => !it.failed && (!it.userId || it.userId === me)).sort((a, b) => (a.seq || Date.parse(a.createdAt)) - (b.seq || Date.parse(b.createdAt)));
       let sent = 0;
       for (const it of items) {
         try {
           const form = new FormData();
           for (const [k, v] of Object.entries(it.fields || {})) form.append(k, v);
+          form.append('queued', '1'); // saved earlier on the phone: the server accepts its older photo time
           for (const f of it.files || []) form.append(f.field, f.blob, f.name);
-          await api(it.path, { form });
+          await api(it.path, { form, clientId: it.clientId || it.id });
           await this.remove(it.id);
           sent++;
         } catch (e) {
-          if (e.status === 0) break; // still offline
-          if (e.status >= 400 && e.status < 500 && e.status !== 409) {
-            await this.remove(it.id);
-            toast(`${it.label}: ${e.message}`, 'error');
-          } else if (e.status === 409) {
-            await this.remove(it.id);
-          }
+          if (e.status === 0 || e.status === 401 || e.status === 403 || e.status >= 500) break; // offline, signed out or server trouble: keep everything, try later
+          // refused (e.g. a reading below the start, a month already locked): keep it with the reason, the worker decides
+          it.failed = e.message || `Error ${e.status}`;
+          await this.put(it);
+          toast(`${it.label} could not be sent: ${it.failed}. See Settings.`, 'error');
         }
       }
-      const left = await this.all();
-      KL.outboxCount = left.length;
-      KL.outboxItems = left.map((x) => ({ id: x.id, label: x.label, path: x.path, createdAt: x.createdAt }));
+      await this.count();
       if (sent) { toast(`Sent ${sent} saved item${sent === 1 ? '' : 's'}`); invalidate(); render(); }
     } finally {
       this.flushing = false;
@@ -208,11 +229,12 @@ async function submitEvidence(path, fields, files, label) {
   const form = new FormData();
   for (const [k, v] of Object.entries(fields)) if (v !== undefined && v !== null) form.append(k, v);
   for (const f of files) form.append(f.field, f.blob, f.name);
+  const clientId = crypto.randomUUID();
   try {
-    return await api(path, { form });
+    return await api(path, { form, clientId });
   } catch (e) {
     if (e.status === 0) {
-      await Outbox.add({ path, fields, files, label });
+      await Outbox.add({ path, fields, files, label, clientId });
       toast(`No signal: ${label} saved on this phone, sends automatically`);
       return { queued: true };
     }

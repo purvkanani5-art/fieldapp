@@ -43,7 +43,24 @@ Actions.changePin = async () => {
   try { await api('/api/auth/pin', { json: { old: v.old, new: v.new } }); toast('PIN changed'); await refreshMe(); render(); } catch (e) { toast(e.message, 'error'); }
 };
 Actions.logout = async () => { if (await modal({ title: 'Sign out?', message: 'Saved items waiting for signal stay on the phone until you sign in again.', confirmText: 'Sign out', danger: true })) logout(); };
-Actions.flushOutbox = async () => { await Outbox.flush(); toast(KL.outboxCount ? `${KL.outboxCount} still waiting` : 'Everything sent'); render(); };
+Actions.flushOutbox = async () => { await Outbox.flush(); await Outbox.count(); toast(KL.outboxCount ? `${KL.outboxCount} still waiting` : 'Everything sent'); render(); };
+/** Saved items the server refused (e.g. a reading below the start): kept with the reason until the worker decides. */
+function failedItems() {
+  const bad = (KL.outboxItems || []).filter((x) => x.failed);
+  if (!bad.length) return '';
+  return group('Could not send', `<div class="card flush">${bad.map((x) => `<div class="lrow-static row"><span class="tx" style="flex:1;min-width:0"><b>${esc(x.label)}</b><span class="muted" style="font-size:13px;display:block">${esc(fmtDate(x.createdAt))} · ${esc(x.failed)}</span></span>
+    <button type="button" class="btn small" data-action="outboxRetry" data-id="${esc(x.id)}">Try again</button><button type="button" class="btn small ghost" data-action="outboxDiscard" data-id="${esc(x.id)}" data-label="${esc(x.label)}">Discard</button></div>`).join('')}</div>`,
+  'Saved on this phone but refused by the server. Try again after fixing the reason, or discard it and enter it again.');
+}
+Actions.outboxRetry = async (el) => {
+  const it = (await Outbox.all()).find((x) => x.id === el.dataset.id);
+  if (!it) return;
+  delete it.failed; await Outbox.put(it); await Outbox.flush(); await Outbox.count(); render();
+};
+Actions.outboxDiscard = async (el) => {
+  if (!(await modal({ title: `Discard ${el.dataset.label}?`, message: 'It is removed from this phone, with its photo. Enter it again if it is still needed.', confirmText: 'Discard', danger: true }))) return;
+  await Outbox.remove(el.dataset.id); await Outbox.count(); render();
+};
 
 /* ---------------------------------------------------------------- Inbox */
 function inboxIcon(n) {

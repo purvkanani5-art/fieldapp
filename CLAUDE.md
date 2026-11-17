@@ -202,6 +202,15 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
    the director's EMP001 to ADM01001 once (`migrate_admin_code`, owner asked "change mine too").
    Tests: .cache/kl_lists_check.py (31), kl-lists-ui.mjs, kl-mecard.mjs (card shows designation, refreshes on save).
 
+27. **Bug sweep (2026-11-17)**: owner asked for a field-employee bug sweep A to Z with a report. 45 bugs fixed, report in
+   docs/bug-sweep-2026-11-17.md. Key rules now: token secret in settings.token_secret (live disk is temporary);
+   device row must exist for a token (PIN reset signs out); must_change_pin blocks saves until changed; outbox items
+   carry userId/seq/clientId, are sent in order, kept with a reason when refused (Settings > Could not send);
+   X-Client-Id middleware returns the first reply to a resend (client_requests table); taken_time() trusts the phone
+   clock only within 10 min live / 7 days queued; one open check-in/trip re-checked before insert; stock balance by
+   rowid; notify_role honours user_projects; planner edits send only changed fields, ticks match by text, completion
+   idempotent. Tests: .cache/kl_bugsweep_check.py (36), kl-bugsweep-ui.mjs (12).
+
 ## Testing
 - `D:\PersonalBooks\.cache\kl-e2e.mjs` (2026-11-14): resets the demo, then manager assigns a photo-proof task →
   worker gets inbox item, ticks checklist, completes with sample photo → manager inbox "Task done" with note and

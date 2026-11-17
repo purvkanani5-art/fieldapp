@@ -339,6 +339,7 @@ Actions.taskTick = async (el) => {
   const t = findTask(el.dataset.id);
   if (!t) return;
   if (t.progress === 'completed') {
+    if (!(await modal({ title: 'Reopen this task?', message: 'It goes back to in progress and the other side is told.', confirmText: 'Reopen' }))) return;
     try { await setProgress(t, 'in_progress'); toast('Task reopened'); render(); } catch (e) { toast(e.message, 'error'); }
     return;
   }
@@ -359,7 +360,8 @@ function renderTaskSheet() {
     if (!box.hidden) { box.hidden = true; box.innerHTML = ''; }
     return;
   }
-  const t = data(`planner:task:${id}`, () => api(`/api/planner/tasks/${id}`));
+  let t = data(`planner:task:${id}`, () => api(`/api/planner/tasks/${id}`));
+  if (t && t.error) { const copy = findTask(id); if (copy) t = { comments: [], ...copy, offlineCopy: true }; } // no signal: the task list already has it
   const old = box.querySelector('.sheet');
   const keep = old ? old.scrollTop : 0;
   const focused = document.activeElement && box.contains(document.activeElement) ? document.activeElement.id : '';
@@ -441,7 +443,10 @@ async function saveTask(t, patch) {
   patchCached(t.id, patch);
   renderTaskSheet();
   try {
-    await api('/api/planner/tasks', { json: { id: t.id, title: next.title, notes: next.notes, priority: next.priority, startDate: next.start_date || '', dueDate: next.due_date || '', labels: next.labels, checklist: next.checklist, assignees: next.assignees, photoRequired: next.photo_required } });
+    const NAME = { title: 'title', notes: 'notes', priority: 'priority', start_date: 'startDate', due_date: 'dueDate', labels: 'labels', checklist: 'checklist', photo_required: 'photoRequired', assignees: 'assignees' };
+    const only = Object.fromEntries(Object.keys(patch).filter((k) => NAME[k]).map((k) => [NAME[k], k.endsWith('_date') ? next[k] || '' : next[k]]));
+    if (Object.keys(only).length) await api('/api/planner/tasks', { json: { id: t.id, ...only } }); // only what changed: the worker's ticks are not overwritten
+    else await api('/api/planner/tasks', { json: { id: t.id, title: next.title, notes: next.notes, priority: next.priority, startDate: next.start_date || '', dueDate: next.due_date || '', labels: next.labels, checklist: next.checklist, assignees: next.assignees, photoRequired: next.photo_required } });
     invalidate('planner:plan', 'planner:my', 'planner:plans');
     render();
   } catch (e) {
@@ -468,7 +473,10 @@ Changes.taskMove = async (el) => {
   const top = plan && !plan.error ? Math.min(0, ...plan.tasks.filter((x) => x.bucket_id === el.value).map((x) => x.sort)) - 1 : 0;
   patchCached(t.id, { bucket_id: el.value, sort: top, bucket_name: el.selectedOptions[0]?.textContent || '' });
   render();
-  try { await api(`/api/planner/tasks/${t.id}/move`, { json: { bucketId: el.value, sort: top } }); toast(`Moved to ${el.selectedOptions[0]?.textContent}`); invalidate('planner:my'); } catch (e) { toast(e.message, 'error'); invalidate('planner'); render(); }
+  const was = { bucket_id: t.bucket_id, sort: t.sort, bucket_name: t.bucket_name };
+  try { await api(`/api/planner/tasks/${t.id}/move`, { json: { bucketId: el.value, sort: top } }); toast(`Moved to ${el.selectedOptions[0]?.textContent}`); invalidate('planner:my'); } catch (e) {
+    patchCached(t.id, was); toast(e.status === 0 ? 'Not moved: no signal' : e.message, 'error'); renderTaskSheet(); render();
+  }
 };
 Actions.taskLabel = (el) => {
   const t = sheetTask();
@@ -504,7 +512,11 @@ Actions.taskCheck = async (el) => {
   const items = t.checklist.map((c, j) => (j === i ? { ...c, done: !c.done } : c));
   patchCached(t.id, { checklist: items, progress: t.progress === 'not_started' && items[i].done ? 'in_progress' : t.progress });
   renderTaskSheet(); render();
-  try { await api(`/api/planner/tasks/${t.id}/checklist`, { json: { index: i, done: items[i].done } }); invalidate('planner:plans'); } catch (e) { toast(e.message, 'error'); invalidate('planner'); render(); }
+  try { await api(`/api/planner/tasks/${t.id}/checklist`, { json: { index: i, done: items[i].done, text: items[i].text } }); invalidate('planner:plans'); } catch (e) {
+    patchCached(t.id, { checklist: t.checklist, progress: t.progress }); // put it back as it was: not saved
+    toast(e.status === 0 ? 'Not saved: no signal. Tick it again when you have signal.' : e.message, 'error');
+    renderTaskSheet(); render();
+  }
 };
 Actions.taskProgress = async (el) => {
   const t = sheetTask();

@@ -64,6 +64,29 @@ def init(db: Db) -> None:
     db.con.commit()
 
 
+
+def may_open(db: Db, uid: str, task_id: str) -> bool:
+    """Staff, or someone on the task: a notification must lead somewhere the person can open."""
+    u = db.one("SELECT role FROM users WHERE id = ? AND active = 1", uid)
+    return bool(u) and (u["role"] in ("admin", "manager", "hr") or bool(db.one("SELECT 1 FROM task_assignees WHERE task_id = ? AND user_id = ?", task_id, uid)))
+
+
+def task_managers(db: Db, t: dict, plan: dict) -> list[str]:
+    """Who hears that a task is done: managers of the plan's site (directly or through its project) and directors;
+    for a general plan (no site) the workers' own managers and directors, not every manager in the company."""
+    out = [r["id"] for r in db.all("SELECT id FROM users WHERE active = 1 AND role = 'admin'")]
+    if plan.get("site_id"):
+        site = db.one("SELECT project_type FROM sites WHERE id = ?", plan["site_id"])
+        for m in db.all("SELECT id FROM users WHERE active = 1 AND role = 'manager'"):
+            if db.one("SELECT 1 FROM user_sites WHERE user_id = ? AND site_id = ?", m["id"], plan["site_id"]) or (
+                    site and db.one("SELECT 1 FROM user_projects WHERE user_id = ? AND project = ?", m["id"], site["project_type"])):
+                out.append(m["id"])
+    else:
+        for a in db.all("SELECT u.manager_id FROM task_assignees ta JOIN users u ON u.id = ta.user_id WHERE ta.task_id = ?", t["id"]):
+            if a["manager_id"]:
+                out.append(a["manager_id"])
+    return list(dict.fromkeys(out))
+
 def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: Callable[[dict], bool]) -> APIRouter:
     r = APIRouter(prefix="/api/planner", tags=["planner"])
 
@@ -214,29 +237,41 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
     def save_task(payload: dict, user: user_dep, db: db_dep):
         """Create or edit a task (managers). Field staff use the progress, checklist and comment calls."""
         staff_only(user)
-        title = str(payload.get("title", "")).strip()[:160]
+        editing = db.one("SELECT * FROM tasks WHERE id = ?", payload["id"]) if payload.get("id") else None
+        if payload.get("id") and not editing:
+            raise HTTPException(404, "Task not found")
+        has = (lambda key: key in payload) if editing else (lambda key: True)  # an edit sends only what changed
+        title = str(payload.get("title", editing["title"] if editing else "")).strip()[:160]
         if len(title) < 2:
             raise HTTPException(422, "Give the task a title")
-        priority = payload.get("priority", "medium")
+        priority = payload.get("priority", editing["priority"] if editing else "medium")
         if priority not in PRIORITIES:
             raise HTTPException(422, "Priority must be urgent, important, medium or low")
         checklist = [{"text": str(c.get("text", "")).strip()[:120], "done": bool(c.get("done"))} for c in (payload.get("checklist") or [])
                      if str(c.get("text", "")).strip()][:20]
+        if editing:  # the worker may have ticked items since the manager's screen loaded: their ticks win
+            was = {c["text"]: c["done"] for c in json.loads(editing["checklist"] or "[]")}
+            checklist = [{**c, "done": was.get(c["text"], c["done"])} for c in checklist]
         labels = [c for c in (payload.get("labels") or []) if c in LABEL_COLORS]
         people = check_people(db, list(dict.fromkeys(payload.get("assignees") or [])))
-        row = {"title": title, "notes": str(payload.get("notes", ""))[:4000], "priority": priority,
-               "start_date": payload.get("startDate") or None, "due_date": payload.get("dueDate") or None,
-               "labels": json.dumps(labels), "checklist": json.dumps(checklist), "photo_required": 1 if payload.get("photoRequired") else 0,
-               "updated_at": now_iso()}
-        if payload.get("id"):
-            t = db.one("SELECT * FROM tasks WHERE id = ?", payload["id"])
-            if not t:
-                raise HTTPException(404, "Task not found")
+        full = {"title": title, "notes": str(payload.get("notes", ""))[:4000], "priority": priority,
+                "start_date": payload.get("startDate") or None, "due_date": payload.get("dueDate") or None,
+                "labels": json.dumps(labels), "checklist": json.dumps(checklist), "photo_required": 1 if payload.get("photoRequired") else 0}
+        sent = {"title": "title", "notes": "notes", "priority": "priority", "start_date": "startDate", "due_date": "dueDate", "labels": "labels",
+                "checklist": "checklist", "photo_required": "photoRequired"}
+        row = {k: v for k, v in full.items() if has(sent[k])} | {"updated_at": now_iso()}
+        if editing:
+            t = editing
+            plan_or_404(db, user, t["plan_id"])  # a manager edits only tasks of plans they can see
             if payload.get("bucketId"):
+                if not db.one("SELECT 1 FROM buckets WHERE id = ? AND plan_id = ?", payload["bucketId"], t["plan_id"]):
+                    raise HTTPException(422, "That bucket is not in this plan")
                 row["bucket_id"] = payload["bucketId"]
             db.update("tasks", t["id"], row)
             tid, plan_id = t["id"], t["plan_id"]
             before = {a["user_id"] for a in db.all("SELECT user_id FROM task_assignees WHERE task_id = ?", tid)}
+            if not has("assignees"):
+                people = list(before)
         else:
             p = plan_or_404(db, user, str(payload.get("planId", "")))
             bucket = payload.get("bucketId") or (db.one("SELECT id FROM buckets WHERE plan_id = ? ORDER BY sort LIMIT 1", p["id"]) or {}).get("id")
@@ -251,9 +286,10 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
         for uid in people:
             db.insert("task_assignees", {"task_id": tid, "user_id": uid})
         plan_name = db.one("SELECT name FROM plans WHERE id = ?", plan_id)["name"]
+        due_date = row.get("due_date", editing["due_date"] if editing else None)
         for uid in set(people) - before:
             if uid != user["id"]:
-                due = f" · due {row['due_date']}" if row["due_date"] else ""
+                due = f" · due {due_date}" if due_date else ""
                 db.notify(uid, f"New task: {title}", f"{plan_name}{due} · from {user['name']}", f"#task/{tid}")
         db.audit(user["id"], "task_saved", "task", tid, title)
         return {"id": tid}
@@ -284,6 +320,8 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
         t = _task_for(db, user, task_id, may_edit=True)
         if progress not in PROGRESS:
             raise HTTPException(422, "Progress must be not started, in progress or completed")
+        if progress == t["progress"] == "completed":
+            return {"ok": True}  # the same completion sent twice (double tap, or the phone resent it): nothing to change
         patch: dict[str, Any] = {"progress": progress, "updated_at": now_iso()}
         if progress == "completed":
             if t["photo_required"] and not (photo and photo.filename):
@@ -299,19 +337,19 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
         if progress == "completed" and t["progress"] != "completed":
             plan = db.one("SELECT name, site_id FROM plans WHERE id = ?", t["plan_id"])
             body = f"{plan['name']} · by {user['name']}" + (f": {note.strip()[:120]}" if note.strip() else "")
-            told = set()
-            if t["created_by"] and t["created_by"] != user["id"]:
-                db.notify(t["created_by"], f"Task done: {t['title']}", body, f"#task/{task_id}")
-                told.add(t["created_by"])
-            for m in db.all("SELECT id, role FROM users WHERE active = 1 AND role IN ('manager', 'admin')"):
-                if m["id"] in told or m["id"] == user["id"]:
-                    continue
-                if m["role"] == "manager" and plan["site_id"]:
-                    mine = db.all("SELECT site_id FROM user_sites WHERE user_id = ?", m["id"])
-                    if mine and plan["site_id"] not in {s["site_id"] for s in mine}:
-                        continue
-                db.notify(m["id"], f"Task done: {t['title']}", body, f"#task/{task_id}")
+            told = {user["id"]}
+            for uid in [t["created_by"], *task_managers(db, t, plan)]:
+                if uid and uid not in told and may_open(db, uid, task_id):
+                    db.notify(uid, f"Task done: {t['title']}", body, f"#task/{task_id}")
+                    told.add(uid)
             db.audit(user["id"], "task_completed", "task", task_id, t["title"])
+        elif t["progress"] == "completed" and progress != "completed":
+            # reopened: a manager sending it back tells the workers; a worker reopening tells the manager
+            assignees = {a["user_id"] for a in db.all("SELECT user_id FROM task_assignees WHERE task_id = ?", task_id)}
+            to = (assignees if user["id"] not in assignees else {t["created_by"]}) - {user["id"], None}
+            for uid in to:
+                if may_open(db, uid, task_id):
+                    db.notify(uid, f"Task reopened: {t['title']}", f"by {user['name']}" + (f": {note.strip()[:120]}" if note.strip() else ""), f"#task/{task_id}")
         return {"ok": True}
 
     @r.post("/tasks/{task_id}/checklist")
@@ -319,6 +357,9 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
         t = _task_for(db, user, task_id, may_edit=True)
         items = json.loads(t["checklist"])
         i = int(payload.get("index", -1))
+        text = payload.get("text")
+        if text is not None and not (0 <= i < len(items) and items[i]["text"] == text):
+            i = next((j for j, c in enumerate(items) if c["text"] == text), -1)  # the manager changed the list meanwhile
         if not 0 <= i < len(items):
             raise HTTPException(422, "No such checklist item")
         items[i]["done"] = bool(payload.get("done"))
@@ -337,7 +378,8 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
         db.insert("task_comments", {"task_id": task_id, "user_id": user["id"], "text": text, "created_at": now_iso()})
         people = {a["user_id"] for a in db.all("SELECT user_id FROM task_assignees WHERE task_id = ?", task_id)} | {t["created_by"]}
         for uid in people - {user["id"], None}:
-            db.notify(uid, f"Comment on: {t['title']}", f"{user['name']}: {text[:120]}", f"#task/{task_id}")
+            if may_open(db, uid, task_id):
+                db.notify(uid, f"Comment on: {t['title']}", f"{user['name']}: {text[:120]}", f"#task/{task_id}")
         return {"ok": True}
 
     @r.post("/tasks/{task_id}/delete")

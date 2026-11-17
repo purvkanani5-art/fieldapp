@@ -85,6 +85,10 @@ def current_user(request: Request, db: DbDep) -> dict:
     user = db.one("SELECT * FROM users WHERE id = ? AND active = 1", payload["u"])
     if not user:
         raise HTTPException(401, "This account is no longer active")
+    if not db.one("SELECT 1 FROM devices WHERE id = ? AND user_id = ?", payload["d"], user["id"]):
+        raise HTTPException(401, "Please sign in again")  # HR reset the PIN (or the phone was signed out): the old token stops working
+    if user.get("must_change_pin") and request.method != "GET" and not request.url.path.startswith(("/api/auth/", "/api/me/consent")):
+        raise HTTPException(403, "Set your own PIN first (Me > Change PIN)")
     db.run("UPDATE devices SET last_seen = ? WHERE id = ?", now_iso(), payload["d"])
     resolve_access(db, user)
     user.pop("pin_hash", None)
@@ -180,6 +184,57 @@ def doc_no(db: Db) -> str:
 
 
 # ------------------------------------------------------------------ planner
+
+@app.middleware("http")
+async def once_only(request: Request, call_next):
+    """A submission carries X-Client-Id. If the phone lost the reply (weak signal) and sends it again from the
+    outbox, the stored first answer is returned instead of saving the check-in, trip or entry twice."""
+    cid = request.headers.get("x-client-id", "")
+    if request.method != "POST" or not re.fullmatch(r"[A-Za-z0-9-]{8,64}", cid):
+        return await call_next(request)
+    d = Db()
+    try:
+        seen = d.one("SELECT status, body FROM client_requests WHERE id = ?", cid)
+    finally:
+        d.close()
+    if seen:
+        return Response(content=seen["body"], status_code=seen["status"], media_type="application/json")
+    res = await call_next(request)
+    if 200 <= res.status_code < 300:
+        body = b"".join([chunk async for chunk in res.body_iterator])
+        d = Db()
+        try:
+            d.run("INSERT OR IGNORE INTO client_requests (id, path, status, body, created_at) VALUES (?, ?, ?, ?, ?)", cid, request.url.path[:200], res.status_code, body.decode("utf-8", "replace"), now_iso())
+        finally:
+            d.close()
+        return Response(content=body, status_code=res.status_code, headers={k: v for k, v in res.headers.items() if k.lower() != "content-length"}, media_type=res.media_type)
+    return res
+
+
+def taken_time(taken_at: str | None, queued: str | None, not_before: str | None = None) -> str:
+    """The phone's time for a photo, kept only when believable: sent live it must be within 10 minutes of the server
+    clock (a phone set to 08:55 is not trusted); sent later from the phone's outbox it may be up to 7 days old.
+    Never in the future, never before `not_before` (e.g. a check-out before its check-in)."""
+    now = datetime.now(UTC)
+    try:
+        t = datetime.fromisoformat(str(taken_at).replace("Z", "+00:00"))
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=UTC)
+    except (TypeError, ValueError):
+        return now_iso()
+    age = (now - t).total_seconds()
+    limit = 7 * 86400 if queued else 600
+    if age < -300 or age > limit:
+        return now_iso()
+    if not_before:
+        try:
+            nb = datetime.fromisoformat(str(not_before).replace("Z", "+00:00"))
+            if t < (nb if nb.tzinfo else nb.replace(tzinfo=UTC)):
+                return now_iso()
+        except ValueError:
+            pass
+    return t.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
 
 app.include_router(lists.router(UserDep, DbDep))
 app.include_router(planner.make_router(UserDep, DbDep, save_upload=save_upload, is_staff=is_staff))
@@ -356,7 +411,8 @@ def bootstrap(user: UserDep, db: DbDep):
 @app.post("/api/attendance/checkin")
 async def checkin(user: UserDep, db: DbDep, siteId: Annotated[str, Form()], lat: Annotated[str, Form()], lng: Annotated[str, Form()],
                   accuracy: Annotated[str | None, Form()] = None, override: Annotated[str | None, Form()] = None,
-                  takenAt: Annotated[str | None, Form()] = None, photo: UploadFile = File(...)):
+                  takenAt: Annotated[str | None, Form()] = None, queued: Annotated[str | None, Form()] = None, photo: UploadFile = File(...)):
+    takenAt = taken_time(takenAt, queued)
     site = db.one("SELECT * FROM sites WHERE id = ? AND active = 1", siteId)
     if not site:
         raise HTTPException(404, "Site not found")
@@ -374,6 +430,8 @@ async def checkin(user: UserDep, db: DbDep, siteId: Annotated[str, Form()], lat:
     fid = await save_upload(db, photo, f"{site_folder(db, siteId)}/Attendance/{user['employee_id']}", "checkin", user, lat=la, lng=ln, accuracy=acc,
                             taken_at=takenAt, name=f"{stamp(takenAt)} check-in.jpg")
     status = "ok" if inside else "pending"
+    if db.one("SELECT 1 FROM attendance WHERE user_id = ? AND checkout_at IS NULL", user["id"]):  # a second tap while the photo uploaded
+        raise HTTPException(409, "You are already checked in. Check out first.")
     aid = db.insert("attendance", {"user_id": user["id"], "site_id": siteId, "checkin_at": takenAt or now_iso(), "checkin_file": fid, "checkin_lat": la, "checkin_lng": ln,
                                    "checkin_acc": acc, "checkin_dist": round(dist, 1), "status": status, "override_reason": (override or "").strip()})
     db.audit(user["id"], "checkin", "attendance", aid, f"{dist:.0f} m, {status}")
@@ -384,10 +442,16 @@ async def checkin(user: UserDep, db: DbDep, siteId: Annotated[str, Form()], lat:
 
 @app.post("/api/attendance/checkout")
 async def checkout(user: UserDep, db: DbDep, lat: Annotated[str, Form()], lng: Annotated[str, Form()], accuracy: Annotated[str | None, Form()] = None,
-                   override: Annotated[str | None, Form()] = None, takenAt: Annotated[str | None, Form()] = None, photo: UploadFile = File(...)):
+                   override: Annotated[str | None, Form()] = None, takenAt: Annotated[str | None, Form()] = None,
+                   queued: Annotated[str | None, Form()] = None, photo: UploadFile = File(...)):
     att = db.one("SELECT * FROM attendance WHERE user_id = ? AND checkout_at IS NULL ORDER BY checkin_at DESC LIMIT 1", user["id"])
+    if not att and queued:
+        # saved offline yesterday, sent today after the nightly job closed the day as "missed": the real check-out wins
+        att = db.one("SELECT * FROM attendance WHERE user_id = ? AND flag = 'missed_checkout' AND COALESCE(checkout_file, '') = '' AND checkin_at < ? "
+                     "ORDER BY checkin_at DESC LIMIT 1", user["id"], taken_time(takenAt, queued))
     if not att:
         raise HTTPException(409, "You are not checked in")
+    takenAt = taken_time(takenAt, queued, att["checkin_at"])
     site = db.one("SELECT * FROM sites WHERE id = ?", att["site_id"])
     la, ln, acc = parse_float(lat, "Latitude"), parse_float(lng, "Longitude"), parse_float(accuracy, "Accuracy", False)
     inside, dist = within_fence(la, ln, acc, site)
@@ -397,6 +461,8 @@ async def checkout(user: UserDep, db: DbDep, lat: Annotated[str, Form()], lng: A
     fid = await save_upload(db, photo, f"{site_folder(db, att['site_id'])}/Attendance/{user['employee_id']}", "checkout", user, lat=la, lng=ln, accuracy=acc,
                             taken_at=takenAt, name=f"{stamp(takenAt)} check-out.jpg")
     patch = {"checkout_at": takenAt or now_iso(), "checkout_file": fid, "checkout_lat": la, "checkout_lng": ln, "checkout_acc": acc, "checkout_dist": round(dist, 1)}
+    if att.get("flag") == "missed_checkout":
+        patch["flag"] = ""  # the real check-out replaced the automatic one
     if not inside:
         patch["status"] = "pending"
         patch["override_reason"] = ((att["override_reason"] + " | ") if att["override_reason"] else "") + f"Check-out: {override.strip()}"
@@ -427,7 +493,8 @@ def attendance(user: UserDep, db: DbDep, scope: str = "mine", days: int = 31):
 @app.post("/api/trips/start")
 async def trip_start(user: UserDep, db: DbDep, vehicle: Annotated[str, Form()], reading: Annotated[str, Form()], lat: Annotated[str, Form()], lng: Annotated[str, Form()],
                      purpose: Annotated[str, Form()] = "", siteId: Annotated[str | None, Form()] = None, takenAt: Annotated[str | None, Form()] = None,
-                     photo: UploadFile = File(...)):
+                     queued: Annotated[str | None, Form()] = None, photo: UploadFile = File(...)):
+    takenAt = taken_time(takenAt, queued)
     if db.one("SELECT 1 FROM trips WHERE user_id = ? AND status = 'open'", user["id"]):
         raise HTTPException(409, "A trip is already open. End it first.")
     travel = db.setting("travel", {"vehicles": {}})
@@ -435,6 +502,8 @@ async def trip_start(user: UserDep, db: DbDep, vehicle: Annotated[str, Form()], 
         raise HTTPException(422, "Unknown vehicle type")
     rd, la, ln = parse_float(reading, "Odometer reading"), parse_float(lat, "Latitude"), parse_float(lng, "Longitude")
     fid = await save_upload(db, photo, f"Travel/{user['employee_id']}", "odometer_start", user, lat=la, lng=ln, taken_at=takenAt, name=f"{stamp(takenAt)} start {rd:.0f} km.jpg")
+    if db.one("SELECT 1 FROM trips WHERE user_id = ? AND status = 'open'", user["id"]):  # a second tap while the photo uploaded
+        raise HTTPException(409, "A trip is already open. End it first.")
     tid = db.insert("trips", {"user_id": user["id"], "site_id": siteId or None, "vehicle": vehicle, "purpose": purpose.strip(), "start_at": takenAt or now_iso(),
                               "start_reading": rd, "start_file": fid, "start_lat": la, "start_lng": ln, "rate_per_km": travel["vehicles"][vehicle], "status": "open"})
     db.audit(user["id"], "trip_start", "trip", tid, f"{vehicle} @ {rd}")
@@ -443,10 +512,14 @@ async def trip_start(user: UserDep, db: DbDep, vehicle: Annotated[str, Form()], 
 
 @app.post("/api/trips/{trip_id}/end")
 async def trip_end(trip_id: str, user: UserDep, db: DbDep, reading: Annotated[str, Form()], lat: Annotated[str, Form()], lng: Annotated[str, Form()],
-                   takenAt: Annotated[str | None, Form()] = None, photo: UploadFile = File(...)):
-    trip = db.one("SELECT * FROM trips WHERE id = ? AND user_id = ?", trip_id, user["id"])
+                   takenAt: Annotated[str | None, Form()] = None, queued: Annotated[str | None, Form()] = None, photo: UploadFile = File(...)):
+    if trip_id == "open":  # the trip was started offline, so the phone does not know its id yet
+        trip = db.one("SELECT * FROM trips WHERE user_id = ? AND status = 'open' ORDER BY start_at DESC LIMIT 1", user["id"])
+    else:
+        trip = db.one("SELECT * FROM trips WHERE id = ? AND user_id = ?", trip_id, user["id"])
     if not trip or trip["status"] != "open":
         raise HTTPException(404, "Open trip not found")
+    takenAt = taken_time(takenAt, queued, trip["start_at"])
     rd, la, ln = parse_float(reading, "Odometer reading"), parse_float(lat, "Latitude"), parse_float(lng, "Longitude")
     if rd < trip["start_reading"]:
         raise HTTPException(422, f"End reading {rd:.0f} is below the start reading {trip['start_reading']:.0f}")
@@ -456,11 +529,11 @@ async def trip_end(trip_id: str, user: UserDep, db: DbDep, reading: Annotated[st
     fid = await save_upload(db, photo, f"Travel/{user['employee_id']}", "odometer_end", user, lat=la, lng=ln, taken_at=takenAt, name=f"{stamp(takenAt)} end {rd:.0f} km.jpg")
     straight = round(haversine_m(trip["start_lat"], trip["start_lng"], la, ln) / 1000, 1) if trip["start_lat"] is not None else None
     amount = round(km * (trip["rate_per_km"] or 0), 2)
-    db.update("trips", trip_id, {"end_at": takenAt or now_iso(), "end_reading": rd, "end_file": fid, "end_lat": la, "end_lng": ln, "km_claimed": km, "km_straight": straight,
+    db.update("trips", trip["id"], {"end_at": takenAt or now_iso(), "end_reading": rd, "end_file": fid, "end_lat": la, "end_lng": ln, "km_claimed": km, "km_straight": straight,
                                  "amount": amount, "status": "submitted"})
-    db.audit(user["id"], "trip_end", "trip", trip_id, f"{km} km")
+    db.audit(user["id"], "trip_end", "trip", trip["id"], f"{km} km")
     db.notify_role(("manager", "admin"), f"Trip to approve: {user['name']}", f"{km} km by {trip['vehicle']}, ₹{amount:,.0f}", "#approvals", trip["site_id"])
-    return {"id": trip_id, "km": km, "straight": straight, "amount": amount}
+    return {"id": trip["id"], "km": km, "straight": straight, "amount": amount}
 
 
 @app.get("/api/trips")
@@ -490,6 +563,8 @@ def trip_decide(trip_id: str, payload: dict, user: UserDep, db: DbDep):
     trip = db.one("SELECT * FROM trips WHERE id = ?", trip_id)
     if not trip or trip["status"] != "submitted":
         raise HTTPException(404, "Trip is not waiting for approval")
+    if trip["user_id"] == user["id"] and user["role"] != "admin":
+        raise HTTPException(403, "Someone else approves your own trip")
     decision = payload.get("decision")
     if decision not in ("approved", "rejected"):
         raise HTTPException(422, "decision must be approved or rejected")
@@ -505,6 +580,8 @@ def attendance_decide(att_id: str, payload: dict, user: UserDep, db: DbDep):
     att = db.one("SELECT * FROM attendance WHERE id = ?", att_id)
     if not att or att["status"] != "pending":
         raise HTTPException(404, "Nothing to decide")
+    if att["user_id"] == user["id"] and user["role"] != "admin":
+        raise HTTPException(403, "Someone else decides your own check-in exception")
     decision = payload.get("decision")
     if decision not in ("ok", "rejected"):
         raise HTTPException(422, "decision must be ok or rejected")
@@ -520,7 +597,7 @@ def attendance_decide(att_id: str, payload: dict, user: UserDep, db: DbDep):
 
 
 def item_balance(db: Db, item_id: str) -> float:
-    r = db.one("SELECT balance_after FROM movements WHERE item_id = ? ORDER BY at DESC, rowid DESC LIMIT 1", item_id)
+    r = db.one("SELECT balance_after FROM movements WHERE item_id = ? ORDER BY rowid DESC LIMIT 1", item_id)
     return float(r["balance_after"]) if r else 0.0
 
 
@@ -600,8 +677,12 @@ def farmers(user: UserDep, db: DbDep, q: str = ""):
         ql = q.lower()
         rows = [r for r in rows if ql in (r["name"] + " " + r["village"] + " " + r["phone"]).lower()]
     if not user.get("all_sites"):
-        rows = [r for r in rows if r["site_id"] in user["sites"]]
+        rows = [r for r in rows if r["site_id"] in user["sites"] or r.get("created_by") == user["id"]]  # also farmers they added without a site
     return {"rows": rows[:300]}
+
+
+def farmer_allowed(user: dict, f: dict) -> bool:
+    return bool(user.get("all_sites")) or f.get("created_by") == user["id"] or (f.get("site_id") in user["sites"])
 
 
 @app.post("/api/farmers")
@@ -619,7 +700,7 @@ def add_farmer(payload: dict, user: UserDep, db: DbDep):
 @app.get("/api/farmers/{farmer_id}")
 def farmer_detail(farmer_id: str, user: UserDep, db: DbDep):
     f = db.one("SELECT f.*, s.name AS site_name FROM farmers f LEFT JOIN sites s ON s.id = f.site_id WHERE f.id = ?", farmer_id)
-    if not f:
+    if not f or not farmer_allowed(user, f):
         raise HTTPException(404, "Farmer not found")
     f["documents"] = db.all("SELECT d.id, d.doc_no, d.created_at, d.pdf_file, d.lat, d.lng, t.name AS template_name, u.name AS user_name FROM documents d "
                             "JOIN templates t ON t.id = d.template_id JOIN users u ON u.id = d.user_id WHERE d.farmer_id = ? ORDER BY d.created_at DESC", farmer_id)
@@ -634,7 +715,7 @@ async def farmer_file(farmer_id: str, user: UserDep, db: DbDep, kind: Annotated[
                       surveyNo: Annotated[str, Form()] = "", areaDeclared: Annotated[str | None, Form()] = None, lat: Annotated[str | None, Form()] = None,
                       lng: Annotated[str | None, Form()] = None):
     f = db.one("SELECT * FROM farmers WHERE id = ?", farmer_id)
-    if not f:
+    if not f or not farmer_allowed(user, f):
         raise HTTPException(404, "Farmer not found")
     if kind not in ("kml", "land_record", "id_proof", "photo", "other"):
         raise HTTPException(422, "kind must be kml, land_record, id_proof, photo or other")
@@ -673,7 +754,7 @@ async def farmer_file(farmer_id: str, user: UserDep, db: DbDep, kind: Annotated[
 @app.post("/api/farmers/{farmer_id}/documents")
 def sign_document(farmer_id: str, payload: dict, user: UserDep, db: DbDep):
     f = db.one("SELECT * FROM farmers WHERE id = ?", farmer_id)
-    if not f:
+    if not f or not farmer_allowed(user, f):
         raise HTTPException(404, "Farmer not found")
     t = db.one("SELECT * FROM templates WHERE id = ? AND active = 1", payload.get("templateId"))
     if not t:
@@ -788,6 +869,12 @@ def add_leave(payload: dict, user: UserDep, db: DbDep):
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", fd) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", td) or td < fd:
         raise HTTPException(422, "Pick valid from and to dates")
     typ = str(payload.get("type", "Casual"))[:30]
+    if typ not in (db.setting("leave_types", []) or []):
+        raise HTTPException(422, "Choose a leave type from the list")
+    clash = db.one("SELECT from_date, to_date, status FROM leaves WHERE user_id = ? AND status IN ('pending', 'approved') AND from_date <= ? AND to_date >= ?",
+                   user["id"], td, fd)
+    if clash:  # the same days twice would count twice against the balance
+        raise HTTPException(409, f"You already have leave from {clash['from_date']} to {clash['to_date']} ({clash['status']})")
     hrops.assert_range_open(db, fd, td)
     days = modules.leave_days(db, fd, td)
     if days <= 0:
@@ -1121,7 +1208,11 @@ def get_file(file_id: str, user: UserDep, db: DbDep, download: int = 0):
     f = db.one("SELECT * FROM files WHERE id = ?", file_id)
     if not f or not store.exists(f["path"]):
         raise HTTPException(404, "File not found")
-    # Field staff may see their own uploads and anything on their sites; HR documents only their own.
+    # Field staff: HR documents only their own; check-in selfies and odometer photos only their own (colleagues'
+    # attendance evidence is for managers); the rest (task, farmer, site evidence) they open from screens they may see.
+    private = f["kind"] in ("checkin", "checkout", "odometer_start", "odometer_end") or "/Attendance/" in f["path"] or f["path"].startswith("Travel/")
+    if private and not is_staff(user) and f.get("uploaded_by") != user["id"]:
+        raise HTTPException(403, "Not allowed")
     if f["kind"] == "hr_document" and not is_staff(user):
         owner = db.one("SELECT user_id FROM hr_documents WHERE file_id = ?", file_id)
         if not owner or owner["user_id"] != user["id"]:
