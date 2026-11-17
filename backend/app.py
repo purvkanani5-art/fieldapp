@@ -31,6 +31,7 @@ import demo_modules  # noqa: E402
 import hrops  # noqa: E402
 import modules  # noqa: E402
 import lists  # noqa: E402
+import perms  # noqa: E402
 import planner  # noqa: E402
 
 APP_VERSION = "0.5.0"
@@ -43,6 +44,7 @@ _db = Db()
 try:
     migrate_admin_code(_db)
     lists.sync(_db)  # saved lists (Settings > Lists) into the record definitions
+    perms.migrate(_db)  # travel joins the approval rules; default departments
 finally:
     _db.close()
 _db0 = Db()
@@ -120,6 +122,8 @@ def resolve_access(db: Db, u: dict) -> dict:
     u["sites"] = [s["id"] for s in every] if u["all_sites"] else sorted(set(direct) | {s["id"] for s in every if s["project_type"] in projects})
     u["direct_sites"] = direct
     u["projects"] = projects
+    u["perms"] = perms.for_user(db, u)
+    u["dept"] = perms.dept_of(db, u)
     return u
 
 
@@ -129,7 +133,7 @@ def site_allowed(user: dict, site_id: str) -> bool:
 
 def public_user(u: dict) -> dict:
     return {k: u.get(k) for k in ("id", "employee_id", "name", "role", "designation", "phone", "email", "active", "must_change_pin", "sites", "created_at", "manager_id", "consent_at",
-                                  "all_sites", "projects", "direct_sites", "supervisor", "app_access")}
+                                  "all_sites", "projects", "direct_sites", "supervisor", "app_access", "perms", "dept", "department")}
 
 
 def parse_float(v, name: str, required: bool = True) -> float | None:
@@ -237,6 +241,7 @@ def taken_time(taken_at: str | None, queued: str | None, not_before: str | None 
 
 
 app.include_router(lists.router(UserDep, DbDep))
+app.include_router(perms.router(UserDep, DbDep))
 app.include_router(planner.make_router(UserDep, DbDep, save_upload=save_upload, is_staff=is_staff))
 app.include_router(hrops.make_router(UserDep, DbDep, save_upload=save_upload, is_staff=is_staff, site_allowed=site_allowed, demo=DEMO))
 app.include_router(modules.make_router(UserDep, DbDep, save_upload=save_upload, save_bytes=save_bytes, is_staff=is_staff, site_allowed=site_allowed, demo=DEMO))
@@ -380,12 +385,14 @@ def me(user: UserDep, db: DbDep):
     unread = db.one("SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND read = 0", user["id"])["n"]
     open_att = db.one("SELECT a.*, s.name AS site_name FROM attendance a JOIN sites s ON s.id = a.site_id WHERE a.user_id = ? AND a.checkout_at IS NULL ORDER BY checkin_at DESC LIMIT 1", user["id"])
     open_trip = db.one("SELECT * FROM trips WHERE user_id = ? AND status = 'open' ORDER BY start_at DESC LIMIT 1", user["id"])
-    pending = 0
+    pending = len(modules.waiting_for(db, user))  # anyone can be an approver (a role or a department in the approval rules)
     if is_staff(user):
-        pending = db.one("SELECT COUNT(*) AS n FROM trips WHERE status = 'submitted'")["n"]
-        pending += db.one("SELECT COUNT(*) AS n FROM attendance WHERE status = 'pending'")["n"]
-        pending += len(modules.waiting_for(db, user))
-        pending += db.one("SELECT COUNT(*) AS n FROM leaves l WHERE status = 'pending' AND NOT EXISTS (SELECT 1 FROM approval_steps s WHERE s.kind = 'leave' AND s.ref_id = l.id)")["n"]
+        pending += db.one("SELECT COUNT(*) AS n FROM trips t WHERE status = 'submitted' AND NOT EXISTS (SELECT 1 FROM approval_steps s WHERE s.kind = 'travel' AND s.ref_id = t.id)")["n"]
+        if perms.can(user, "att.exceptions"):
+            pending += db.one("SELECT COUNT(*) AS n FROM attendance WHERE status = 'pending'")["n"]
+        team = modules.team_ids(db, user)
+        pending += sum(1 for r in db.all("SELECT user_id FROM leaves l WHERE status = 'pending' AND NOT EXISTS (SELECT 1 FROM approval_steps s WHERE s.kind = 'leave' AND s.ref_id = l.id)")
+                       if team is None or r["user_id"] in team)
     return {"user": public_user(user), "unread": unread, "openAttendance": open_att, "openTrip": open_trip, "pendingApprovals": pending, "version": APP_VERSION}
 
 
@@ -532,7 +539,7 @@ async def trip_end(trip_id: str, user: UserDep, db: DbDep, reading: Annotated[st
     db.update("trips", trip["id"], {"end_at": takenAt or now_iso(), "end_reading": rd, "end_file": fid, "end_lat": la, "end_lng": ln, "km_claimed": km, "km_straight": straight,
                                  "amount": amount, "status": "submitted"})
     db.audit(user["id"], "trip_end", "trip", trip["id"], f"{km} km")
-    db.notify_role(("manager", "admin"), f"Trip to approve: {user['name']}", f"{km} km by {trip['vehicle']}, ₹{amount:,.0f}", "#approvals", trip["site_id"])
+    modules.start_chain(db, "travel", trip["id"], user["id"], amount, f"Travel · {user['name']} · {km:g} km, ₹{amount:,.0f}", "#approvals")
     return {"id": trip["id"], "km": km, "straight": straight, "amount": amount}
 
 
@@ -553,13 +560,16 @@ def trips(user: UserDep, db: DbDep, scope: str = "mine", status: str | None = No
         sql += " WHERE " + " AND ".join(where)
     sql += " ORDER BY t.start_at DESC LIMIT 300"
     rows = db.all(sql, *args)
+    for t in rows:
+        if t["status"] == "submitted":
+            cur = next((x for x in modules.steps_for(db, "travel", t["id"]) if x["status"] == "waiting"), None)
+            t["waiting"] = (cur["approver_name"] or cur["role_label"]) if cur else ""
     team = modules.team_ids(db, user) if scope == "team" else None
     return {"rows": [r for r in rows if team is None or r["user_id"] in team]}
 
 
 @app.post("/api/trips/{trip_id}/decide")
 def trip_decide(trip_id: str, payload: dict, user: UserDep, db: DbDep):
-    require(user, "admin", "manager")
     trip = db.one("SELECT * FROM trips WHERE id = ?", trip_id)
     if not trip or trip["status"] != "submitted":
         raise HTTPException(404, "Trip is not waiting for approval")
@@ -568,15 +578,24 @@ def trip_decide(trip_id: str, payload: dict, user: UserDep, db: DbDep):
     decision = payload.get("decision")
     if decision not in ("approved", "rejected"):
         raise HTTPException(422, "decision must be approved or rejected")
-    db.update("trips", trip_id, {"status": decision, "decided_by": user["id"], "decided_at": now_iso(), "decision_note": str(payload.get("note", ""))[:300]})
+    note = str(payload.get("note", ""))[:300]
+    chained = bool(modules.steps_for(db, "travel", trip_id))
+    if chained:
+        res = modules.decide_chain(db, "travel", trip_id, user, decision, note, trip["user_id"], f"Trip {trip['km_claimed']:g} km on {trip['start_at'][:10]}", "#trips")
+    else:  # a trip sent before travel had approval rules: one decision by a manager
+        require(user, "admin", "manager")
+        res = decision
+    if res != "pending":
+        db.update("trips", trip_id, {"status": res, "decided_by": user["id"], "decided_at": now_iso(), "decision_note": note})
+        if not chained:
+            db.notify(trip["user_id"], f"Trip {decision}", f"{trip['km_claimed']} km on {trip['start_at'][:10]}" + (f": {note}" if note else ""), "#trips")
     db.audit(user["id"], f"trip_{decision}", "trip", trip_id)
-    db.notify(trip["user_id"], f"Trip {decision}", f"{trip['km_claimed']} km on {trip['start_at'][:10]}" + (f": {payload.get('note')}" if payload.get("note") else ""), "#trips")
-    return {"ok": True}
+    return {"ok": True, "status": res}
 
 
 @app.post("/api/attendance/{att_id}/decide")
 def attendance_decide(att_id: str, payload: dict, user: UserDep, db: DbDep):
-    require(user, "admin", "manager")
+    perms.need(user, "att.exceptions")
     att = db.one("SELECT * FROM attendance WHERE id = ?", att_id)
     if not att or att["status"] != "pending":
         raise HTTPException(404, "Nothing to decide")
@@ -798,7 +817,7 @@ def sign_document(farmer_id: str, payload: dict, user: UserDep, db: DbDep):
 def hr_documents(user: UserDep, db: DbDep, userId: str | None = None):
     target = user["id"]
     if userId and userId != user["id"]:
-        require(user, "admin", "hr")
+        perms.need(user, "hr.documents")
         target = userId
     rows = db.all("SELECT h.*, f.name AS file_name, f.mime, f.size FROM hr_documents h JOIN files f ON f.id = h.file_id WHERE h.user_id = ? ORDER BY h.created_at DESC", target)
     return {"rows": rows}
@@ -806,7 +825,7 @@ def hr_documents(user: UserDep, db: DbDep, userId: str | None = None):
 
 @app.post("/api/hr/documents")
 async def hr_upload(user: UserDep, db: DbDep, userId: Annotated[str, Form()], title: Annotated[str, Form()], category: Annotated[str, Form()], file: UploadFile = File(...)):
-    require(user, "admin", "hr")
+    perms.need(user, "hr.documents")
     target = db.one("SELECT * FROM users WHERE id = ?", userId)
     if not target:
         raise HTTPException(404, "Employee not found")
@@ -890,7 +909,6 @@ def add_leave(payload: dict, user: UserDep, db: DbDep):
 
 @app.post("/api/leaves/{leave_id}/decide")
 def leave_decide(leave_id: str, payload: dict, user: UserDep, db: DbDep):
-    require(user, "admin", "manager", "hr")
     lv = db.one("SELECT * FROM leaves WHERE id = ?", leave_id)
     if not lv or lv["status"] != "pending":
         raise HTTPException(404, "Nothing to decide")
@@ -899,6 +917,8 @@ def leave_decide(leave_id: str, payload: dict, user: UserDep, db: DbDep):
         raise HTTPException(422, "decision must be approved or rejected")
     note = str(payload.get("note", ""))[:300]
     hrops.assert_range_open(db, lv["from_date"], lv["to_date"])
+    if not modules.steps_for(db, "leave", leave_id):  # made before approval chains: one decision by office staff
+        require(user, "admin", "manager", "hr")
     res = modules.decide_chain(db, "leave", leave_id, user, decision, note, lv["user_id"], f"Leave {lv['from_date']} to {lv['to_date']}", "#leaves")
     if res != "pending":
         db.update("leaves", leave_id, {"status": res, "decided_by": user["id"], "decided_at": now_iso(), "decision_note": note})
@@ -929,19 +949,31 @@ def inbox_read(payload: dict, user: UserDep, db: DbDep):
 
 @app.get("/api/approvals")
 def approvals(user: UserDep, db: DbDep):
-    require(user, "admin", "manager", "hr")
+    """Everything waiting for this person. Anyone can be an approver: the approval rules may name a role or a department."""
+    staff = is_staff(user)
     trips_ = db.all("SELECT t.*, u.name AS user_name, s.name AS site_name FROM trips t JOIN users u ON u.id = t.user_id LEFT JOIN sites s ON s.id = t.site_id WHERE t.status = 'submitted' ORDER BY t.end_at")
     att = db.all("SELECT a.*, u.name AS user_name, s.name AS site_name, s.radius_m FROM attendance a JOIN users u ON u.id = a.user_id JOIN sites s ON s.id = a.site_id WHERE a.status = 'pending' ORDER BY a.checkin_at")
     lv = db.all("SELECT l.*, u.name AS user_name FROM leaves l JOIN users u ON u.id = l.user_id WHERE l.status = 'pending' ORDER BY l.created_at")
     team = modules.team_ids(db, user)
-    if team is not None:
-        trips_ = [t for t in trips_ if t["user_id"] in team]
+    waiting = modules.waiting_for(db, user)
+    my_trips = {s["ref_id"] for s in waiting if s["kind"] == "travel"}
+    keep_t = []
+    for t in trips_:
+        st = modules.steps_for(db, "travel", t["id"])
+        if t["id"] in my_trips or (not st and user["role"] in ("admin", "manager") and (team is None or t["user_id"] in team)):
+            t["steps"] = st
+            keep_t.append(t)
+    trips_ = keep_t
+    if not perms.can(user, "att.exceptions"):
+        att = []
+    elif team is not None:
         att = [x for x in att if x["user_id"] in team or x["site_id"] in user["sites"]]
-    mine = {s["ref_id"] for s in modules.waiting_for(db, user) if s["kind"] == "leave"}
+    att = [x for x in att if x["user_id"] != user["id"] or user["role"] == "admin"]
+    mine = {s["ref_id"] for s in waiting if s["kind"] == "leave"}
     keep = []
     for x in lv:
         st = modules.steps_for(db, "leave", x["id"])
-        if not st or x["id"] in mine:
+        if (not st and staff and (team is None or x["user_id"] in team)) or x["id"] in mine:
             x["steps"] = st
             x["days"] = modules.leave_days(db, x["from_date"], x["to_date"])
             x["balance"] = next((b for b in modules.leave_balances(db, x["user_id"]) if b["type"] == x["type"]), None)
@@ -952,6 +984,7 @@ def approvals(user: UserDep, db: DbDep):
 @app.get("/api/dashboard")
 def dashboard(user: UserDep, db: DbDep):
     require(user, "admin", "manager", "hr")
+    perms.need(user, "reports.view")
     today = datetime.now().strftime("%Y-%m-%d")
     day0 = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
     start_utc = day0.astimezone(UTC).isoformat().replace("+00:00", "Z")  # check-in times are UTC: compare instants
@@ -998,7 +1031,7 @@ def dashboard(user: UserDep, db: DbDep):
 @app.get("/api/export/site/{site_id}")
 def export_site(site_id: str, user: UserDep, db: DbDep):
     """Audit pack: every movement with its photo hash, as CSV (the ZIP of photos is the SharePoint folder itself)."""
-    require(user, "admin", "manager", "hr")
+    perms.need(user, "reports.export")
     if not site_allowed(user, site_id):
         raise HTTPException(403, "Not your site")
     rows = db.all("SELECT m.at, i.name AS item, m.type, m.qty, i.unit, m.balance_after, m.batch, m.note, m.lat, m.lng, u.name AS by_user, f.name AS photo, f.sha256 "
@@ -1034,24 +1067,26 @@ def next_employee_code(db: Db, project: str, office: str) -> str:
 
 @app.get("/api/admin/next-employee-code")
 def admin_next_employee_code(project: str, office: str, user: UserDep, db: DbDep):
-    require(user, "admin", "hr")
+    perms.need(user, "users.add")
     return {"employeeId": next_employee_code(db, project, office)}
 
 
 @app.get("/api/admin/users")
 def admin_users(user: UserDep, db: DbDep):
-    require(user, "admin", "hr")
-    rows = db.all("SELECT id, employee_id, name, role, designation, phone, email, active, must_change_pin, created_at FROM users ORDER BY employee_id")
+    if not any(perms.can(user, k) for k in ("users.add", "users.edit", "users.deactivate", "users.pin", "users.role")):
+        raise HTTPException(403, "Your role may not manage employees")
+    rows = db.all("SELECT id, employee_id, name, role, designation, phone, email, active, must_change_pin, created_at, COALESCE(department, '') AS department FROM users ORDER BY employee_id")
     sites = db.all("SELECT user_id, site_id FROM user_sites")
     for r in rows:
         r["sites"] = [s["site_id"] for s in sites if s["user_id"] == r["id"]]
         r["devices"] = db.one("SELECT COUNT(*) AS n FROM devices WHERE user_id = ?", r["id"])["n"]
+        r["dept"] = perms.dept_of(db, r)
     return {"rows": rows}
 
 
 @app.post("/api/admin/users")
 def admin_user_save(payload: dict, user: UserDep, db: DbDep):
-    require(user, "admin", "hr")
+    perms.need(user, "users.edit" if payload.get("id") else "users.add")
     if payload.get("id"):
         emp = str(payload.get("employee_id", "")).strip().upper()
     else:
@@ -1068,14 +1103,31 @@ def admin_user_save(payload: dict, user: UserDep, db: DbDep):
         raise HTTPException(422, "Employee ID, name and a valid role are required")
     if role == "admin" and user["role"] != "admin":
         raise HTTPException(403, "Only an admin can create admins")
+    dept = str(payload.get("department") or "")
+    if not dept and not payload.get("id"):
+        dept = perms.dept_of_project(db, payload.get("project", ""))
+    if dept and not any(d["key"] == dept for d in perms.departments(db)):
+        raise HTTPException(422, "Choose a department from the list")
     row = {"employee_id": emp, "name": name, "role": role, "designation": designation, "phone": str(payload.get("phone", ""))[:20],
-           "email": str(payload.get("email", ""))[:120], "active": 1 if payload.get("active", True) else 0}
+           "email": str(payload.get("email", ""))[:120], "active": 1 if payload.get("active", True) else 0, "department": dept}
     uid = payload.get("id")
     if uid:
         prev = db.one("SELECT * FROM users WHERE id = ?", uid)
         if not prev:
             raise HTTPException(404, "User not found")
-        hrops.log_dict(db, user["id"], "employee", uid, uid, prev, row, {"role": "Role", "active": "Active", "designation": "Designation", "name": "Name", "employee_id": "Employee ID"})
+        if prev["role"] == "admin" and user["role"] != "admin":
+            raise HTTPException(403, "Only the director edits a director")
+        if (prev["role"], prev["designation"] or "") != (role, designation):
+            perms.need(user, "users.role")
+            if prev["id"] == user["id"] and prev["role"] == "admin" and role != "admin":
+                raise HTTPException(409, "You cannot take the director role away from yourself")
+        if bool(prev["active"]) != bool(row["active"]):
+            perms.need(user, "users.deactivate")
+            if prev["id"] == user["id"]:
+                raise HTTPException(409, "You cannot deactivate yourself")
+        if sorted(payload.get("sites") or []) != sorted(x["site_id"] for x in db.all("SELECT site_id FROM user_sites WHERE user_id = ?", uid)):
+            perms.need(user, "users.assign")
+        hrops.log_dict(db, user["id"], "employee", uid, uid, prev, row, {"role": "Role", "active": "Active", "designation": "Designation", "name": "Name", "employee_id": "Employee ID", "department": "Department"})
         db.update("users", uid, row)
     else:
         if db.one("SELECT 1 FROM users WHERE employee_id = ?", emp):
@@ -1092,7 +1144,10 @@ def admin_user_save(payload: dict, user: UserDep, db: DbDep):
 
 @app.post("/api/admin/users/{uid}/reset-pin")
 def admin_reset_pin(uid: str, payload: dict, user: UserDep, db: DbDep):
-    require(user, "admin", "hr")
+    perms.need(user, "users.pin")
+    t = db.one("SELECT role FROM users WHERE id = ?", uid)
+    if t and t["role"] == "admin" and user["role"] != "admin":
+        raise HTTPException(403, "Only the director resets a director's PIN")
     pin = str(payload.get("pin") or "1234")
     if not re.fullmatch(r"\d{4,6}", pin):
         raise HTTPException(422, "PIN must be 4 to 6 digits")
@@ -1105,7 +1160,7 @@ def admin_reset_pin(uid: str, payload: dict, user: UserDep, db: DbDep):
 
 @app.post("/api/admin/sites")
 def admin_site_save(payload: dict, user: UserDep, db: DbDep):
-    require(user, "admin", "manager")
+    perms.need(user, "sites.edit")
     name = str(payload.get("name", "")).strip()
     if len(name) < 2:
         raise HTTPException(422, "Site name is required")
@@ -1123,7 +1178,7 @@ def admin_site_save(payload: dict, user: UserDep, db: DbDep):
 
 @app.post("/api/admin/items")
 def admin_item_save(payload: dict, user: UserDep, db: DbDep):
-    require(user, "admin", "manager")
+    perms.need(user, "sites.edit")
     name = str(payload.get("name", "")).strip()
     if not name or not payload.get("site_id"):
         raise HTTPException(422, "Site and item name are required")
@@ -1139,7 +1194,7 @@ def admin_item_save(payload: dict, user: UserDep, db: DbDep):
 
 @app.get("/api/admin/templates")
 def admin_templates(user: UserDep, db: DbDep):
-    require(user, "admin", "manager")
+    perms.need(user, "sites.edit")
     rows = db.all("SELECT * FROM templates ORDER BY name")
     for r in rows:
         r["fields"] = json.loads(r["fields"])
@@ -1148,7 +1203,7 @@ def admin_templates(user: UserDep, db: DbDep):
 
 @app.post("/api/admin/templates")
 def admin_template_save(payload: dict, user: UserDep, db: DbDep):
-    require(user, "admin", "manager")
+    perms.need(user, "sites.edit")
     name, body = str(payload.get("name", "")).strip(), str(payload.get("body", "")).strip()
     fields = payload.get("fields") or []
     if len(name) < 3 or len(body) < 20:
@@ -1169,7 +1224,7 @@ def admin_template_save(payload: dict, user: UserDep, db: DbDep):
 
 @app.post("/api/admin/settings")
 def admin_settings(payload: dict, user: UserDep, db: DbDep):
-    require(user, "admin")
+    perms.need(user, "settings.company")
     if "offices" in payload:
         clean = []
         for o in payload["offices"] or []:
@@ -1188,7 +1243,7 @@ def admin_settings(payload: dict, user: UserDep, db: DbDep):
 
 @app.post("/api/admin/company-signature")
 async def admin_company_signature(user: UserDep, db: DbDep, file: UploadFile = File(...)):
-    require(user, "admin")
+    perms.need(user, "settings.company")
     fid = await save_upload(db, file, "Company", "company_signature", user, name="authorised-signature.png")
     db.set_setting("company_signature_file", fid)
     return {"fileId": fid}
@@ -1196,7 +1251,7 @@ async def admin_company_signature(user: UserDep, db: DbDep, file: UploadFile = F
 
 @app.get("/api/admin/audit")
 def admin_audit(user: UserDep, db: DbDep, limit: int = 200):
-    require(user, "admin")
+    perms.need(user, "settings.audit")
     return {"rows": db.all("SELECT a.*, u.name AS user_name FROM audit a LEFT JOIN users u ON u.id = a.user_id ORDER BY a.at DESC LIMIT ?", limit)}
 
 

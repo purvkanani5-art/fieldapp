@@ -30,6 +30,7 @@ from fastapi.responses import Response
 from starlette.datastructures import UploadFile as FormFile
 
 import modules
+import perms
 from db import Db, now_iso
 from modules import attendance_month, leave_balances, local_today, num, profile_data, setting, team_ids, user_name
 
@@ -500,7 +501,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
         return {"month": month, "label": month_label(month), "status": p["status"] if p else "open", "locked_at": p["locked_at"] if p else None, "locked_by": locked_name,
                 "unlock_reason": p["unlock_reason"] if p else "", "unlocked_by": user_name(db, p["unlocked_by"]) if p and p["unlocked_by"] else "",
                 "frozen": frozen, "over": over, "rows": rows, "checks": [] if frozen else month_checks(db, month, rows), "managers": mgrs,
-                "canLock": user["role"] in ("admin", "hr"), "canUnlock": user["role"] == "admin", "iReviewed": user["id"] in reviews}
+                "canLock": perms.can(user, "att.lock"), "canUnlock": user["role"] == "admin", "iReviewed": user["id"] in reviews}
 
     @r.post("/hr/month/{month}/review")
     def month_review(month: str, payload: dict, user: user_dep, db: db_dep):
@@ -517,7 +518,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
 
     @r.post("/hr/month/{month}/lock")
     def month_lock(month: str, user: user_dep, db: db_dep):
-        hr_only(user)
+        perms.need(user, "att.lock")
         check_month(month)
         if month >= local_today().strftime("%Y-%m"):
             raise HTTPException(422, "A month can be locked only after it is over")
@@ -552,7 +553,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
         return {"ok": True}
 
     def export_guard(user: dict, db: Db, month: str) -> list[dict]:
-        hr_only(user)
+        perms.need(user, "att.lock")
         check_month(month)
         return month_rows(db, month)[0]
 
@@ -719,7 +720,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
         dd = date.fromisoformat(day)
         if dd > local_today():
             raise HTTPException(422, "Attendance cannot be marked for a future day")
-        if not is_staff(user) and (local_today() - dd).days > 2:
+        if not perms.can(user, "att.edit") and (local_today() - dd).days > 2:
             raise HTTPException(422, "Supervisors can mark today and the two days before; ask your manager for older days")
         assert_open(db, day)
         lines = json.loads(form.get("lines") or "[]")
@@ -767,7 +768,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
 
     @r.post("/hr/flags/{uid}")
     def set_flags(uid: str, payload: dict, user: user_dep, db: db_dep):
-        hr_only(user)
+        perms.need(user, "users.edit")
         u = db.one("SELECT id, supervisor, COALESCE(app_access, 1) AS app_access FROM users WHERE id = ?", uid)
         if not u:
             raise HTTPException(404, "Not found")
@@ -789,7 +790,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
 
     @r.get("/feedback")
     def feedback_list(user: user_dep, db: db_dep):
-        hr, ic = user["role"] in ("admin", "hr"), on_ic(db, user)
+        hr, ic = perms.can(user, "hr.complaints"), on_ic(db, user)
         if hr or ic:
             rows = db.all("SELECT fb.*, u.name AS user_name FROM feedback fb LEFT JOIN users u ON u.id = fb.user_id ORDER BY fb.created_at DESC")
             rows = [x for x in rows if (ic if x["category"] == "posh" else hr)]
@@ -835,7 +836,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
         return fb
 
     def may_answer(db: Db, user: dict, fb: dict) -> bool:
-        return on_ic(db, user) if fb["category"] == "posh" else user["role"] in ("admin", "hr")
+        return on_ic(db, user) if fb["category"] == "posh" else perms.can(user, "hr.complaints")
 
     @r.post("/feedback/{fid}/respond")
     def respond(fid: str, payload: dict, user: user_dep, db: db_dep):
@@ -911,19 +912,18 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
             out.append(notice_out(db, n, user))
         return {"rows": out, "unread": sum(1 for x in out if not x["read"] and in_audience(db, user["id"], x["audience"])),
                 "toAck": sum(1 for x in out if x["important"] and not x["acked"] and in_audience(db, user["id"], x["audience"])),
-                "canPost": is_staff(user)}
+                "canPost": perms.can(user, "hr.notices")}
 
     @r.post("/notices")
     def notice_add(payload: dict, user: user_dep, db: db_dep):
-        if not is_staff(user):
-            raise HTTPException(403, "Managers and HR post notices")
+        perms.need(user, "hr.notices")
         title, body = str(payload.get("title", "")).strip(), str(payload.get("body", "")).strip()
         if len(title) < 3 or len(body) < 5:
             raise HTTPException(422, "Give the notice a title and some text")
         aud = payload.get("audience") or {"type": "all"}
         if aud.get("type") not in ("all", "project", "site"):
             raise HTTPException(422, "Unknown audience")
-        if user["role"] == "manager":  # managers post to their own projects or sites
+        if not user.get("all_sites"):  # managers post to their own projects or sites
             if aud["type"] == "all" or (aud["type"] == "project" and aud.get("value") not in user["projects"]) or (aud["type"] == "site" and not site_allowed(user, aud.get("value", ""))):
                 raise HTTPException(403, "Managers post to their own projects or sites; HR posts to everyone")
         nid = db.insert("notices", {"title": title[:140], "body": body[:5000], "audience": json.dumps(aud), "important": 1 if payload.get("important") else 0,
@@ -983,7 +983,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
         closed = s["status"] == "closed" or (s["closes_on"] and s["closes_on"] < local_today().isoformat())
         o = {**s, "questions": json.loads(s["questions"]), "audience": aud, "audienceText": audience_text(db, aud), "done": done, "closed": bool(closed),
              "mine": in_audience(db, user["id"], aud), "by": user_name(db, s["created_by"])}
-        if user["role"] in ("admin", "hr") or s["created_by"] == user["id"]:
+        if perms.can(user, "hr.surveys") or s["created_by"] == user["id"]:
             o["responses"] = db.one("SELECT COUNT(*) AS n FROM survey_done WHERE survey_id = ?", s["id"])["n"]
             o["invited"] = len(audience_users(db, aud))
             o["canManage"] = True
@@ -993,11 +993,11 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
     def surveys(user: user_dep, db: db_dep):
         rows = [survey_out(db, s, user) for s in db.all("SELECT * FROM surveys ORDER BY created_at DESC")]
         rows = [x for x in rows if x["mine"] or x.get("canManage")]
-        return {"rows": rows, "todo": sum(1 for x in rows if x["mine"] and not x["done"] and not x["closed"]), "canCreate": user["role"] in ("admin", "hr")}
+        return {"rows": rows, "todo": sum(1 for x in rows if x["mine"] and not x["done"] and not x["closed"]), "canCreate": perms.can(user, "hr.surveys")}
 
     @r.post("/surveys")
     def survey_add(payload: dict, user: user_dep, db: db_dep):
-        hr_only(user)
+        perms.need(user, "hr.surveys")
         title = str(payload.get("title", "")).strip()
         qs = payload.get("questions") or []
         clean = []
@@ -1068,7 +1068,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
 
     @r.post("/surveys/{sid}/close")
     def survey_close(sid: str, user: user_dep, db: db_dep):
-        hr_only(user)
+        perms.need(user, "hr.surveys")
         db.run("UPDATE surveys SET status = 'closed' WHERE id = ?", sid)
         return {"ok": True}
 

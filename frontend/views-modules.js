@@ -53,7 +53,7 @@ const HUB = {
     ['#attsum', 'calendar', 'green', 'Attendance summary', 'Month by month: present, late, absent, overtime'],
     ['#leaves', 'sun', 'amber', 'Leave balances', 'Accrual, used, pending and what is left'],
     ...(isStaff() ? [['#monthend', 'lock', 'violet', 'Month end', 'Approve and lock attendance, export to Zoho Payroll'], ['#hrreg', 'list', '', 'Registers', 'Muster roll and leave register']] : []),
-    ...(['admin', 'hr'].includes(KL.user.role) ? [['#hrsettings', 'cog', '', 'HR settings', 'Approval chains, leave policy, work hours']] : []),
+    ...(['admin', 'hr'].includes(KL.user.role) ? [['#hrsettings', 'cog', '', 'HR settings', 'Leave policy, work hours']] : []),
   ] },
   money: { title: 'Money', icon: 'receipt', tone: 'violet', extra: () => [] },
   ops: { title: 'Safety & equipment', icon: 'shield', tone: 'red', extra: () => [['#map', 'map', 'green', 'Map', 'Sites, plots, incidents and people on site']] },
@@ -205,11 +205,10 @@ function recDetail(k, id) {
     ${isStaff() && !['batch', 'application', 'transfer', 'dispatch'].includes(k.key) ? `<button type="button" class="btn ghost" style="margin-top:14px;color:var(--danger)" data-action="recDelete" data-kind="${esc(k.key)}" data-id="${esc(id)}">${ic('trash')} Delete</button>` : ''}`;
 }
 function stepsBox(k, r) {
-  const me = KL.user;
   const cur = r.steps.find((s) => s.status === 'waiting');
-  const mine = cur && r.status === 'pending' && (me.role === 'admin' || cur.approver_id === me.id || (!cur.approver_id && me.role === cur.role));
-  return group('Approval', `<div class="card"><div class="tl">${r.steps.map((s) => `<div class="ev ${s.status === 'approved' ? '' : s.status === 'waiting' ? 'amber' : s.status === 'rejected' ? 'red' : 'violet'}"><b>Step ${s.step}: ${esc(ROLE_TEXT[s.role] || s.role)}${s.approver_name ? ` · ${esc(s.approver_name)}` : ''}</b><span>${s.status === 'waiting' ? 'Waiting for a decision' : s.status === 'queued' ? 'Next, after the step above' : s.status === 'skipped' ? 'Not needed' : `${esc(s.status)} by ${esc(s.decided_name || '')} · ${esc(fmtDate(s.decided_at))}${s.note ? ` · “${esc(s.note)}”` : ''}`}</span></div>`).join('')}</div>
-    ${mine ? `<div class="btns" style="margin-top:6px"><button type="button" class="btn danger" data-action="recDecide" data-kind="${esc(k.key)}" data-id="${esc(r.id)}" data-decision="rejected">Reject</button><button type="button" class="btn primary" data-action="recDecide" data-kind="${esc(k.key)}" data-id="${esc(r.id)}" data-decision="approved">Approve</button></div>` : ''}</div>`, r.status === 'pending' && cur ? `with ${esc(cur.approver_name || cur.role)}` : '');
+  const mine = cur && r.canDecide;
+  return group('Approval', `<div class="card"><div class="tl">${r.steps.map((s) => `<div class="ev ${s.status === 'approved' ? '' : s.status === 'waiting' ? 'amber' : s.status === 'rejected' ? 'red' : 'violet'}"><b>Step ${s.step}: ${esc(s.role_label || ROLE_TEXT[s.role] || s.role)}${s.approver_name ? ` · ${esc(s.approver_name)}` : ''}</b><span>${s.status === 'waiting' ? 'Waiting for a decision' : s.status === 'queued' ? 'Next, after the step above' : s.status === 'skipped' ? 'Not needed' : `${esc(s.status)} by ${esc(s.decided_name || '')} · ${esc(fmtDate(s.decided_at))}${s.note ? ` · “${esc(s.note)}”` : ''}`}</span></div>`).join('')}</div>
+    ${mine ? `<div class="btns" style="margin-top:6px"><button type="button" class="btn danger" data-action="recDecide" data-kind="${esc(k.key)}" data-id="${esc(r.id)}" data-decision="rejected">Reject</button><button type="button" class="btn primary" data-action="recDecide" data-kind="${esc(k.key)}" data-id="${esc(r.id)}" data-decision="approved">Approve</button></div>` : ''}</div>`, r.status === 'pending' && cur ? `with ${esc(cur.approver_name || cur.role_label || cur.role)}` : '');
 }
 function batchChain(r) {
   const ch = r.chain;
@@ -333,7 +332,16 @@ function recForm(k, id) {
 function chainText(key) {
   const kd = KL.cache['m:kinds'];
   const chain = kd && !kd.error ? kd.chains[key] || [] : [];
-  return chain.map((s, i) => `${i + 1}. ${ROLE_TEXT[s.role] || s.role}${s.role === 'manager' ? ' (your reporting manager)' : ''}${s.min ? ` when ${key === 'leave' ? `more than ${s.min} days` : `${rupees(s.min)} or more`}` : ''}`).join(' → ') || 'Your manager';
+  const lim = (s) => (s.over !== undefined && s.over !== null && s.over !== '' ? ` when more than ${key === 'leave' ? `${s.over} days` : rupees(s.over)}`
+    : s.min ? ` when ${key === 'leave' ? `${s.min} days or more` : `${rupees(s.min)} or more`}` : '');
+  return chain.map((s, i) => `${i + 1}. ${approverText(s.role)}${lim(s)}`).join(' → ') || 'Your manager';
+}
+/** Who an approval step goes to, in words: reporting manager, a role, a department's team, HR or the director. */
+function approverText(spec) {
+  if (spec === 'manager') return 'Your reporting manager';
+  if (spec.startsWith('role:')) return spec.slice(5);
+  if (spec.startsWith('dept:')) return `${(KL.boot.departments || []).find((d) => d.key === spec.slice(5))?.name || spec.slice(5)} team`;
+  return { hr: 'HR', admin: 'Director' }[spec] || ROLE_TEXT[spec] || spec;
 }
 function recPreview(k) {
   const v = (key) => Number(F(rk(k.key, key), '')) || 0;
@@ -426,7 +434,7 @@ function requestApprovals() {
 /* ---------------------------------------------------------------- people */
 Views.people = () => {
   const p = data('hr:people', () => api('/api/hr/people'));
-  const head = topbar('Employee directory', '#hr', ['admin', 'hr'].includes(KL.user.role) ? `<a class="btn small primary" href="#admin/users">${ic('plus')} Add employee</a>` : '');
+  const head = topbar('Employee directory', '#hr', can('users.add') ? `<a class="btn small primary" href="#admin/users">${ic('plus')} Add employee</a>` : '');
   if (p === null) return `${head}${spinner()}`;
   if (p.error) return `${head}${errorBox(p.error)}`;
   const siteNames = (u) => (u.sites || []).map(siteName).filter((n) => n !== 'Unassigned');
@@ -635,11 +643,10 @@ Views.hrsettings = () => {
   if (!kd) return `${topbar('HR settings', '#hub/hr')}${spinner()}`;
   if (KL.ui.hsInit !== true) {
     KL.ui.hsInit = true;
-    setF('hs-chains', JSON.stringify(kd.chains, null, 1)); setF('hs-leave', JSON.stringify(kd.leavePolicy, null, 1)); setF('hs-hours', JSON.stringify(kd.workHours, null, 1)); setF('hs-ret', JSON.stringify(kd.retention, null, 1));
+    setF('hs-leave', JSON.stringify(kd.leavePolicy, null, 1)); setF('hs-hours', JSON.stringify(kd.workHours, null, 1)); setF('hs-ret', JSON.stringify(kd.retention, null, 1));
   }
-  const chainsView = Object.entries(kd.chains).map(([k, steps]) => `<span>${esc(kindDef(k)?.label || (k === 'leave' ? 'Leave' : k))}</span><span>${steps.map((s) => `${ROLE_TEXT[s.role] || s.role}${s.min ? ` (≥ ${k === 'leave' ? `${s.min} d` : rupees(s.min)})` : ''}`).join(' → ')}</span>`).join('');
   return `${topbar('HR settings', '#hub/hr')}
-    ${group('Approval chains', `<div class="card stack"><div class="kv">${chainsView}</div><details class="fold"><summary>Edit as text</summary>${textarea('hs-chains', F('hs-chains'))}</details></div>`)}
+    ${group('Approval rules', `<div class="card flush">${lrow(isAdmin() ? { href: '#settings/roles', icon: 'shield', tone: 'green', title: 'Who approves what', sub: 'Settings > Roles & permissions: approvers and limits for leave, travel, expenses and more' } : { icon: 'shield', title: 'Who approves what', sub: 'The director sets approvers and limits in Settings > Roles & permissions', chev: false })}</div>`)}
     ${group('Leave policy and work hours', `<div class="card stack">${field('Leave policy', textarea('hs-leave', F('hs-leave')))}${field('Work hours, grace and weekly off (0 = Monday … 6 = Sunday)', textarea('hs-hours', F('hs-hours')))}${field('Data retention (years)', textarea('hs-ret', F('hs-ret')))}</div>`)}
     <button type="button" class="btn primary wide" style="margin-top:14px" data-action="hsSave">Save settings</button>
     ${group('For reviewers', reviewerNote())}
@@ -651,7 +658,7 @@ Views.hrsettings = () => {
 };
 Actions.hsSave = async () => {
   try {
-    const payload = { approval_chains: JSON.parse(F('hs-chains')), leave_policy: JSON.parse(F('hs-leave')), work_hours: JSON.parse(F('hs-hours')), retention: JSON.parse(F('hs-ret')) };
+    const payload = { leave_policy: JSON.parse(F('hs-leave')), work_hours: JSON.parse(F('hs-hours')), retention: JSON.parse(F('hs-ret')) };
     await api('/api/hr/settings', { json: payload }); invalidate('m:kinds'); KL.ui.hsInit = false; toast('Settings saved'); render();
   } catch (e) { toast(e instanceof SyntaxError ? 'One of the boxes is not valid JSON' : e.message, 'error'); }
 };

@@ -210,6 +210,18 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
    clock only within 10 min live / 7 days queued; one open check-in/trip re-checked before insert; stock balance by
    rowid; notify_role honours user_projects; planner edits send only changed fields, ticks match by text, completion
    idempotent. Tests: .cache/kl_bugsweep_check.py (36), kl-bugsweep-ui.mjs (12).
+28. **Roles & permissions (2026-11-18)**: owner asked for role-based permissions with approval limits ("leave upto x
+   days and more than x days"), travel approved by the reporting manager AND the accounts & finance team, and
+   departments (GAS + BIO one department, AGR one). No per-person exceptions for now. Built: backend/perms.py +
+   frontend/views-perms.js, Settings > Roles & permissions (director only): access level per role (moves its people),
+   tick grid for Manager/HR-level roles (field-level roles get no office tools), approval rules per request type
+   (steps in order, first always decides, later steps join when amount > `over`; old rules with `min` still read).
+   A role = users.designation; never-ticked roles get their level's defaults (= behaviour before). Approvers can be
+   the reporting manager, a role, a department's team (anyone in it, never the requester; director if nobody else),
+   HR or the director. Trips now go through approval_steps (kind 'travel'); trips/leaves made before keep the old
+   single decision. Departments: setting `departments`, users.department, else from the employee-code project;
+   editable in Settings > Lists. Visibility (sites, people) still follows the access level. Demo adds EMP004
+   Accounts Executive. Tests: .cache/kl_perms_check.py (48), kl-perms-ui.mjs (18).
 
 ## Testing
 - `D:\PersonalBooks\.cache\kl-e2e.mjs` (2026-11-14): resets the demo, then manager assigns a photo-proof task →

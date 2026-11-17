@@ -1,19 +1,24 @@
 /* Settings > Lists: every dropdown the company can change (roles, offices, projects, leave types, vehicles and the
    record forms' options). One card per list: rows with a bin to delete (greyed when in use), an Add row at the foot. */
 
-const canLists = () => ['admin', 'hr'].includes(KL.user?.role);
+const canLists = () => isAdmin() || can('settings.lists');
 const LIST_GROUP_TITLE = { people: 'People', money: 'Money', ops: 'Operations' };
 
-/** Tabs at the top of Settings for the director and HR: General · Lists. */
+/** Tabs at the top of Settings: General · Lists (director, roles with "Edit lists") · Roles & permissions (director). */
 function settingsTabs(active) {
-  if (!canLists()) return '';
-  return `<nav class="tabs" aria-label="Settings">${[['settings', 'General'], ['settings/lists', 'Lists']].map(([h, l]) => `<a href="#${h}" class="${h === active ? 'on' : ''}" ${h === active ? 'aria-current="page"' : ''}>${l}</a>`).join('')}</nav>`;
+  const tabs = [['settings', 'General'], ...(canLists() ? [['settings/lists', 'Lists']] : []), ...(isAdmin() ? [['settings/roles', 'Roles & permissions']] : [])];
+  if (tabs.length < 2) return '';
+  return `<nav class="tabs" aria-label="Settings">${tabs.map(([h, l]) => `<a href="#${h}" class="${h === active ? 'on' : ''}" ${h === active ? 'aria-current="page"' : ''}>${l}</a>`).join('')}</nav>`;
 }
 
 function listRowText(L, it) {
   if (L.key === 'roles') return `<b>${esc(it.value)}</b><small>${esc(KL.cache['admin:lists']?.levels?.[it.level] || it.level)}</small>`;
   if (L.key === 'offices') return `<b class="notr">${esc(it.value)}</b><span>${esc(it.name)}</span>`;
   if (L.key === 'projects') return `${ic(it.icon || 'pin')}<b>${esc(it.name)}</b><small class="notr">${esc(it.code)}</small>`;
+  if (L.key === 'departments') {
+    const projs = KL.boot.projectList || [];
+    return `<b>${esc(it.name)}</b><span class="pm-chips">${projs.map((p) => `<button type="button" class="pm-chip notr" data-action="deptProj" data-value="${esc(it.value)}" data-project="${esc(p.key)}" aria-pressed="${it.projects.includes(p.key)}" title="${esc(p.name)}">${esc(p.code)}</button>`).join('')}</span>`;
+  }
   if (L.key === 'vehicles') return `<b>${esc(it.value)}</b><small>₹${esc(String(it.rate))} / km</small>`;
   return `<b>${esc(it.value)}</b>`;
 }
@@ -32,7 +37,8 @@ function listCard(L, extra) {
     : L.key === 'offices' ? `<input class="input lc-short notr" id="${id('value')}" inputmode="numeric" maxlength="2" placeholder="${esc(nextOfficeNo(L))}" value="${esc(nextOfficeNo(L))}" aria-label="Office number" /><input class="input" id="${id('name')}" placeholder="Office name, e.g. Rajkot" />`
       : L.key === 'projects' ? `<input class="input lc-short notr" id="${id('code')}" maxlength="3" placeholder="SOL" aria-label="3-letter code" style="text-transform:uppercase" /><input class="input" id="${id('value')}" placeholder="Project name, e.g. Solar" /><select class="input lc-icon" id="${id('icon')}" aria-label="Icon">${(extra.icons || []).map((i) => `<option value="${i}">${i[0].toUpperCase()}${i.slice(1)}</option>`).join('')}</select>`
         : L.key === 'vehicles' ? `<input class="input" id="${id('value')}" placeholder="Vehicle, e.g. Tractor" /><input class="input lc-short" id="${id('rate')}" inputmode="decimal" placeholder="₹ / km" aria-label="Rate per km" />`
-          : `<input class="input" id="${id('value')}" placeholder="Add to ${esc(L.label.toLowerCase())}" />`;
+          : L.key === 'departments' ? `<input class="input" id="${id('value')}" placeholder="New department, e.g. Solar. Tap project codes to put projects in it" />`
+            : `<input class="input" id="${id('value')}" placeholder="Add to ${esc(L.label.toLowerCase())}" />`;
   return `<div class="card lc" id="lc-${esc(L.key)}">
     <div class="lc-head"><b>${esc(L.label)}</b>${L.hint ? `<span class="hint">${esc(L.hint)}</span>` : ''}</div>
     <div class="lc-rows">${rows}</div>
@@ -68,6 +74,13 @@ Actions.listAdd = async (el) => {
     setTimeout(() => document.getElementById(`la-${key}-value`)?.focus(), 50);
   } catch (e) { toast(e.message, 'error'); }
 };
+Actions.deptProj = async (el) => {
+  const on = el.getAttribute('aria-pressed') !== 'true';
+  try {
+    await api('/api/admin/lists/departments/project', { json: { value: el.dataset.value, project: el.dataset.project, on } });
+    invalidate('admin:lists'); await reloadBoot(); toast(on ? 'Added to the department' : 'Taken out'); render();
+  } catch (e) { toast(e.message, 'error'); }
+};
 Actions.listDel = async (el) => {
   if (!(await modal({ title: `Delete ${el.dataset.name}?`, message: 'It disappears from the dropdown. You can add it again later.', confirmText: 'Delete', danger: true }))) return;
   try {
@@ -80,6 +93,7 @@ Actions.listDel = async (el) => {
   const settingsGeneral = Views.settings;
   Views.settings = (arg) => {
     if (arg === 'lists' && canLists()) return listsView();
+    if (arg === 'roles' && isAdmin()) return permsView();
     return settingsGeneral().replace(/(<\/header>)/, `$1${settingsTabs('settings')}`);
   };
 }

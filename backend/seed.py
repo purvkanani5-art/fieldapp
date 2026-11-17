@@ -15,6 +15,7 @@ USERS = [
     ("EMP001", "Purv Kanani", "admin", "Director"),
     ("EMP002", "Meera Shah", "manager", "Operations Manager, Biochar & Gasifier"),
     ("EMP003", "Ravi Patel", "hr", "HR Executive"),
+    ("EMP004", "Hetal Desai", "manager", "Accounts Executive"),
     ("EMP005", "Nidhi Trivedi", "manager", "Project Manager, Agroforestry"),
     ("EMP101", "Jignesh Rathod", "field", "Kiln Supervisor, Biochar"),
     ("EMP102", "Kiran Vaghela", "field", "Field Officer, Agroforestry"),
@@ -114,7 +115,7 @@ def seed_if_empty() -> None:
         # Field staff work at sites; project managers manage whole projects (every site in them, now and later).
         assign = {"EMP101": ["Lodhika Kiln Site"], "EMP106": ["Viramgam Biochar Plant"], "EMP102": ["Nava Agroforestry Site"],
                   "EMP107": ["Deesa Agroforestry Site", "Salariya Agroforestry Site"], "EMP103": ["Balaji Gasifier Site"], "EMP003": ["Head Office, Ahmedabad"],
-                  "EMP002": ["Head Office, Ahmedabad"], "EMP005": ["Head Office, Ahmedabad"]}
+                  "EMP002": ["Head Office, Ahmedabad"], "EMP005": ["Head Office, Ahmedabad"], "EMP004": ["Head Office, Ahmedabad"]}
         for emp, names in assign.items():
             for n in names:
                 db.insert("user_sites", {"user_id": uid[emp], "site_id": by_name[n]})

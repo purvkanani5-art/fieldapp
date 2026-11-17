@@ -51,6 +51,8 @@ function fieldTodo() {
   const w = data('hr:waiting', () => api('/api/hr/waiting'));
   const upd = data('updates:mine', () => api('/api/updates?days=1'));
   const items = [];
+  const pend = KL.me?.pendingApprovals || 0;
+  if (pend) items.push({ href: '#approvals', icon: 'check', tone: 'amber', title: pend === 1 ? '1 request to approve' : `${pend} requests to approve`, sub: 'The approval rules send these to you' });
   const today = todayISO();
   const soon = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
   const open = my && !my.error ? my.tasks.filter((t) => t.progress !== 'completed').sort(byDue) : [];
@@ -253,7 +255,7 @@ Views.settings = () => {
     ${isStaff() ? group('Administration', `<div class="fa-list">
       <a class="fa-row" href="#security"><span class="fa-ic">${ic('shield')}</span><span class="fa-tx"><b>Two-step sign-in</b><span>Authenticator code after the PIN</span></span><span class="chev">${ic('chevron')}</span></a>
       <a class="fa-row" href="#admin"><span class="fa-ic">${ic('cog')}</span><span class="fa-tx"><b>Administration</b><span>Users, sites, registers, templates, company</span></span><span class="chev">${ic('chevron')}</span></a>
-      ${['admin', 'hr'].includes(u.role) ? `<a class="fa-row" href="#hrsettings"><span class="fa-ic">${ic('cog')}</span><span class="fa-tx"><b>HR settings</b><span>Approval chains, leave policy, work hours</span></span><span class="chev">${ic('chevron')}</span></a>` : ''}
+      ${['admin', 'hr'].includes(u.role) ? `<a class="fa-row" href="#hrsettings"><span class="fa-ic">${ic('cog')}</span><span class="fa-tx"><b>HR settings</b><span>Leave policy, work hours</span></span><span class="chev">${ic('chevron')}</span></a>` : ''}
     </div>`) : ''}
     ${failedItems()}
     ${group('For reviewers', reviewerNote())}`;

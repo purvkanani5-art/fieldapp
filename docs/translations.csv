@@ -1,10 +1,12 @@
 ﻿English,Gujarati,Hindi
 '{x}' needs at least two options,'{x}' માં ઓછામાં ઓછા બે વિકલ્પ જોઈએ,'{x}' में कम से कम दो विकल्प चाहिए
+(none),(કોઈ નહીં),(कोई नहीं)
 (required),(જરૂરી),(ज़रूरी)
 + Add,+ ઉમેરો,+ जोड़ें
 +{n} kg Biochar (finished),+{n} kg બાયોચાર (તૈયાર),+{n} kg बायोचार (तैयार)
 ", answers are anonymous",", જવાબો નામ વગરના છે",", जवाब गुमनाम हैं"
 /{n} done,/{n} પૂરાં,/{n} पूरे
+1 request to approve,મંજૂર કરવાની 1 અરજી,मंज़ूर करने को 1 अनुरोध
 1 Unsatisfactory,1 અસંતોષકારક,1 असंतोषजनक
 2 Needs work,2 સુધારાની જરૂર,2 सुधार चाहिए
 3 Meets,3 અપેક્ષા મુજબ,3 उम्मीद के मुताबिक
@@ -23,18 +25,26 @@ Absent,ગેરહાજર,ग़ैरहाज़िर
 absent,ગેરહાજર,ग़ैरहाज़िर
 absent this month,આ મહિને ગેરહાજર,इस महीने ग़ैरहाज़िर
 Accept,સ્વીકારો,स्वीकार करें
+Accept check-in exceptions,ચેક-ઇન અપવાદ સ્વીકારો,चेक-इन अपवाद स्वीकारें
 accepted,સ્વીકાર્યું,स्वीकार किया
 "Accepted by {n}: {x}, {x}","{n} એ સ્વીકાર્યું: {x}, {x}","{n} ने स्वीकार किया: {x}, {x}"
+Access level changed,ઍક્સેસ સ્તર બદલાયું,एक्सेस स्तर बदला
+Access level of each role,દરેક ભૂમિકાનું ઍક્સેસ સ્તર,हर भूमिका का एक्सेस स्तर
 Account,એકાઉન્ટ,खाता
+Accounts & Finance,હિસાબ અને ફાઇનાન્સ,लेखा और वित्त
+Accounts & Finance team,હિસાબ અને ફાઇનાન્સ ટીમ,लेखा और वित्त टीम
 "Accrual, used, pending and what is left","જમા, વપરાયેલી, બાકી અને કેટલી રહી","जमा, इस्तेमाल, बाकी और कितनी बची"
 Actions,ક્રિયાઓ,कार्रवाई
 Active,ચાલુ,सक्रिय
 Activity,પ્રવૃત્તિ,गतिविधि
 Add,ઉમેરો,जोड़ें
+Add a step,પગલું ઉમેરો,चरण जोड़ें
 Add an employee to this site,આ સાઇટમાં કર્મચારી ઉમેરો,इस साइट में कर्मचारी जोड़ें
+"Add and edit sites, register items and farmer templates","સાઇટ, રજિસ્ટર વસ્તુઓ અને ખેડૂત નમૂના ઉમેરો અને બદલો","साइट, रजिस्टर आइटम और किसान टेम्पलेट जोड़ें और बदलें"
 Add at {x},{x} પર ઉમેરો,{x} पर जोड़ें
 Add contract worker,કોન્ટ્રાક્ટ કામદાર ઉમેરો,ठेका मज़दूर जोड़ें
 Add employee,કર્મચારી ઉમેરો,कर्मचारी जोड़ें
+Add employees,કર્મચારી ઉમેરો,कर्मचारी जोड़ें
 Add entry,નોંધ ઉમેરો,एंट्री जोड़ें
 Add farmer,ખેડૂત ઉમેરો,किसान जोड़ें
 Add lab result,લેબ પરિણામ ઉમેરો,लैब परिणाम जोड़ें
@@ -47,6 +57,7 @@ Add the first one.,પહેલું ઉમેરો.,पहला जोड़
 Add the reporting offices in Administration > Company first,પહેલાં વહીવટ > કંપનીમાં રિપોર્ટિંગ ઓફિસો ઉમેરો,पहले प्रशासन > कंपनी में रिपोर्टिंग ऑफ़िस जोड़ें
 Add to {x},{x} માં ઉમેરો,{x} में जोड़ें
 Added,ઉમેર્યું,जोड़ा गया
+Added to the department,વિભાગમાં ઉમેર્યું,विभाग में जोड़ा
 Address,સરનામું,पता
 Address (on letterhead),સરનામું (લેટરહેડ પર),पता (लेटरहेड पर)
 Admin,એડમિન,एडमिन
@@ -75,6 +86,7 @@ all OK,બધું ઠીક,सब ठीक
 "All site records: stock, generation, equipment, safety","સાઇટના બધા રેકોર્ડ: સ્ટોક, વીજ ઉત્પાદન, સાધનો, સલામતી","साइट के सभी रिकॉर्ड: स्टॉक, बिजली उत्पादन, उपकरण, सुरक्षा"
 "All site records: stock, nursery, plantation, farmers","સાઇટના બધા રેકોર્ડ: સ્ટોક, નર્સરી, વાવેતર, ખેડૂતો","साइट के सभी रिकॉर्ड: स्टॉक, नर्सरी, पौधारोपण, किसान"
 all sites,બધી સાઇટ્સ,सभी साइटें
+Allowed,મંજૂરી આપી,अनुमति दी
 Allowed radius (m),મંજૂર ત્રિજ્યા (m),अनुमति वाली दूरी (m)
 allowed {n} m,{n} m સુધી માન્ય,{n} m तक मान्य
 Allowed:,મંજૂર મર્યાદા:,अनुमत सीमा:
@@ -82,6 +94,7 @@ Already decided,નિર્ણય થઈ ગયો છે,फ़ैसला �
 Already decided; it can no longer be changed,નિર્ણય થઈ ગયો છે; હવે બદલી શકાય નહીં,फ़ैसला हो चुका है; अब बदला नहीं जा सकता
 Already locked,પહેલેથી લૉક છે,पहले से लॉक है
 Also,આ પણ,यह भी
+always,હંમેશા,हमेशा
 Amount,રકમ,रकम
 An app of,આની એપ,इसका ऐप
 An approver has already acted on it; ask them to reject it and file a new one,મંજૂરી આપનારે તેના પર પગલું લીધું છે; તેમને નામંજૂર કરવા કહો અને નવી અરજી કરો,मंज़ूरी देने वाले ने इस पर कार्रवाई कर दी है; उनसे नामंज़ूर करने को कहें और नया भरें
@@ -115,11 +128,14 @@ Approval chains,મંજૂરીની સાંકળ,मंज़ूरी �
 "Approval chains, leave policy, work hours","મંજૂરીની સાંકળ, રજા નીતિ, કામના કલાક","मंज़ूरी की कड़ी, छुट्टी नीति, काम के घंटे"
 "Approval chains, leave policy, work hours, WhatsApp, Tally","મંજૂરીની સાંકળ, રજા નીતિ, કામના કલાક, WhatsApp, Tally","मंज़ूरी की कड़ी, छुट्टी नीति, काम के घंटे, WhatsApp, Tally"
 Approval needed: {x},મંજૂરી જોઈએ: {x},मंज़ूरी चाहिए: {x}
+Approval rule saved,મંજૂરીનો નિયમ સચવાયો,मंज़ूरी का नियम सेव हुआ
+Approval rules,મંજૂરીના નિયમો,मंज़ूरी के नियम
 Approvals,મંજૂરીઓ,मंज़ूरियाँ
 "Approvals, your team and HR for everyone","મંજૂરીઓ, તમારી ટીમ અને બધા માટે HR","मंज़ूरियाँ, आपकी टीम और सबके लिए HR"
 "Approvals, your team and HR for your projects","તમારા પ્રોજેક્ટની મંજૂરીઓ, તમારી ટીમ અને HR","आपके प्रोजेक्ट की मंज़ूरियाँ, आपकी टीम और HR"
 Approve,મંજૂર કરો,मंज़ूर करें
 "Approve and lock attendance, export to Zoho Payroll","હાજરી મંજૂર અને લૉક કરો, Zoho Payroll માં એક્સપોર્ટ કરો","हाजिरी मंज़ूर और लॉक करें, Zoho Payroll में एक्सपोर्ट करें"
+Approve and lock month end,મહિનાનો અંત મંજૂર કરી લૉક કરો,महीने का अंत मंज़ूर कर लॉक करें
 Approve or reject it from Approvals,મંજૂરીઓમાંથી મંજૂર કે નામંજૂર કરો,मंज़ूरियों से मंज़ूर या नामंज़ूर करें
 Approve the request first,પહેલાં વિનંતી મંજૂર કરો,पहले अनुरोध मंज़ूर करें
 "Approve, lock and export","મંજૂર કરો, લૉક કરો અને એક્સપોર્ટ કરો","मंज़ूर करें, लॉक करें और एक्सपोर्ट करें"
@@ -145,6 +161,7 @@ Assets,સંપત્તિ,सामान
 Assets issued,આપેલી વસ્તુઓ,दिया गया सामान
 Assets returned,વસ્તુઓ પાછી આપી,सामान वापस किया
 Assets returned Advance recovery sent to Zoho Payroll Leave encashment days sent to Zoho Payroll Full and final done in Zoho Experience letter App access removed,સંપત્તિ પાછી આપી એડવાન્સ વસૂલી Zoho Payroll માં મોકલી રજા રોકડના દિવસો Zoho Payroll માં મોકલ્યા ફુલ એન્ડ ફાઇનલ Zoho માં થયું અનુભવ પત્ર એપ ઍક્સેસ બંધ કર્યો,संपत्ति वापस की एडवांस वसूली Zoho Payroll में भेजी छुट्टी नकदीकरण के दिन Zoho Payroll में भेजे फुल एंड फ़ाइनल Zoho में हुआ अनुभव पत्र ऐप एक्सेस हटाया
+Assign people to sites and projects,લોકોને સાઇટ અને પ્રોજેક્ટ સોંપો,लोगों को साइट और प्रोजेक्ट सौंपें
 Assigned to,કોને સોંપ્યું,किसे सौंपा
 Assigned to me,મને સોંપેલું,मुझे सौंपा गया
 at risk,જોખમમાં,खतरे में
@@ -198,6 +215,7 @@ batches waiting for the lab,બેચ લેબની રાહ જુએ છે
 "Bills other than travel, with receipt","મુસાફરી સિવાયના બિલ, રસીદ સાથે","यात्रा के अलावा बिल, रसीद के साथ"
 "Bills with receipt photos; manager, then HR above ₹{n}","રસીદના ફોટા સાથે બિલ; મેનેજર, પછી ₹{n} થી વધુ હોય તો HR","रसीद की फ़ोटो के साथ बिल; मैनेजर, फिर ₹{n} से ऊपर HR"
 Biochar,બાયોચાર,बायोचार
+Biochar & Gas,બાયોચાર અને ગેસ,बायोचार और गैस
 Biochar (whole project),બાયોચાર (આખો પ્રોજેક્ટ),बायोचार (पूरा प्रोजेक्ट)
 Biochar application methods,બાયોચાર નાખવાની રીતો,बायोचार डालने के तरीके
 Biochar applied on farms,ખેતરોમાં નાખેલો બાયોચાર,खेतों में डाला गया बायोचार
@@ -241,6 +259,7 @@ Casual left,કેઝ્યુઅલ બાકી,आकस्मिक बा�
 Category,પ્રકાર,श्रेणी
 Category (optional),શ્રેણી (મરજિયાત),श्रेणी (वैकल्पिक)
 Certificate,પ્રમાણપત્ર,प्रमाणपत्र
+Chain,ક્રમ,क्रम
 Chain of custody,કસ્ટડીની સાંકળ,कस्टडी की कड़ी
 Chain-of-custody PDF,કસ્ટડીની સાંકળ PDF,कस्टडी की कड़ी PDF
 Change,બદલો,बदलें
@@ -357,6 +376,7 @@ Count,ગણતરી,गिनती
 "Counted {x}, book {x} ({x} {x})","ગણ્યું {x}, ચોપડે {x} ({x} {x})","गिना {x}, बही में {x} ({x} {x})"
 Courses and certificates with expiry,મુદત સાથે કોર્સ અને પ્રમાણપત્ર,समाप्ति तिथि के साथ कोर्स और प्रमाणपत्र
 Create,બનાવો,बनाएँ
+Create plans and assign tasks,યોજના બનાવો અને કામ સોંપો,योजना बनाएँ और काम सौंपें
 Created by {x} {n} d ago,{x} એ {n} દિવસ પહેલાં બનાવ્યું,{x} ने {n} दिन पहले बनाया
 Crew attendance,ટુકડીની હાજરી,टोली की हाजिरी
 Crew attendance (people without phones),ટુકડીની હાજરી (ફોન વગરના લોકો),टोली की हाजिरी (बिना फ़ोन वाले लोग)
@@ -391,7 +411,9 @@ Days,દિવસ,दिन
 Days worked,કામના દિવસો,काम के दिन
 Days worked (optional),કામના દિવસો (મરજિયાત),काम के दिन (वैकल्पिक)
 Days:,દિવસો:,दिन:
+Deactivate or bring back employees,કર્મચારીને બંધ કરો કે પાછા લાવો,कर्मचारी बंद करें या वापस लाएँ
 Decided ({n}),નક્કી થયેલ ({n}),तय हुए ({n})
+decides every request,દરેક અરજી નક્કી કરે છે,हर अनुरोध तय करता है
 decision must be approved or rejected,નિર્ણય મંજૂર અથવા નામંજૂર હોવો જોઈએ,फ़ैसला मंज़ूर या नामंज़ूर होना चाहिए
 decision must be ok or rejected,નિર્ણય બરાબર અથવા નામંજૂર હોવો જોઈએ,फ़ैसला ठीक या नामंज़ूर होना चाहिए
 Declared area,જાહેર કરેલ વિસ્તાર,घोषित क्षेत्रफल
@@ -401,6 +423,9 @@ Delete {x}?,{x} કાઢી નાખવું?,{x} हटाएँ?
 Deleted,કાઢી નાખ્યું,हटा दिया
 demo,ડેમો,डेमो
 Demo data rebuilt,ડેમો ડેટા ફરી બનાવ્યો,डेमो डेटा फिर से बनाया
+Department,વિભાગ,विभाग
+Department (blank = from the project),વિભાગ (ખાલી = પ્રોજેક્ટ પરથી),विभाग (ख़ाली = प्रोजेक्ट से)
+Departments,વિભાગો,विभाग
 Designation,હોદ્દો,पद
 Details,વિગતો,विवरण
 "Details, bank and statutory numbers, leave balance, assets, training, goals","વિગતો, બેંક અને કાનૂની નંબર, રજા બેલેન્સ, આપેલી વસ્તુઓ, તાલીમ, લક્ષ્ય","विवरण, बैंक और वैधानिक नंबर, छुट्टी बैलेंस, सामान, प्रशिक्षण, लक्ष्य"
@@ -428,6 +453,7 @@ done,પૂરું,पूरा
 Done,થઈ ગયું,हो गया
 Download all my data,મારો બધો ડેટા ડાઉનલોડ કરો,मेरा सारा डेटा डाउनलोड करें
 Download CSV,CSV ડાઉનલોડ કરો,CSV डाउनलोड करें
+"Download data (CSV, audit packs, Zoho export)","ડેટા ડાઉનલોડ કરો (CSV, ઓડિટ પેક, Zoho એક્સપોર્ટ)","डेटा डाउनलोड करें (CSV, ऑडिट पैक, Zoho एक्सपोर्ट)"
 Downloads,ડાઉનલોડ,डाउनलोड
 "Downloads (CSV, opens in Excel)","ડાઉનલોડ (CSV, Excel માં ખૂલે)","डाउनलोड (CSV, Excel में खुलता है)"
 Downtime (hours),બંધ રહ્યું (કલાક),बंद रहा (घंटे)
@@ -452,6 +478,10 @@ Earned,કમાયેલી,अर्जित
 Earned left,કમાયેલી બાકી,अर्जित बाकी
 Edit,બદલો,बदलें
 Edit as text,લખાણ તરીકે બદલો,टेक्स्ट के रूप में बदलें
+Edit company details and travel rates,કંપનીની વિગતો અને મુસાફરી દર બદલો,कंपनी विवरण और यात्रा दर बदलें
+Edit employee details,કર્મચારીની વિગતો બદલો,कर्मचारी विवरण बदलें
+"Edit lists (roles, offices, leave types, form options)","યાદીઓ બદલો (ભૂમિકા, ઓફિસ, રજાના પ્રકાર, ફોર્મ વિકલ્પ)","सूचियाँ बदलें (भूमिका, ऑफ़िस, छुट्टी के प्रकार, फ़ॉर्म विकल्प)"
+Edit timesheets (crew attendance of any day),ટાઇમશીટ બદલો (કોઈપણ દિવસની ટુકડીની હાજરી),टाइमशीट बदलें (किसी भी दिन की टीम हाज़िरी)
 Edit {x},{x} બદલો,{x} बदलें
 "Email (if any, for Microsoft sign-in later)","ઇમેઇલ (હોય તો, પછી Microsoft સાઇન ઇન માટે)","ईमेल (हो तो, बाद में Microsoft साइन इन के लिए)"
 Emergency contact,ઇમરજન્સી સંપર્ક,इमरजेंसी संपर्क
@@ -567,6 +597,7 @@ Field staff,ફીલ્ડ સ્ટાફ,फ़ील्ड स्टाफ�
 field staff checked in,ફીલ્ડ સ્ટાફે ચેક-ઇન કર્યું,फ़ील्ड स्टाफ़ ने चेक-इन किया
 Field staff have no email or Teams. In the live app these alerts go out on WhatsApp; here they are only logged.,ફીલ્ડ સ્ટાફ પાસે ઇમેઇલ કે Teams નથી. લાઇવ એપમાં આ ચેતવણીઓ WhatsApp પર જાય છે; અહીં ફક્ત નોંધાય છે.,फ़ील्ड स्टाफ़ के पास ईमेल या Teams नहीं है। लाइव ऐप में ये अलर्ट WhatsApp पर जाते हैं; यहाँ सिर्फ़ दर्ज होते हैं।
 Field staff work at sites; only managers manage a whole project,ફીલ્ડ સ્ટાફ સાઇટ પર કામ કરે; આખો પ્રોજેક્ટ ફક્ત મેનેજર સંભાળે,फ़ील्ड स्टाफ़ साइट पर काम करता है; पूरा प्रोजेक्ट सिर्फ़ मैनेजर संभालते हैं
+Field-staff roles use the simple phone app. Set the access level to Manager or HR to give office tools,ફીલ્ડ સ્ટાફની ભૂમિકાઓ સાદી ફોન એપ વાપરે છે. ઓફિસનાં સાધનો આપવા ઍક્સેસ સ્તર મેનેજર કે HR કરો,फ़ील्ड स्टाफ़ की भूमिकाएँ सरल फ़ोन ऐप चलाती हैं। ऑफ़िस के टूल देने के लिए एक्सेस स्तर मैनेजर या HR करें
 "Fields, one per line: key | Label | text/number | required","ફીલ્ડ, એક લાઇનમાં એક: key | લેબલ | text/number | required","फ़ील्ड, हर लाइन में एक: key | लेबल | text/number | required"
 File is larger than {n} MB,ફાઇલ {n} MB થી મોટી છે,फ़ाइल {n} MB से बड़ी है
 File not found,ફાઇલ મળી નથી,फ़ाइल नहीं मिली
@@ -594,6 +625,7 @@ From,થી,से
 From HR,HR તરફથી,HR की ओर से
 From KML,KML માંથી,KML से
 From site,કઈ સાઇટથી,किस साइट से
+From the project,પ્રોજેક્ટ પરથી,प्रोजेक्ट से
 Fuel,ઇંધણ,ईंधन
 Full and final done in Zoho,ફુલ એન્ડ ફાઇનલ Zoho માં થઈ ગયું,फ़ुल एंड फ़ाइनल Zoho में हो गया
 Full name,પૂરું નામ,पूरा नाम
@@ -839,6 +871,7 @@ Leave C/S/E/U,રજા C/S/E/U,छुट्टी C/S/E/U
 Leave encashment days sent to Zoho Payroll,રજાના રોકડ રૂપાંતરના દિવસો Zoho Payroll માં મોકલ્યા,छुट्टी नकदीकरण के दिन Zoho Payroll को भेजे
 Leave policy,રજા નીતિ,छुट्टी नीति
 Leave policy and work hours,રજા નીતિ અને કામના કલાક,छुट्टी नीति और काम के घंटे
+"Leave policy, work hours","રજા નીતિ, કામના કલાક","छुट्टी नीति, काम के घंटे"
 Leave register,રજા રજિસ્ટર,छुट्टी रजिस्टर
 Leave request sent to your manager,રજાની વિનંતી મેનેજરને મોકલી,छुट्टी का अनुरोध मैनेजर को भेजा
 Leave requests,રજાની વિનંતીઓ,छुट्टी के अनुरोध
@@ -995,6 +1028,7 @@ New asset,નવી સંપત્તિ,नई संपत्ति
 New attendance correction,નવો હાજરી સુધારો,नया हाजिरी सुधार
 New checklist,નવી ચેકલિસ્ટ,नई चेकलिस्ट
 New checklist template,નવો ચેકલિસ્ટ નમૂનો,नया चेकलिस्ट नमूना
+"New department, e.g. Solar. Tap project codes to put projects in it","નવો વિભાગ, દા.ત. સોલર. પ્રોજેક્ટ ઉમેરવા તેના કોડ દબાવો","नया विभाग, जैसे सोलर। प्रोजेक्ट जोड़ने के लिए उनके कोड दबाएँ"
 New dispatch,નવું ડિસ્પેચ,नया डिस्पैच
 New document: {x},નવો દસ્તાવેજ: {x},नया दस्तावेज़: {x}
 New employee,નવો કર્મચારી,नया कर्मचारी
@@ -1154,6 +1188,7 @@ Only managers can change plans,ફક્ત મેનેજર જ પ્લા�
 Only the director (admin) can unlock a month,ફક્ત ડિરેક્ટર (એડમિન) જ મહિનો અનલૉક કરી શકે,सिर्फ़ डायरेक्टर (एडमिन) ही महीना अनलॉक कर सकते हैं
 Only the director can add a director-level role,ડિરેક્ટર-લેવલની ભૂમિકા ફક્ત ડિરેક્ટર ઉમેરી શકે,डायरेक्टर-लेवल की भूमिका केवल डायरेक्टर जोड़ सकते हैं
 Only the director can change this list,આ યાદી ફક્ત ડિરેક્ટર બદલી શકે,यह सूची केवल डायरेक्टर बदल सकते हैं
+Only the director changes roles and permissions,ભૂમિકાઓ અને પરવાનગીઓ ફક્ત ડિરેક્ટર બદલે છે,भूमिकाएँ और अनुमतियाँ सिर्फ़ डायरेक्टर बदलते हैं
 Only the people on this task or a manager can change it,આ કામ પરના લોકો અથવા મેનેજર જ બદલી શકે,इस काम पर लगे लोग या मैनेजर ही बदल सकते हैं
 Only the person who made it or a manager can change it,જેણે બનાવ્યું તે અથવા મેનેજર જ બદલી શકે,जिसने बनाया वही या मैनेजर ही बदल सकते हैं
 Only the site supervisor or a manager can mark crew attendance,ફક્ત સાઇટ સુપરવાઇઝર કે મેનેજર જ ટુકડીની હાજરી પૂરી શકે,सिर्फ़ साइट सुपरवाइज़र या मैनेजर ही टोली की हाजिरी लगा सकते हैं
@@ -1219,6 +1254,7 @@ People without phones,ફોન વગરના લોકો,बिना फ़
 Performance reviews,કામગીરી સમીક્ષા,प्रदर्शन समीक्षा
 Period,સમયગાળો,अवधि
 Permanent,કાયમી,स्थायी
+Permission,પરવાનગી,अनुमति
 Person,વ્યક્તિ,व्यक्ति
 Personal,વ્યક્તિગત,निजी
 pH,pH,pH
@@ -1275,6 +1311,7 @@ Policy accepted,નીતિ સ્વીકારી,नीति स्वी�
 Policy: {x},નીતિ: {x},नीति: {x}
 POSH complaint for the Internal Committee,આંતરિક સમિતિ માટે POSH ફરિયાદ,आंतरिक समिति के लिए POSH शिकायत
 Post and notify,મૂકો અને જાણ કરો,पोस्ट करें और सूचित करें
+Post notices,સૂચના મૂકો,सूचना डालें
 Posted,મૂકી દીધું,डाल दिया
 Power generated (kWh),બનેલી વીજળી (kWh),बनी बिजली (kWh)
 Power used kWh (plants),વપરાયેલી વીજળી kWh (પ્લાન્ટ),इस्तेमाल हुई बिजली kWh (प्लांट)
@@ -1313,6 +1350,7 @@ Project managers confirm their team's month,પ્રોજેક્ટ મે�
 "Project name, e.g. Solar","પ્રોજેક્ટનું નામ, દા.ત. સોલાર","प्रोजेक्ट का नाम, जैसे सोलर"
 Project: all,પ્રોજેક્ટ: બધા,प्रोजेक्ट: सभी
 Projects,પ્રોજેક્ટ્સ,प्रोजेक्ट
+Projects in each department. Approval rules can send a request to a department's team,દરેક વિભાગના પ્રોજેક્ટ. મંજૂરીના નિયમો અરજી વિભાગની ટીમને મોકલી શકે છે,हर विभाग के प्रोजेक्ट। मंज़ूरी के नियम अनुरोध विभाग की टीम को भेज सकते हैं
 "Projects you manage: Biochar, Gasifier","તમે સંભાળો છો તે પ્રોજેક્ટ: બાયોચાર, ગેસિફાયર","आपके प्रोजेक्ट: बायोचार, गैसीफायर"
 Proof of payment,ચુકવણીનો પુરાવો,भुगतान का सबूत
 Prosopis wood,ગાંડા બાવળનું લાકડું,विलायती बबूल की लकड़ी
@@ -1343,6 +1381,7 @@ Rating,રેટિંગ,रेटिंग
 Rating (optional),રેટિંગ (મરજિયાત),रेटिंग (वैकल्पिक)
 Reactor seals and gauges OK Syngas flare lit Cooling water flowing Dust extraction running Fire hydrant pressure OK,રિએક્ટર સીલ અને ગેજ ઠીક સિનગેસ ફ્લેર સળગે છે ઠંડું પાણી વહે છે ધૂળ ખેંચવાનું ચાલુ છે ફાયર હાઇડ્રન્ટ પ્રેશર ઠીક,रिएक्टर सील और गेज ठीक सिनगैस फ्लेयर जल रहा है ठंडा पानी बह रहा है धूल निकासी चालू है फ़ायर हाइड्रेंट प्रेशर ठीक
 Read and accept,વાંચો અને સ્વીકારો,पढ़ें और स्वीकार करें
+Read complaints and suggestions,ફરિયાદો અને સૂચનો વાંચો,शिकायतें और सुझाव पढ़ें
 read {n}/{n},વાંચ્યું {n}/{n},पढ़ा {n}/{n}
 Read: Diwali holidays and site shutdown,વાંચો: દિવાળીની રજાઓ અને સાઇટ બંધ,पढ़ें: दिवाली की छुट्टियाँ और साइट बंद
 Read: Heat safety: water break every hour,વાંચો: ગરમીમાં સલામતી: દર કલાકે પાણીનો વિરામ,पढ़ें: गर्मी में सुरक्षा: हर घंटे पानी का ब्रेक
@@ -1388,6 +1427,7 @@ Rejected: {x},નામંજૂર: {x},नामंज़ूर: {x}
 Reminder: please read {x},યાદ અપાવીએ: કૃપા કરીને {x} વાંચો,याद दिलाना: कृपया {x} पढ़ें
 Remove,દૂર કરો,हटाएँ
 Remove from site,સાઇટમાંથી કાઢો,साइट से हटाएँ
+Removed,કાઢી નાખ્યું,हटा दिया
 Rename bucket,ખાનાનું નામ બદલો,खाने का नाम बदलें
 Reopen,ફરી ખોલો,फिर खोलें
 Reopen this task?,આ કામ ફરી ખોલવું?,यह काम फिर से खोलें?
@@ -1399,6 +1439,7 @@ Reply to your {x},તમારી {x} નો જવાબ,आपकी {x} क�
 Report,જાણ કરો,रिपोर्ट करें
 Report incident,ઘટના નોંધાવો,घटना दर्ज करें
 Reporting lines,કોણ કોને રિપોર્ટ કરે,कौन किसे रिपोर्ट करता है
+Reporting manager,રિપોર્ટિંગ મેનેજર,रिपोर्टिंग मैनेजर
 Reporting office,રિપોર્ટિંગ ઓફિસ,रिपोर्टिंग ऑफ़िस
 Reporting offices,રિપોર્ટિંગ ઓફિસો,रिपोर्टिंग ऑफ़िस
 "Reporting offices, one per line: number | name. The 2-digit number is the middle of every employee code: BIO01001 = Biochar, office 01, person 001","રિપોર્ટિંગ ઓફિસો, દરેક લાઇનમાં એક: નંબર | નામ. 2 અંકનો નંબર દરેક કર્મચારી કોડની વચ્ચે આવે છે: BIO01001 = બાયોચાર, ઓફિસ 01, વ્યક્તિ 001","रिपोर्टिंग ऑफ़िस, हर लाइन में एक: नंबर | नाम। 2 अंकों का नंबर हर कर्मचारी कोड के बीच में आता है: BIO01001 = बायोचार, ऑफ़िस 01, व्यक्ति 001"
@@ -1410,7 +1451,9 @@ reports to {x},{x} ને રિપોર્ટ કરે છે,{x} को र�
 Requests,વિનંતીઓ,अनुरोध
 requests,વિનંતીઓ,अनुरोध
 Requests & forms,વિનંતીઓ અને ફોર્મ,अनुरोध और फ़ॉर्म
+Reset PINs,PIN રીસેટ કરો,PIN रीसेट करें
 Reset the demo,ડેમો ફરી શરૂ કરો,डेमो रीसेट करें
+Reset {x}'s PIN?,{x}નો PIN રીસેટ કરવો?,{x} का PIN रीसेट करें?
 Resigned,રાજીનામું આપ્યું,इस्तीफ़ा दिया
 Result,પરિણામ,परिणाम
 Results,પરિણામ,नतीजे
@@ -1432,6 +1475,7 @@ Role (optional),ભૂમિકા (મરજિયાત),भूमिका (�
 Role (Settings > Lists > Roles),ભૂમિકા (સેટિંગ્સ > યાદીઓ > ભૂમિકાઓ),भूमिका (सेटिंग्स > सूचियाँ > भूमिकाएँ)
 Role: all,ભૂમિકા: બધી,भूमिका: सभी
 Roles,ભૂમિકાઓ,भूमिकाएँ
+Roles & permissions,ભૂમિકાઓ અને પરવાનગીઓ,भूमिकाएँ और अनुमतियाँ
 Root cause (after investigation),મૂળ કારણ (તપાસ પછી),असली कारण (जाँच के बाद)
 Root cause (after investigation) (optional),મૂળ કારણ (તપાસ પછી) (મરજિયાત),मूल कारण (जाँच के बाद) (वैकल्पिक)
 Root zone,મૂળ પાસે,जड़ के पास
@@ -1440,6 +1484,7 @@ Run hours,ચાલુ કલાક,चलने के घंटे
 Run hours (plants),ચાલુ કલાક (પ્લાન્ટ),चलने के घंटे (प्लांट)
 Run hours (plants) (optional),ચાલુ કલાક (પ્લાન્ટ) (મરજિયાત),चलने के घंटे (प्लांट) (वैकल्पिक)
 run hours this month,આ મહિને ચાલુ કલાક,इस महीने चलने के घंटे
+Run surveys,સર્વે ચલાવો,सर्वे चलाएँ
 s/o Ramji Bhai,રામજીભાઈનો પુત્ર,रामजीभाई का पुत्र
 Safety & equipment,સલામતી અને સાધનો,सुरक्षा और उपकरण
 "Safety & equipment: {n} registers, all with demo data. Open one to see it, or add your own.","સલામતી અને સાધનો: {n} રજિસ્ટર, બધામાં ડેમો ડેટા. જોવા માટે એક ખોલો, અથવા તમારું ઉમેરો.","सुरक्षा और उपकरण: {n} रजिस्टर, सभी में डेमो डेटा। देखने के लिए एक खोलें, या अपना जोड़ें।"
@@ -1517,6 +1562,8 @@ Security & privacy,સુરક્ષા અને ગોપનીયતા,स�
 See all {n},બધા {n} જુઓ,सभी {n} देखें
 See all {n} task,બધા {n} કામ જુઓ,सभी {n} काम देखें
 See all {n} tasks,બધાં {n} કામ જુઓ,सभी {n} काम देखें
+See dashboard and reports,ડેશબોર્ડ અને રિપોર્ટ જુઓ,डैशबोर्ड और रिपोर्ट देखें
+See the audit log,ઓડિટ લોગ જુઓ,ऑडिट लॉग देखें
 Seeds sown,વાવેલાં બીજ,बोए गए बीज
 Select all that can be approved together ({n}),એકસાથે મંજૂર થઈ શકે તે બધા પસંદ કરો ({n}),एक साथ मंज़ूर हो सकने वाले सभी चुनें ({n})
 Select for bulk approval,એકસાથે મંજૂરી માટે પસંદ કરો,एक साथ मंज़ूरी के लिए चुनें
@@ -1547,6 +1594,7 @@ Set your own PIN,તમારો પોતાનો PIN રાખો,अपन�
 Set your own PIN first (Me > Change PIN),પહેલાં તમારો પોતાનો PIN રાખો (હું > PIN બદલો),पहले अपना PIN रखें (मैं > PIN बदलें)
 Settings,સેટિંગ્સ,सेटिंग्स
 settings,સેટિંગ્સ,सेटिंग्स
+"Settings > Roles & permissions: approvers and limits for leave, travel, expenses and more","સેટિંગ્સ > ભૂમિકાઓ અને પરવાનગીઓ: રજા, મુસાફરી, ખર્ચ વગેરે માટે મંજૂર કરનાર અને મર્યાદા","सेटिंग्स > भूमिकाएँ और अनुमतियाँ: छुट्टी, यात्रा, ख़र्च आदि के लिए मंज़ूर करने वाले और सीमाएँ"
 Settings saved,સેટિંગ્સ સાચવ્યાં,सेटिंग्स सेव हुईं
 settled,પતી ગયું,निपट गया
 Settled,પતી ગયું,निपट गया
@@ -1592,6 +1640,7 @@ sites on the map,નકશા પર સાઇટ્સ,नक्शे पर �
 "Sites, farm plots, applications, incidents, people on site","સાઇટ્સ, ખેતરના પ્લોટ, વપરાશ, ઘટનાઓ, સાઇટ પરના લોકો","साइटें, खेत के प्लॉट, प्रयोग, घटनाएँ, साइट पर लोग"
 "Sites, plots, incidents and people on site","સાઇટ્સ, પ્લોટ, ઘટનાઓ અને સાઇટ પરના લોકો","साइटें, प्लॉट, घटनाएँ और साइट पर लोग"
 Someone cannot report to themselves,કોઈ પોતાને જ રિપોર્ટ ન કરી શકે,कोई खुद को ही रिपोर्ट नहीं कर सकता
+Someone else approves your own request,તમારી પોતાની અરજી બીજું કોઈ મંજૂર કરે છે,आपका अपना अनुरोध कोई और मंज़ूर करता है
 Someone else approves your own trip,તમારી પોતાની મુસાફરી બીજું કોઈ મંજૂર કરે છે,आपकी अपनी यात्रा कोई और मंज़ूर करता है
 Someone else decides your own check-in exception,તમારો પોતાનો ચેક-ઇન અપવાદ બીજું કોઈ નક્કી કરે છે,आपका अपना चेक-इन अपवाद कोई और तय करता है
 Sort out before locking,લૉક કરતા પહેલા ઉકેલો,लॉक करने से पहले सुलझाएँ
@@ -1621,6 +1670,7 @@ Step {n}: Director,પગલું {n}: ડિરેક્ટર,चरण {n}: 
 Step {n}: Manager,પગલું {n}: મેનેજર,चरण {n}: मैनेजर
 Step {x} of {x} · approved by {x},{2} માંથી પગલું {1} · {3} એ મંજૂર કર્યું,{2} में से चरण {1} · {3} ने मंज़ूर किया
 Step:,પગલું:,चरण:
+Steps run in order. The first approver decides every request; a later step joins only when the request is more than its limit. Changes apply to new requests.,પગલાં ક્રમમાં ચાલે છે. પહેલા મંજૂર કરનાર દરેક અરજી નક્કી કરે; પછીનું પગલું ત્યારે જ જોડાય જ્યારે અરજી તેની મર્યાદાથી વધુ હોય. ફેરફાર નવી અરજીઓ પર લાગુ થાય છે.,चरण क्रम से चलते हैं। पहला मंज़ूर करने वाला हर अनुरोध तय करता है; बाद का चरण तभी जुड़ता है जब अनुरोध उसकी सीमा से ज़्यादा हो। बदलाव नए अनुरोधों पर लागू होते हैं।
 Stock,સ્ટોક,स्टॉक
 "Stock balances move with every batch, transfer and dispatch","દરેક બેચ, ટ્રાન્સફર અને રવાનગી સાથે સ્ટોક બદલાય છે","हर बैच, ट्रांसफ़र और डिस्पैच के साथ स्टॉक बदलता है"
 Stock by site,સાઇટ પ્રમાણે સ્ટોક,साइट के अनुसार स्टॉक
@@ -1686,6 +1736,7 @@ Take check-in selfie,ચેક-ઇન સેલ્ફી લો,चेक-इन
 Take one photo of the crew at the site,સાઇટ પર ટુકડીનો એક ફોટો લો,साइट पर टोली की एक फ़ोटो लें
 Take the photo,ફોટો પાડો,फ़ोटो लें
 Take the proof photo first,પહેલાં પુરાવાનો ફોટો લો,पहले सबूत की फ़ोटो लें
+Taken out,બહાર કાઢ્યું,बाहर निकाला
 Takes two minutes,બે મિનિટ લાગશે,दो मिनट लगेंगे
 "Tap a register to record stock in, out or a physical count with a photo.","ફોટો સાથે સ્ટોક આવક, જાવક કે ગણતરી નોંધવા રજિસ્ટર પર ટૅપ કરો.","फ़ोटो के साथ स्टॉक आवक, जावक या गिनती दर्ज करने के लिए रजिस्टर पर टैप करें."
 tap to read and confirm,વાંચીને ખાતરી કરવા ટેપ કરો,पढ़कर पुष्टि करने के लिए टैप करें
@@ -1719,13 +1770,17 @@ That code is not right. Use the current 6-digit code from the authenticator app.
 The 2-digit number is the middle of the employee code: BIO01001,2 અંકનો નંબર કર્મચારી કોડની વચ્ચે આવે છે: BIO01001,2 अंकों का नंबर कर्मचारी कोड के बीच में आता है: BIO01001
 The 3-letter code starts the employee code; built-in projects stay,3 અક્ષરનો કોડ કર્મચારી કોડની શરૂઆત છે; મૂળ પ્રોજેક્ટ્સ રહે છે,3 अक्षरों का कोड कर्मचारी कोड की शुरुआत है; मूल प्रोजेक्ट रहते हैं
 The access level decides what the person can see,ઍક્સેસ લેવલ નક્કી કરે છે કે વ્યક્તિ શું જોઈ શકે,एक्सेस लेवल तय करता है कि व्यक्ति क्या देख सकता है
+The approval rules send these to you,મંજૂરીના નિયમો આ તમને મોકલે છે,मंज़ूरी के नियम ये आपको भेजते हैं
+The director sets approvers and limits in Settings > Roles & permissions,ડિરેક્ટર સેટિંગ્સ > ભૂમિકાઓ અને પરવાનગીઓમાં મંજૂર કરનાર અને મર્યાદા નક્કી કરે છે,डायरेक्टर सेटिंग्स > भूमिकाएँ और अनुमतियाँ में मंज़ूर करने वाले और सीमाएँ तय करते हैं
 "The employee code is made from the project and office, e.g. BIO01001.","કર્મચારી કોડ પ્રોજેક્ટ અને ઓફિસ પરથી બને છે, દા.ત. BIO01001.","कर्मचारी कोड प्रोजेक्ट और ऑफ़िस से बनता है, जैसे BIO01001।"
 The farmer has not signed yet,ખેડૂતે હજુ સહી કરી નથી,किसान ने अभी तक हस्ताक्षर नहीं किए
 The farmer's signature is missing,ખેડૂતની સહી બાકી છે,किसान के हस्ताक्षर नहीं हैं
 The file is empty,ફાઇલ ખાલી છે,फ़ाइल खाली है
+The first approver decides every request: leave its limit empty,પહેલા મંજૂર કરનાર દરેક અરજી નક્કી કરે: તેની મર્યાદા ખાલી રાખો,पहला मंज़ूर करने वाला हर अनुरोध तय करता है: उसकी सीमा ख़ाली रखें
 "The Internal Committee, how to complain, your protection","આંતરિક સમિતિ, ફરિયાદ કેવી રીતે કરવી, તમારી સુરક્ષા","आंतरिक समिति, शिकायत कैसे करें, आपकी सुरक्षा"
 The KML has no polygon (plot boundary),KML માં પ્લોટની હદ (પોલિગોન) નથી,KML में प्लॉट की सीमा (पॉलीगॉन) नहीं है
 The leave-site check runs only while the app is open. Tracking a checked-in worker with the app closed needs the native app.,સાઇટ છોડવાની તપાસ એપ ખુલ્લી હોય ત્યારે જ ચાલે છે. એપ બંધ હોય ત્યારે ચેક-ઇન કરેલા કામદારને ટ્રેક કરવા ફોન એપ જોઈએ.,साइट छोड़ने की जाँच सिर्फ़ ऐप खुला होने पर चलती है. ऐप बंद होने पर चेक-इन किए कामगार को ट्रैक करने के लिए फ़ोन ऐप चाहिए.
+The level decides what a person sees: Field staff use the simple phone app; Managers see their projects and team; HR and the Director see everyone. Everyone with the role moves with it.,સ્તર નક્કી કરે છે કે વ્યક્તિ શું જુએ: ફીલ્ડ સ્ટાફ સાદી ફોન એપ વાપરે; મેનેજર પોતાના પ્રોજેક્ટ અને ટીમ જુએ; HR અને ડિરેક્ટર બધાને જુએ. આ ભૂમિકાવાળા બધા તેની સાથે બદલાય છે.,स्तर तय करता है कि व्यक्ति क्या देखे: फ़ील्ड स्टाफ़ सरल फ़ोन ऐप चलाते हैं; मैनेजर अपने प्रोजेक्ट और टीम देखते हैं; HR और डायरेक्टर सबको देखते हैं। इस भूमिका वाले सभी इसके साथ बदलते हैं।
 "the office, every site, company vehicles, farm visits and work trips.","ઓફિસ, દરેક સાઇટ, કંપનીનાં વાહનો, ખેતરની મુલાકાતો અને કામની મુસાફરી.","ऑफ़िस, हर साइट, कंपनी के वाहन, खेत के दौरे और काम की यात्राएँ."
 The plan has no bucket,પ્લાનમાં કોઈ ખાનું નથી,योजना में कोई खाना नहीं है
 "The project code must be 3 letters, e.g. SOL","પ્રોજેક્ટ કોડ 3 અક્ષરનો હોવો જોઈએ, દા.ત. SOL","प्रोजेक्ट कोड 3 अक्षरों का होना चाहिए, जैसे SOL"
@@ -1799,6 +1854,7 @@ Type the worker name,કામદારનું નામ લખો,मज़�
 Type: all,પ્રકાર: બધા,प्रकार: सभी
 UAN (PF),UAN (PF),UAN (PF)
 UAN / ESIC registration,UAN / ESIC નોંધણી,UAN / ESIC पंजीकरण
+Undo,પાછું કરો,वापस करें
 Uniform,યુનિફોર્મ,वर्दी
 Unit,એકમ,इकाई
 Unit (optional),એકમ (વૈકલ્પિક),इकाई (वैकल्पिक)
@@ -1816,6 +1872,7 @@ updated {n} d ago,{n} દિવસ પહેલાં બદલ્યું,{n} 
 Updates,અપડેટ,अपडेट
 UPI,UPI,UPI
 "Upload a payslip from Zoho Payroll, a letter or an ID document; the employee sees it under Me → My documents and gets a notification.","Zoho Payroll ની પગાર સ્લિપ, પત્ર કે ID દસ્તાવેજ અપલોડ કરો; કર્મચારી તેને હું → મારા દસ્તાવેજો માં જુએ છે અને તેને સૂચના મળે છે.","Zoho Payroll की वेतन पर्ची, पत्र या ID दस्तावेज़ अपलोड करें; कर्मचारी इसे मैं → मेरे दस्तावेज़ में देखता है और उसे सूचना मिलती है।"
+Upload employee documents,કર્મચારીના દસ્તાવેજ અપલોડ કરો,कर्मचारी दस्तावेज़ अपलोड करें
 Upload file,ફાઇલ અપલોડ કરો,फ़ाइल अपलोड करें
 Upload signature image,સહીનો ફોટો અપલોડ કરો,हस्ताक्षर की फ़ोटो अपलोड करें
 Uploaded and the employee notified,અપલોડ કર્યું અને કર્મચારીને જાણ કરી,अपलोड किया और कर्मचारी को बता दिया
@@ -1867,6 +1924,7 @@ Weight %,વજન %,भार %
 Weight % (optional),વજન % (મરજિયાત),भार % (वैकल्पिक)
 What did you complete today?,આજે તમે શું પૂરું કર્યું?,आज आपने क्या पूरा किया?
 What did you do today?,આજે તમે શું કર્યું?,आज आपने क्या किया?
+What each role may do and who approves what. Only you (the director) can change this page; every change is in the audit log.,દરેક ભૂમિકા શું કરી શકે અને શું કોણ મંજૂર કરે. આ પાનું ફક્ત તમે (ડિરેક્ટર) બદલી શકો; દરેક ફેરફાર ઓડિટ લોગમાં રહે છે.,हर भूमिका क्या कर सकती है और क्या कौन मंज़ूर करता है। यह पेज सिर्फ़ आप (डायरेक्टर) बदल सकते हैं; हर बदलाव ऑडिट लॉग में रहता है।
 What everyone needs to know,બધાએ શું જાણવું જરૂરી છે,सभी को क्या जानना ज़रूरी है
 What for,શેના માટે,किसलिए
 What for:,શા માટે:,किसलिए:
@@ -1882,9 +1940,12 @@ WhatsApp / SMS (simulated),WhatsApp / SMS (નકલી),WhatsApp / SMS (नक�
 WhatsApp / SMS alerts,WhatsApp / SMS સૂચનાઓ,WhatsApp / SMS अलर्ट
 "WhatsApp, SMS and Zoho Payroll","WhatsApp, SMS અને Zoho Payroll","WhatsApp, SMS और Zoho Payroll"
 When,ક્યારે,कब
+when more than,જ્યારે વધુ હોય,जब ज़्यादा हो
 Where it applies:,ક્યાં લાગુ પડે:,कहाँ लागू होता है:
 Where {x} works,{x} ક્યાં કામ કરે છે,{x} कहाँ काम करते हैं
 Who answers,કોણ જવાબ આપશે,कौन जवाब देगा
+Who approves what,શું કોણ મંજૂર કરે,क्या कौन मंज़ूर करता है
+Who can do what,કોણ શું કરી શકે,कौन क्या कर सकता है
 "Who changed attendance, leave or balances, old and new value","હાજરી, રજા કે બેલેન્સ કોણે બદલ્યું, જૂની અને નવી કિંમત","हाजिरी, छुट्टी या बैलेंस किसने बदला, पुराना और नया मान"
 "Who changed attendance, leave or balances: old and new value","હાજરી, રજા કે બેલેન્સ કોણે બદલ્યું: જૂની અને નવી કિંમત","हाजिरी, छुट्टी या बैलेंस किसने बदला: पुराना और नया मान"
 "Who did what, when","કોણે શું કર્યું, ક્યારે","किसने क्या किया, कब"
@@ -1944,6 +2005,8 @@ Your manager updates the status,સ્થિતિ તમારા મેને�
 your name and the details stay with the IC. Nobody may be punished for complaining or for being a witness.,તમારું નામ અને વિગતો IC પાસે જ રહે છે. ફરિયાદ કરવા કે સાક્ષી બનવા બદલ કોઈને સજા થઈ શકે નહીં.,आपका नाम और जानकारी IC के पास ही रहती है. शिकायत करने या गवाह बनने पर किसी को सज़ा नहीं दी जा सकती.
 "Your name, employee ID, phone and the employee record HR keeps; your location only when you check in, start or end a trip or save a record with a photo; the photos you take; your attendance, leave, claims and tasks. It does not track you in the background.","તમારું નામ, કર્મચારી ID, ફોન અને HR રાખે તે કર્મચારી રેકોર્ડ; તમારું લોકેશન ફક્ત ચેક-ઇન વખતે, મુસાફરી શરૂ કે પૂરી કરતી વખતે કે ફોટો સાથે રેકોર્ડ સાચવતી વખતે; તમે લીધેલા ફોટા; તમારી હાજરી, રજા, દાવા અને કામ. તે પાછળથી તમને ટ્રેક કરતી નથી.","आपका नाम, कर्मचारी ID, फ़ोन और HR का रखा कर्मचारी रिकॉर्ड; आपकी लोकेशन सिर्फ़ चेक-इन करते समय, यात्रा शुरू या ख़त्म करते समय या फ़ोटो के साथ रिकॉर्ड सेव करते समय; आपकी ली गई फ़ोटो; आपकी हाजिरी, छुट्टी, दावे और काम. यह पीछे से आपको ट्रैक नहीं करता."
 "Your reply (the sender sees it, also when anonymous through the tracking code)","તમારો જવાબ (મોકલનાર જોઈ શકે, નામ વગર હોય તો ટ્રેકિંગ કોડથી પણ)","आपका जवाब (भेजने वाला देख सकता है, गुमनाम हो तो ट्रैकिंग कोड से भी)"
+Your reporting manager,તમારા રિપોર્ટિંગ મેનેજર,आपके रिपोर्टिंग मैनेजर
+Your role may not do this: {x},તમારી ભૂમિકા આ ન કરી શકે: {x},आपकी भूमिका यह नहीं कर सकती: {x}
 Your sites,તમારી સાઇટ્સ,आपकी साइटें
 Your sites were updated,તમારી સાઇટ્સ બદલાઈ,आपकी साइटें बदली गईं
 Your team,તમારી ટીમ,आपकी टीम
@@ -2018,6 +2081,7 @@ Zoom out,નાનું કરો,छोटा करें
 {n} present this month,આ મહિને {n} હાજર,इस महीने {n} हाज़िर
 {n} promoters ({n}–{n}),{n} પ્રશંસક ({n}–{n}),{n} प्रशंसक ({n}–{n})
 {n} reported this month,આ મહિને {n} નોંધાઈ,इस महीने {n} दर्ज हुईं
+{n} requests to approve,મંજૂર કરવાની {n} અરજીઓ,मंज़ूर करने को {n} अनुरोध
 {n} row,{n} લાઇન,{n} पंक्ति
 {n} rows,{n} લાઇન,{n} पंक्तियाँ
 {n} runs,{n} રન,{n} रन
@@ -2082,6 +2146,7 @@ Zoom out,નાનું કરો,छोटा करें
 {x} open task{x} here,અહીં {1} કામ{2} બાકી,यहाँ {1} काम{2} बाकी
 {x} sees only what is ticked here. Leave everything empty for someone who only uses HR and the Planner.,{x} ફક્ત અહીં ટિક કરેલું જ જુએ છે. જે ફક્ત HR અને પ્લાનર વાપરે તેના માટે બધું ખાલી રાખો.,"{x} सिर्फ़ यहाँ टिक किया हुआ ही देखते हैं। जो सिर्फ़ HR और प्लानर इस्तेमाल करते हैं, उनके लिए सब खाली छोड़ें।"
 {x} signs in with {x} and the starting PIN {x}. Give both to them; the app asks for a new PIN at the first sign-in.,{1} {2} અને શરૂઆતના PIN {3} થી સાઇન ઇન કરશે. બંને તેમને આપો; પહેલી વાર સાઇન ઇન વખતે એપ નવો PIN માગશે.,{1} {2} और शुरुआती PIN {3} से साइन इन करेंगे। दोनों उन्हें दें; पहली बार साइन इन पर ऐप नया PIN माँगेगा।
+{x} team,{x} ટીમ,{x} टीम
 {x} {x} left (alert below {x}),{x} {x} બાકી (ચેતવણી {x} થી નીચે),{x} {x} बाकी (चेतावनी {x} से नीचे)
 {x}: closed at {x}. Ask for an attendance correction if that is wrong.,{1}: {2} વાગ્યે બંધ કર્યું. ખોટું હોય તો હાજરી સુધારવા વિનંતી કરો.,{1}: {2} बजे बंद किया। गलत हो तो हाजिरी सुधार का अनुरोध करें।
 "{x}: {n} checked in, {n} km","{x}: {n} ચેક-ઇન, {n} km","{x}: {n} चेक-इन, {n} km"

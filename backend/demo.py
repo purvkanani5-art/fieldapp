@@ -191,6 +191,12 @@ def seed_activity(db: Db) -> None:
     if db.one("SELECT 1 FROM attendance LIMIT 1") or db.one("SELECT 1 FROM plans LIMIT 1"):
         return
     users = {u["employee_id"]: u for u in db.all("SELECT * FROM users")}
+    # departments (demo codes are EMP..., so they are set here) and the accounts role: reports only, plus travel approvals
+    for emp, dept in {"EMP001": "management", "EMP003": "management", "EMP004": "accounts", "EMP002": "carbon", "EMP101": "carbon", "EMP103": "carbon",
+                      "EMP106": "carbon", "EMP005": "agro", "EMP102": "agro", "EMP107": "agro"}.items():
+        if emp in users:
+            db.run("UPDATE users SET department = ? WHERE id = ?", dept, users[emp]["id"])
+    db.set_setting("role_perms", {**(db.setting("role_perms", {}) or {}), "Accounts Executive": ["reports.view", "reports.export"]})
     sites: dict = {}
     for s_ in db.all("SELECT * FROM sites ORDER BY rowid"):
         sites.setdefault(s_["project_type"], s_)  # the first site of each project
@@ -253,12 +259,16 @@ def seed_activity(db: Db) -> None:
             fe = put_file(db, odometer(end, [f"{u['name']} · trip end", f"{vehicle} · {end:,.0f} km", when_text(t1)]), f"Travel/{u['name']}",
                           f"{t1:%Y-%m-%d} odometer end.jpg", "image/jpeg", "odometer", u["id"], t1, s["lat"], s["lng"])
             waiting = days_ago == 2 and emp == "EMP102"
-            db.insert("trips", {"user_id": u["id"], "site_id": s["id"], "vehicle": vehicle, "purpose": purpose, "start_at": iso(t0), "start_reading": start,
+            tid = db.insert("trips", {"user_id": u["id"], "site_id": s["id"], "vehicle": vehicle, "purpose": purpose, "start_at": iso(t0), "start_reading": start,
                                 "start_file": fs, "start_lat": s["lat"], "start_lng": s["lng"], "end_at": iso(t1), "end_reading": end, "end_file": fe,
                                 "end_lat": s["lat"] + 0.01, "end_lng": s["lng"] + 0.012, "km_claimed": km, "km_straight": round(km * R.uniform(0.35, 0.6), 1),
                                 "rate_per_km": rate, "amount": round(km * rate, 2), "status": "submitted" if waiting else "approved",
                                 "decided_by": None if waiting else manager["id"], "decided_at": None if waiting else iso(t1 + timedelta(hours=14)),
                                 "decision_note": "" if waiting else "OK"})
+            if waiting:  # waits for the reporting manager, then Accounts & Finance
+                import modules
+
+                modules.start_chain(db, "travel", tid, u["id"], round(km * rate, 2), f"Travel · {u['name']} · {km:g} km, ₹{km * rate:,.0f}", "#approvals")
 
     # ---- stock movements with photos
     plans_stock = {
@@ -356,8 +366,11 @@ def seed_activity(db: Db) -> None:
     db.insert("leaves", {"user_id": users["EMP102"]["id"], "from_date": local_day(7, 9, 0).strftime("%Y-%m-%d"), "to_date": local_day(6, 9, 0).strftime("%Y-%m-%d"),
                          "type": "Sick", "reason": "Fever", "status": "approved", "decided_by": manager["id"], "decided_at": iso(local_day(8, 10, 0)),
                          "decision_note": "Get well soon", "created_at": iso(local_day(8, 8, 0))})
-    db.insert("leaves", {"user_id": users["EMP101"]["id"], "from_date": local_day(-5, 9, 0).strftime("%Y-%m-%d"), "to_date": local_day(-6, 9, 0).strftime("%Y-%m-%d"),
-                         "type": "Casual", "reason": "Family function in the village", "status": "pending", "created_at": iso(now - timedelta(hours=20))})
+    lid = db.insert("leaves", {"user_id": users["EMP101"]["id"], "from_date": local_day(-5, 9, 0).strftime("%Y-%m-%d"), "to_date": local_day(-6, 9, 0).strftime("%Y-%m-%d"),
+                               "type": "Casual", "reason": "Family function in the village", "status": "pending", "created_at": iso(now - timedelta(hours=20))})
+    import modules
+
+    modules.start_chain(db, "leave", lid, users["EMP101"]["id"], 2, f"Leave · {users['EMP101']['name']} · Casual 2 day(s)", "#approvals")
     db.insert("feedback", {"user_id": None, "type": "complaint", "text": "No drinking water cooler at the Lodhika kiln yard in the afternoon heat.",
                            "status": "open", "created_at": iso(local_day(2, 14, 0))})
     db.insert("feedback", {"user_id": users["EMP103"]["id"], "type": "suggestion", "text": "A second ash trolley would save an hour every day.",

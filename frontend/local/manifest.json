@@ -10,6 +10,7 @@
   "lists.py",
   "modules.py",
   "pdfgen.py",
+  "perms.py",
   "planner.py",
   "seed.py",
   "storage.py"

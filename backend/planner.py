@@ -18,6 +18,7 @@ from typing import Any
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
+import perms
 from db import NO_ID_TABLES, Db, now_iso
 
 NO_ID_TABLES.add("task_assignees")
@@ -173,6 +174,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
     def staff_only(user: dict) -> None:
         if not is_staff(user):
             raise HTTPException(403, "Only managers can change plans")
+        perms.need(user, "planner.plans")
 
     @r.post("/plans")
     def save_plan(payload: dict, user: user_dep, db: db_dep):

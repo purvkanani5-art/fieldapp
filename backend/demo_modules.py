@@ -73,8 +73,11 @@ def seed(db: Db) -> None:
         db.run("UPDATE users SET manager_id = ? WHERE id = ?", mgr_agro["id"], u["id"])
     for u in (mgr, hr, mgr_agro):
         db.run("UPDATE users SET manager_id = ? WHERE id = ?", admin["id"], u["id"])
+    db.run("UPDATE users SET manager_id = ? WHERE employee_id = 'EMP004'", admin["id"])
+    for st in db.all("SELECT id, subject_id FROM approval_steps WHERE role = 'manager' AND status IN ('waiting', 'queued') AND subject_id IS NOT NULL"):
+        db.run("UPDATE approval_steps SET approver_id = ? WHERE id = ?", modules.resolve_approver(db, "manager", st["subject_id"]), st["id"])  # reporting lines are set only now
     phones = {"EMP101": "98250 11223", "EMP102": "98790 44556", "EMP103": "97250 77889", "EMP002": "98980 12121", "EMP003": "99090 34343", "EMP001": "98250 00001",
-              "EMP005": "98240 55667", "EMP106": "99250 88112", "EMP107": "97370 66441"}
+              "EMP005": "98240 55667", "EMP106": "99250 88112", "EMP107": "97370 66441", "EMP004": "98250 40404"}
     for emp, ph in phones.items():
         db.run("UPDATE users SET phone = ?, consent_at = ? WHERE employee_id = ?", ph, now_iso(), emp)
     db.run("UPDATE sites SET strict = 1 WHERE id = ?", gas["id"])

@@ -123,25 +123,33 @@ Views.admin = (arg) => {
   if (arg === 'templates') return adminTemplates();
   if (arg === 'company') return adminCompany();
   if (arg === 'audit') return adminAudit();
-  const admin = isAdmin(), hr = KL.user.role === 'hr', mgr = KL.user.role === 'manager';
+  const admin = isAdmin(), mgr = KL.user.role === 'manager';
+  const people = ['users.add', 'users.edit', 'users.deactivate', 'users.pin', 'users.role'].some(can);
   return `${topbar('Administration', '#hr')}<div class="card flush">
-    ${admin || hr ? lrow({ href: '#admin/users', icon: 'user', tone: 'green', title: 'Users & PINs', sub: 'Add staff, roles, sites, reset a PIN' }) : ''}
-    ${admin || mgr ? lrow({ href: '#admin/sites', icon: 'pin', tone: 'blue', title: 'Sites & geofences', sub: 'Location, allowed radius' }) : ''}
-    ${admin || mgr ? lrow({ href: '#admin/items', icon: 'box', tone: 'amber', title: 'Register items', sub: 'Diesel, biomass, outputs per site, low-stock alerts' }) : ''}
-    ${admin || mgr ? lrow({ href: '#admin/templates', icon: 'doc', title: 'Document templates', sub: 'Text and fields of the documents farmers sign' }) : ''}
-    ${admin ? lrow({ href: '#admin/company', icon: 'building', title: 'Company & rates', sub: 'Name, address, travel rates, authorised signature' }) : ''}
-    ${admin ? lrow({ href: '#admin/audit', icon: 'receipt', title: 'Audit log', sub: 'Who did what, when' }) : ''}
+    ${people ? lrow({ href: '#admin/users', icon: 'user', tone: 'green', title: 'Users & PINs', sub: 'Add staff, roles, sites, reset a PIN' }) : ''}
+    ${can('sites.edit') ? lrow({ href: '#admin/sites', icon: 'pin', tone: 'blue', title: 'Sites & geofences', sub: 'Location, allowed radius' }) : ''}
+    ${can('sites.edit') ? lrow({ href: '#admin/items', icon: 'box', tone: 'amber', title: 'Register items', sub: 'Diesel, biomass, outputs per site, low-stock alerts' }) : ''}
+    ${can('sites.edit') ? lrow({ href: '#admin/templates', icon: 'doc', title: 'Document templates', sub: 'Text and fields of the documents farmers sign' }) : ''}
+    ${can('settings.company') ? lrow({ href: '#admin/company', icon: 'building', title: 'Company & rates', sub: 'Name, address, travel rates, authorised signature' }) : ''}
+    ${can('settings.audit') ? lrow({ href: '#admin/audit', icon: 'receipt', title: 'Audit log', sub: 'Who did what, when' }) : ''}
   </div>
   ${KL.boot.demo && (admin || mgr) ? group('Prototype', `<div class="card flush">${lrow({ action: 'demoReset', icon: 'refresh', tone: 'violet', title: 'Reset the demo', sub: 'Wipe everything and rebuild the sample people, sites, tasks and records' })}</div>`) : ''}`;
 };
 function adminUsers() {
   const users = data('admin:users', () => api('/api/admin/users'));
-  return `${topbar('Users & PINs', '#admin', '<button type="button" class="btn small primary" data-action="userEdit">+ Add</button>')}
-    ${users === null ? spinner() : users.error ? errorBox(users.error) : `<div class="card flush">${users.rows.map((u) => lrow({ action: 'userEdit', data: { id: u.id }, icon: { admin: 'shield', manager: 'compass', hr: 'folder', field: 'sprout' }[u.role] || 'user', tone: u.active ? '' : 'red', title: `${u.name}${u.active ? '' : ' (inactive)'}`, sub: `${esc(u.employee_id)} · ${esc(u.role)}${u.designation ? ` · ${esc(u.designation)}` : ''} · ${u.sites.map(siteName).map(esc).join(', ') || 'all sites'}${u.must_change_pin ? ' · starting PIN' : ''}` })).join('')}</div>`}`;
+  return `${topbar('Users & PINs', '#admin', can('users.add') ? '<button type="button" class="btn small primary" data-action="userEdit">+ Add</button>' : '')}
+    ${users === null ? spinner() : users.error ? errorBox(users.error) : `<div class="card flush">${users.rows.map((u) => lrow({ action: 'userEdit', data: { id: u.id }, icon: { admin: 'shield', manager: 'compass', hr: 'folder', field: 'sprout' }[u.role] || 'user', tone: u.active ? '' : 'red', title: `${u.name}${u.active ? '' : ' (inactive)'}`, sub: `${esc(u.employee_id)} · ${esc(u.role)}${u.designation ? ` · ${esc(u.designation)}` : ''}${deptName(u.dept) ? ` · ${esc(deptName(u.dept))}` : ''} · ${u.sites.map(siteName).map(esc).join(', ') || 'all sites'}${u.must_change_pin ? ' · starting PIN' : ''}` })).join('')}</div>`}`;
 }
+const deptName = (key) => (KL.boot.departments || []).find((d) => d.key === key)?.name || '';
 Actions.userEdit = async (el) => {
   const users = KL.cache['admin:users'];
   const u = el.dataset.id ? users.rows.find((x) => x.id === el.dataset.id) : null;
+  if (u && !can('users.edit')) {
+    if (can('users.pin') && (await modal({ title: `Reset ${u.name}'s PIN?`, message: 'Signs the employee out of every phone and sets a new starting PIN.', confirmText: 'Reset PIN' }))) await resetPinFlow(u);
+    return;
+  }
+  const depts = KL.boot.departments || [];
+  const deptOpts = ['(none)', ...depts.map((d) => d.name)];
   const siteOpts = KL.boot.sites.map((s) => s.name);
   const offices = KL.boot.offices || [];
   const roleOpts = (KL.boot.roles || []).filter((r) => r.level !== 'admin' || isAdmin());
@@ -152,26 +160,32 @@ Actions.userEdit = async (el) => {
       : [{ key: 'project', label: 'Project', type: 'select', options: projOpts, value: projOpts[0] },
         { key: 'office', label: 'Reporting office', type: 'select', options: offices.map((o) => `${o.code} · ${o.name}`), value: `${offices[0].code} · ${offices[0].name}` }]),
     { key: 'name', label: 'Full name', value: u?.name || '' },
-    { key: 'roleName', label: 'Role (Settings > Lists > Roles)', type: 'select', options: roleOpts.map((r) => r.name), value: roleOpts.some((r) => r.name === u?.designation) ? u.designation : (roleOpts.find((r) => r.level === (u?.role || 'field')) || roleOpts[0] || {}).name },
+    { key: 'department', label: u ? 'Department' : 'Department (blank = from the project)', type: 'select', options: u ? deptOpts : ['From the project', ...deptOpts.slice(1)], value: u ? deptName(u.dept) || '(none)' : 'From the project' },
+    ...(!u || can('users.role') ? [{ key: 'roleName', label: 'Role (Settings > Lists > Roles)', type: 'select', options: roleOpts.map((r) => r.name), value: roleOpts.some((r) => r.name === u?.designation) ? u.designation : (roleOpts.find((r) => r.level === (u?.role || 'field')) || roleOpts[0] || {}).name }] : []),
     { key: 'phone', label: 'Mobile', type: 'tel', value: u?.phone || '' }, { key: 'email', label: 'Email (if any, for Microsoft sign-in later)', type: 'email', value: u?.email || '' },
-    { key: 'sites', label: 'Sites (comma-separated names, blank = all)', value: (u?.sites || []).map(siteName).join(', '), placeholder: siteOpts.join(', ') },
-    ...(u ? [{ key: 'active', label: 'Status', type: 'select', options: ['active', 'inactive'], value: u.active ? 'active' : 'inactive' }] : [{ key: 'pin', label: 'Starting PIN (4–6 digits, employee changes it)', value: '1234', inputmode: 'numeric' }]),
+    ...(!u || can('users.assign') ? [{ key: 'sites', label: 'Sites (comma-separated names, blank = all)', value: (u?.sites || []).map(siteName).join(', '), placeholder: siteOpts.join(', ') }] : []),
+    ...(u ? (can('users.deactivate') ? [{ key: 'active', label: 'Status', type: 'select', options: ['active', 'inactive'], value: u.active ? 'active' : 'inactive' }] : []) : [{ key: 'pin', label: 'Starting PIN (4–6 digits, employee changes it)', value: '1234', inputmode: 'numeric' }]),
   ], confirmText: u ? 'Save' : 'Create' });
   if (!v) return;
-  const sites = v.sites ? v.sites.split(',').map((n) => KL.boot.sites.find((s) => s.name.toLowerCase() === n.trim().toLowerCase())?.id).filter(Boolean) : [];
+  if (u && v.roleName === undefined) { v.role = u.role; v.designation = u.designation; } // role not editable here: keep it
+  if (u && v.active === undefined) v.active = u.active ? 'active' : 'inactive';
+  const dept = depts.find((d) => d.name === v.department)?.key || '';
+  const sites = v.sites === undefined && u ? u.sites : v.sites ? v.sites.split(',').map((n) => KL.boot.sites.find((s) => s.name.toLowerCase() === n.trim().toLowerCase())?.id).filter(Boolean) : [];
   try {
-    const r = await api('/api/admin/users', { json: { ...v, id: u?.id, sites, active: u ? v.active === 'active' : true, project: (KL.boot.projectList || []).find((p) => p.name === v.project)?.key || '', office: (v.office || '').split(' · ')[0] } });
+    const r = await api('/api/admin/users', { json: { ...v, department: dept, id: u?.id, sites, active: u ? v.active === 'active' : true, project: (KL.boot.projectList || []).find((p) => p.name === v.project)?.key || '', office: (v.office || '').split(' · ')[0] } });
     invalidate('admin:users');
     if (u && u.id === KL.user.id) await refreshMe(); // your own name or designation: update the menu card now
     render();
     if (u) toast('Saved');
     else await modal({ title: `Employee code ${r.employeeId}`, message: `${v.name} signs in with ${r.employeeId} and the starting PIN ${v.pin}. Give both to them; the app asks for a new PIN at the first sign-in.`, noButtons: true, html: '<div class="actions"><button type="button" class="btn primary wide" data-modal="confirm">Done</button></div>' });
-    if (u && (await modal({ title: 'Reset PIN too?', message: 'Signs the employee out of every phone and sets a new starting PIN.', confirmText: 'Reset PIN', cancelText: 'No' }))) {
-      const p = await modal({ title: 'New starting PIN', fields: [{ key: 'pin', label: 'PIN (4–6 digits)', value: '1234', inputmode: 'numeric' }], confirmText: 'Reset' });
-      if (p) { await api(`/api/admin/users/${u.id}/reset-pin`, { json: { pin: p.pin } }); toast('PIN reset'); }
-    }
+    if (u && can('users.pin') && (await modal({ title: 'Reset PIN too?', message: 'Signs the employee out of every phone and sets a new starting PIN.', confirmText: 'Reset PIN', cancelText: 'No' }))) await resetPinFlow(u);
   } catch (e) { toast(e.message, 'error'); }
 };
+async function resetPinFlow(u) {
+  const p = await modal({ title: 'New starting PIN', fields: [{ key: 'pin', label: 'PIN (4–6 digits)', value: '1234', inputmode: 'numeric' }], confirmText: 'Reset' });
+  if (!p) return;
+  try { await api(`/api/admin/users/${u.id}/reset-pin`, { json: { pin: p.pin } }); toast('PIN reset'); } catch (e) { toast(e.message, 'error'); }
+}
 function adminSites() {
   return `${topbar('Sites & geofences', '#admin', '<button type="button" class="btn small primary" data-action="siteEdit">+ Add</button>')}
     <div class="card flush">${KL.boot.sites.map((s) => lrow({ action: 'siteEdit', data: { id: s.id }, icon: PROJECT_ICON[s.project_type] || 'pin', title: s.name, sub: `${esc(s.project_type)} · ${s.lat.toFixed(5)}, ${s.lng.toFixed(5)} · radius ${s.radius_m} m${s.address ? ` · ${esc(s.address)}` : ''}` })).join('')}</div>

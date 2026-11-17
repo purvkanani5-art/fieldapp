@@ -9,7 +9,7 @@ const SECTIONS = [
   { key: 'inbox', icon: 'bell', label: 'Inbox', tabs: [['approvals', 'Approvals'], ['inbox', 'Messages']] },
   { key: 'ops', icon: 'pin', label: 'Operations', tabs: [['sites', 'Sites'], ['planner', 'Planner'], ['hub/ops', 'Records'], ['carbon', 'Carbon'], ['map', 'Map']] },
   { key: 'people', icon: 'users', label: 'People', tabs: [['people', 'Directory'], ['attsum', 'Attendance'], ['team', 'Activity'], ['monthend', 'Month end'], ['hub/hr', 'Records'], ['notices', 'Notices'], ['surveys', 'Surveys'], ['hrdesk', 'HR desk', 'hr']] },
-  { key: 'reports', icon: 'chart', label: 'Reports', tabs: [['reports', 'Reports'], ['dashboard', 'Dashboard']] },
+  { key: 'reports', icon: 'chart', label: 'Reports', tabs: [['reports', 'Reports', 'reports.view'], ['dashboard', 'Dashboard', 'reports.view']] },
 ];
 const SECTION_OF = { home: 'home', approvals: 'inbox', inbox: 'inbox',
   sites: 'ops', site: 'ops', mysite: 'ops', planner: 'ops', tasks: 'ops', carbon: 'ops', map: 'ops', registers: 'ops', farmers: 'ops', sign: 'ops', muster: 'ops', work: 'ops',
@@ -18,7 +18,8 @@ const SECTION_OF = { home: 'home', approvals: 'inbox', inbox: 'inbox',
   reports: 'reports', dashboard: 'reports',
   me: 'me', leaves: 'me', trips: 'me', attendance: 'me', updates: 'me', feedback: 'me',
   settings: 'settings', privacy: 'settings', security: 'settings', admin: 'settings', hrsettings: 'settings', messages: 'settings' };
-const sectionTabs = (s) => s.tabs.filter(([, , need]) => need !== 'hr' || hrRoleNow());
+const sectionTabs = (s) => s.tabs.filter(([, , need]) => !need || (need === 'hr' ? hrRoleNow() : can(need)));
+const shownSections = () => SECTIONS.filter((s) => sectionTabs(s).length);
 function sectionOf(view) {
   if (view === 'rec' || view === 'hub') {
     const a = route().arg.split('/')[0];
@@ -27,7 +28,7 @@ function sectionOf(view) {
   }
   return SECTION_OF[view] || 'home';
 }
-const sectionHref = (key) => { const s = SECTIONS.find((x) => x.key === key); return s ? `#${s.tabs[0][0]}` : `#${key}`; };
+const sectionHref = (key) => { const s = SECTIONS.find((x) => x.key === key); const t = s && sectionTabs(s)[0]; return t ? `#${t[0]}` : `#${key}`; };
 /** The tab strip at the top of a section's page; only on the section's own pages, not on a record or a person. */
 function sectionStrip(key, name, arg) {
   const s = SECTIONS.find((x) => x.key === key);
@@ -50,7 +51,7 @@ const TAB_OF = { attendance: 'work', trips: 'work', registers: 'work', farmers: 
   people: 'manage', personedit: 'manage', reports: 'manage', hrsettings: 'manage', messages: 'manage', privacy: 'me', security: 'me',
   notices: 'me', notice: 'me', surveys: 'me', survey: 'me', changes: 'me', poshdesk: 'me' };
 const FIELD_ONLY = new Set(['requests']);
-const STAFF_ROUTES = new Set(['manage', 'dashboard', 'approvals', 'team', 'hrdesk', 'admin', 'people', 'personedit', 'reports', 'hrsettings', 'messages', 'hr', 'assign', 'monthend', 'hrreg', 'noticenew']);
+const STAFF_ROUTES = new Set(['manage', 'dashboard', 'team', 'hrdesk', 'admin', 'people', 'personedit', 'reports', 'hrsettings', 'messages', 'hr', 'assign', 'monthend', 'hrreg', 'noticenew']);
 const NEEDS_GPS = new Set(['attendance', 'trips', 'registers', 'sign', 'farmers']);
 
 const SECTION_LABEL = {'home': 'Home', 'sites': 'Sites', 'mysite': 'My site', 'planner': 'Planner', 'tasks': 'My tasks', 'hr': 'People', 'me': 'Me', 'inbox': 'Inbox', 'manage': 'Manage', 'ops': 'Operations', 'people': 'People', 'reports': 'Reports', 'settings': 'Settings'};
@@ -86,7 +87,7 @@ function badgeFor(k) {
 function tabBar(active) {
   if (isStaff()) {
     const n = (KL.me?.pendingApprovals || 0) + (KL.me?.unread || 0);
-    return `<nav class="tabbar" aria-label="Main">${SECTIONS.map((s) => `<a href="${sectionHref(s.key)}" class="${active === s.key ? 'on' : ''}" ${active === s.key ? 'aria-current="page"' : ''}>${ic(s.icon)}<span>${s.label}</span>${s.key === 'inbox' && n ? `<span class="badge">${n}</span>` : ''}</a>`).join('')}</nav>`;
+    return `<nav class="tabbar" aria-label="Main">${shownSections().map((s) => `<a href="${sectionHref(s.key)}" class="${active === s.key ? 'on' : ''}" ${active === s.key ? 'aria-current="page"' : ''}>${ic(s.icon)}<span>${s.label}</span>${s.key === 'inbox' && n ? `<span class="badge">${n}</span>` : ''}</a>`).join('')}</nav>`;
   }
   const tabs = fieldTabs();
   return `<nav class="tabbar ${isStaff() ? '' : 'fa-tabbar'}" aria-label="Main">${tabs.map(([k, icon, label]) => (k === '+' ? `<button type="button" class="fa-plus" data-action="plusOpen" aria-label="Add something new">${ic('plus')}</button>` : `<a href="#${k}" class="${active === k ? 'on' : ''}" ${active === k ? 'aria-current="page"' : ''}>${ic(icon)}<span>${label}</span>${badgeFor(k)}</a>`)).join('')}</nav>`;
@@ -101,7 +102,7 @@ function navGroups() {
   }
   const pend = KL.me?.pendingApprovals || 0;
   const unread = KL.me?.unread || 0;
-  if (staff) return [[null, SECTIONS.map((s) => [sectionHref(s.key).slice(1), s.icon, s.label, s.key === 'inbox' ? pend + unread : 0])]];
+  if (staff) return [[null, shownSections().map((s) => [sectionHref(s.key).slice(1), s.icon, s.label, s.key === 'inbox' ? pend + unread : 0])]];
   const hrRole = ['admin', 'hr'].includes(KL.user.role);
   const hasSite = (KL.boot?.mySites || []).some((s) => s.project_type !== 'office');
   const g = [

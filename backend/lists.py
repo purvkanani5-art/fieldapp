@@ -110,6 +110,10 @@ def usage(db: Db, key: str, value: str) -> int:
         codes = set(project_codes(db).values())
         return sum(1 for u in db.all("SELECT employee_id FROM users") if re.fullmatch(r"[A-Z]{3}(\d{2})\d{3,}", u["employee_id"] or "")
                    and u["employee_id"][:3] in codes and u["employee_id"][3:5] == value)
+    if key == "departments":
+        import perms
+
+        return perms.dept_usage(db, value)
     if key == "projects":
         code = project_codes(db).get(value, "")
         return (db.one("SELECT COUNT(*) AS n FROM sites WHERE project_type = ?", value)["n"]
@@ -133,6 +137,8 @@ def all_lists(db: Db) -> list[dict]:
          "items": items("offices", [{"value": o["code"], "name": o["name"]} for o in db.setting("offices", []) or []])},
         {"key": "projects", "label": "Projects", "group": "people", "who": ["admin"], "hint": "The 3-letter code starts the employee code; built-in projects stay",
          "items": [{"value": p["key"], "name": p["name"], "code": p["code"], "icon": p["icon"], "builtin": p["builtin"], "used": usage(db, "projects", p["key"])} for p in projects(db)]},
+        {"key": "departments", "label": "Departments", "group": "people", "who": ["admin"], "hint": "Projects in each department. Approval rules can send a request to a department's team",
+         "items": [{"value": d["key"], "name": d["name"], "projects": d["projects"], "used": usage(db, "departments", d["key"])} for d in _departments(db)]},
         {"key": "leave_types", "label": "Leave types", "group": "people", "who": ["admin", "hr"], "items": items("leave_types", [{"value": v} for v in db.setting("leave_types", []) or []])},
         {"key": "employment", "label": "Employment types", "group": "people", "who": ["admin", "hr"], "items": items("employment", [{"value": v} for v in form_values(db, "employment")])},
         {"key": "vehicles", "label": "Travel vehicles and rate per km", "group": "money", "who": ["admin"],
@@ -145,9 +151,22 @@ def all_lists(db: Db) -> list[dict]:
     return sorted(out, key=lambda x: order.index(x["group"]))
 
 
+def _departments(db: Db) -> list[dict]:
+    import perms
+
+    return perms.departments(db)
+
+
+def allowed(user: dict, lst: dict) -> bool:
+    """The director edits every list; a role with "Edit lists" edits the HR-side ones."""
+    import perms
+
+    return user["role"] == "admin" or ("hr" in lst["who"] and perms.can(user, "settings.lists"))
+
+
 def boot_extra(db: Db) -> dict:
-    """What every screen needs: roles, projects with codes, translations of added items."""
-    return {"roles": roles(db), "projectList": projects(db), "listTr": db.setting("list_tr", {}) or {}}
+    """What every screen needs: roles, projects with codes, departments, translations of added items."""
+    return {"roles": roles(db), "projectList": projects(db), "departments": _departments(db), "listTr": db.setting("list_tr", {}) or {}}
 
 
 def router(user_dep, db_dep) -> APIRouter:
@@ -157,7 +176,7 @@ def router(user_dep, db_dep) -> APIRouter:
         lst = next((x for x in all_lists(db) if x["key"] == key), None)
         if not lst:
             raise HTTPException(404, "Unknown list")
-        if user["role"] not in lst["who"]:
+        if not allowed(user, lst):
             raise HTTPException(403, "Only the director can change this list")
         return lst
 
@@ -170,9 +189,27 @@ def router(user_dep, db_dep) -> APIRouter:
 
     @r.get("")
     def get_lists(user: user_dep, db: db_dep):
-        if user["role"] not in ("admin", "hr"):
-            raise HTTPException(403, "HR only")
-        return {"lists": [x for x in all_lists(db) if user["role"] in x["who"]], "groups": GROUPS, "levels": LEVELS, "icons": ICONS}
+        out = [x for x in all_lists(db) if allowed(user, x)]
+        if not out:
+            raise HTTPException(403, "Your role may not edit lists")
+        return {"lists": out, "groups": GROUPS, "levels": LEVELS, "icons": ICONS}
+
+    @r.post("/departments/project")
+    def dept_project(payload: dict, user: user_dep, db: db_dep):
+        """Put a project in a department (it leaves its old one) or take it out."""
+        find(db, user, "departments")
+        ds = _departments(db)
+        d = next((x for x in ds if x["key"] == payload.get("value")), None)
+        proj = payload.get("project")
+        if not d or proj not in project_codes(db):
+            raise HTTPException(404, "Not found")
+        for x in ds:
+            x["projects"] = [q for q in x["projects"] if q != proj]
+        if payload.get("on"):
+            d["projects"].append(proj)
+        db.set_setting("departments", ds)
+        db.audit(user["id"], "department_projects", "list", d["name"], f"{proj} {'in' if payload.get('on') else 'out'}")
+        return {"ok": True}
 
     @r.post("/{key}/add")
     def add(key: str, payload: dict, user: user_dep, db: db_dep):
@@ -218,6 +255,10 @@ def router(user_dep, db_dep) -> APIRouter:
                 if any(x["name"].lower() == value.lower() for x in rs):
                     raise HTTPException(409, f"{value} already exists")
                 db.set_setting("roles", [*rs, {"name": value, "level": level}])
+            elif key == "departments":
+                import perms
+
+                perms.dept_add(db, value, [str(x) for x in payload.get("projects") or []])
             elif key == "vehicles":
                 travel = db.setting("travel", {"vehicles": {}, "currency": "₹"}) or {"vehicles": {}}
                 try:
@@ -256,6 +297,11 @@ def router(user_dep, db_dep) -> APIRouter:
             raise HTTPException(409, "Keep at least one item in the list")
         if key == "roles":
             db.set_setting("roles", [x for x in roles(db) if x["name"] != value])
+            rp = db.setting("role_perms", {}) or {}
+            if value in rp:
+                db.set_setting("role_perms", {k: v for k, v in rp.items() if k != value})
+        elif key == "departments":
+            db.set_setting("departments", [d for d in _departments(db) if d["key"] != value])
         elif key == "offices":
             db.set_setting("offices", [o for o in db.setting("offices", []) if o["code"] != value])
         elif key == "projects":

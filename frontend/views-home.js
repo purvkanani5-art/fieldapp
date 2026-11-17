@@ -119,7 +119,6 @@ function directorDash() {
 const AP_TYPES = { leave: 'Leave', trip: 'Travel', checkin: 'Check-in', expense: 'Expense', advance: 'Advance', purchase_request: 'Purchase', regularisation: 'Correction', farmer_payment: 'Farmer payment' };
 /** Every request waiting for the signed-in person, normalised: { key, type, who, title, facts[], when, amount, image, decide: {action, kind, id, ok}, safe }. */
 function approvalItems() {
-  if (!isStaff()) return [];
   const a = data('approvals', () => api('/api/approvals'));
   const m = data('m-approvals', () => api('/api/m-approvals'));
   kinds();
@@ -129,10 +128,11 @@ function approvalItems() {
   for (const t of a.trips) out.push({ key: `trips:${t.id}`, type: 'trip', who: t.user_name, title: `${t.vehicle} · ${fmtNum(t.km_claimed, 1)} km`, amount: t.amount, when: t.end_at,
     facts: [['Odometer', `${fmtNum(t.start_reading)} → ${fmtNum(t.end_reading)} km`], ['Straight line', t.km_straight !== null ? `${fmtNum(t.km_straight, 1)} km` : '–'], ['Purpose', t.purpose || '–']],
     images: [t.start_file, t.end_file], decide: { action: 'decide', kind: 'trips', id: t.id, ok: 'approved', okText: 'Approve' }, safe: true });
+  for (const it of out) if (it.type === 'trip') { const t = a.trips.find((x) => `trips:${x.id}` === it.key); if ((t?.steps || []).length > 1) it.facts.push(['Chain', chainLine(t.steps)]); }
   for (const x of a.attendance) out.push({ key: `attendance:${x.id}`, type: 'checkin', who: x.user_name, title: `${x.site_name} · ${fmtNum(x.checkin_dist)} m outside`, when: x.checkin_at,
     facts: [['Allowed', `${x.radius_m} m`], ['Reason', x.override_reason || '–']], images: [x.checkin_file, x.checkout_file], decide: { action: 'decide', kind: 'attendance', id: x.id, ok: 'ok', okText: 'Accept' }, safe: true });
   for (const l of a.leaves) out.push({ key: `leaves:${l.id}`, type: 'leave', who: l.user_name, title: `${l.type} · ${fmtDate(l.from_date, false)}${l.to_date !== l.from_date ? ` to ${fmtDate(l.to_date, false)}` : ''}`, when: l.created_at,
-    facts: [['Days', fmtNum(l.days || 0, 1)], ['Balance', l.balance && l.balance.available !== null ? `${fmtNum(l.balance.available, 1)} left` : '–'], ['Reason', l.reason || '–'], ...((l.steps || []).length > 1 ? [['Chain', l.steps.map((s) => `${ROLE_TEXT[s.role] || s.role}${s.status === 'approved' ? ' ✓' : s.status === 'waiting' ? ' (now)' : ''}`).join(' → ')]] : [])],
+    facts: [['Days', fmtNum(l.days || 0, 1)], ['Balance', l.balance && l.balance.available !== null ? `${fmtNum(l.balance.available, 1)} left` : '–'], ['Reason', l.reason || '–'], ...((l.steps || []).length > 1 ? [['Chain', chainLine(l.steps)]] : [])],
     decide: { action: 'decide', kind: 'leaves', id: l.id, ok: 'approved', okText: 'Approve' }, safe: (l.days || 0) <= 1 && (!l.balance || l.balance.available === null || l.balance.available >= (l.days || 0)) });
   for (const { step, kind, record: r } of m.rows) {
     const k = kindDef(kind);
@@ -144,6 +144,7 @@ function approvalItems() {
   }
   return out.sort((x, y) => String(x.when || '').localeCompare(String(y.when || '')));
 }
+const chainLine = (steps) => steps.map((s) => `${s.role_label || ROLE_TEXT[s.role] || s.role}${s.status === 'approved' ? ' ✓' : s.status === 'waiting' ? ' (now)' : ''}`).join(' → ');
 function apCard(it, { select = false } = {}) {
   const d = it.decide;
   const sel = select && it.safe ? `<input type="checkbox" class="ap-sel" data-change="apSel" data-key="${esc(it.key)}" ${KL.ui.apSel?.has(it.key) ? 'checked' : ''} aria-label="Select for bulk approval" />` : '';
@@ -154,7 +155,7 @@ function apCard(it, { select = false } = {}) {
 }
 Views.approvals = () => {
   const items = approvalItems();
-  const head = topbar('Approvals', '#hr');
+  const head = topbar('Approvals', isStaff() ? '#hr' : '#home');
   if (items === null) return `${head}${spinner()}`;
   if (items.error) return `${head}${errorBox(items.error)}`;
   const type = F('ap-type', '');

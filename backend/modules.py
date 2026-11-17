@@ -59,6 +59,8 @@ MIGRATIONS = [
     "ALTER TABLE sites ADD COLUMN strict INTEGER DEFAULT 0",
     "ALTER TABLE attendance ADD COLUMN flag TEXT DEFAULT ''",
     "ALTER TABLE sites ADD COLUMN subtype TEXT DEFAULT ''",
+    "ALTER TABLE users ADD COLUMN department TEXT DEFAULT ''",
+    "ALTER TABLE approval_steps ADD COLUMN subject_id TEXT",
     "CREATE TABLE IF NOT EXISTS user_projects (user_id TEXT NOT NULL, project TEXT NOT NULL, PRIMARY KEY (user_id, project))",
 ]
 
@@ -88,6 +90,7 @@ DEFAULTS = {
         "farmer_payment": [{"role": "manager"}, {"role": "admin", "min": 25000}],
         "purchase_request": [{"role": "manager"}, {"role": "admin", "min": 20000}],
         "regularisation": [{"role": "manager"}],
+        "travel": [{"role": "manager"}, {"role": "dept:accounts"}],
     },
     "leave_policy": {
         "Casual": {"per_year": 12, "accrual": "monthly"},
@@ -315,6 +318,8 @@ def chain_amount(kind: str, data: dict, days: float | None = None) -> float:
 
 
 def resolve_approver(db: Db, role: str, subject_id: str) -> str | None:
+    if role.startswith(("role:", "dept:")):
+        return None  # anyone holding the role or in the department decides
     if role == "manager":
         u = db.one("SELECT manager_id FROM users WHERE id = ?", subject_id)
         if u and u["manager_id"] and u["manager_id"] != subject_id:
@@ -327,30 +332,55 @@ def resolve_approver(db: Db, role: str, subject_id: str) -> str | None:
 
 def start_chain(db: Db, kind: str, ref_id: str, subject_id: str, amount: float, title: str, link: str) -> list[dict]:
     """Make the approval steps for one request; the first waits, the rest are queued. Steps with a minimum apply only above it."""
+    import perms
+
     chain = setting(db, "approval_chains").get(kind) or [{"role": "manager"}]
-    steps = [s for s in chain if amount >= num(s.get("min"), 0)] or chain[:1]
+    steps = [s for s in chain if perms.step_applies(s, amount)] or chain[:1]
     out = []
     for i, s in enumerate(steps):
         approver = resolve_approver(db, s["role"], subject_id)
         sid = db.insert("approval_steps", {"kind": kind, "ref_id": ref_id, "step": i + 1, "role": s["role"], "approver_id": approver,
-                                           "status": "waiting" if i == 0 else "queued"})
+                                           "status": "waiting" if i == 0 else "queued", "subject_id": subject_id})
         out.append({"id": sid, "role": s["role"], "approver_id": approver})
-    if out and out[0]["approver_id"]:
-        db.notify(out[0]["approver_id"], f"Approval needed: {title}", f"Step 1 of {len(out)}", link)
+    if out:
+        tell_step(db, out[0], subject_id, f"Approval needed: {title}", f"Step 1 of {len(out)}", link)
     return out
+
+
+def tell_step(db: Db, step: dict, subject_id: str, title: str, body: str, link: str) -> None:
+    """Tell whoever decides the step: the named approver, or everyone with the role / in the department (the director if nobody)."""
+    import perms
+
+    if step.get("approver_id"):
+        db.notify(step["approver_id"], title, body, link)
+    elif step["role"].startswith(("role:", "dept:")):
+        ids = [m["id"] for m in perms.members(db, step["role"]) if m["id"] != subject_id]
+        for uid in ids or [u["id"] for u in db.all("SELECT id FROM users WHERE role = 'admin' AND active = 1")]:
+            db.notify(uid, title, body, link)
 
 
 def steps_for(db: Db, kind: str, ref_id: str) -> list[dict]:
     rows = db.all("SELECT s.*, u.name AS approver_name, d.name AS decided_name FROM approval_steps s LEFT JOIN users u ON u.id = s.approver_id "
                   "LEFT JOIN users d ON d.id = s.decided_by WHERE s.kind = ? AND s.ref_id = ? ORDER BY s.step", kind, ref_id)
+    if rows:
+        import perms
+
+        for s in rows:
+            s["role_label"] = perms.approver_label(db, s["role"])
     return rows
 
 
-def may_decide(user: dict, step: dict) -> bool:
+def may_decide(db: Db, user: dict, step: dict) -> bool:
+    if step.get("subject_id") == user["id"] and user["role"] != "admin":
+        return False  # nobody approves their own request (the director still can)
     if user["role"] == "admin":
         return True
     if step["approver_id"]:
         return step["approver_id"] == user["id"]
+    if step["role"].startswith(("role:", "dept:")):
+        import perms
+
+        return perms.is_member(db, user, step["role"])
     return user["role"] == step["role"] or (step["role"] == "manager" and user["role"] in ("manager",))
 
 
@@ -364,8 +394,10 @@ def decide_chain(db: Db, kind: str, ref_id: str, user: dict, decision: str, note
     cur = next((s for s in steps if s["status"] == "waiting"), None)
     if not cur:
         raise HTTPException(409, "Already decided")
-    if not may_decide(user, cur):
-        raise HTTPException(403, f"Waiting for {cur['approver_name'] or cur['role']}")
+    if subject_id == user["id"] and user["role"] != "admin":
+        raise HTTPException(403, "Someone else approves your own request")
+    if not may_decide(db, user, cur):
+        raise HTTPException(403, f"Waiting for {cur['approver_name'] or cur['role_label']}")
     db.update("approval_steps", cur["id"], {"status": decision, "decided_by": user["id"], "decided_at": now_iso(), "note": note[:300]})
     if decision == "rejected":
         for s in steps:
@@ -376,9 +408,8 @@ def decide_chain(db: Db, kind: str, ref_id: str, user: dict, decision: str, note
     nxt = next((s for s in steps if s["status"] == "queued"), None)
     if nxt:
         db.update("approval_steps", nxt["id"], {"status": "waiting"})
-        if nxt["approver_id"]:
-            db.notify(nxt["approver_id"], f"Approval needed: {title}", f"Step {nxt['step']} of {len(steps)} · approved by {user['name']}", link)
-        db.notify(subject_id, f"Step approved: {title}", f"{user['name']} approved; now with {nxt['approver_name'] or nxt['role']}", link)
+        tell_step(db, nxt, subject_id, f"Approval needed: {title}", f"Step {nxt['step']} of {len(steps)} · approved by {user['name']}", link)
+        db.notify(subject_id, f"Step approved: {title}", f"{user['name']} approved; now with {nxt['approver_name'] or nxt['role_label']}", link)
         return "pending"
     db.notify(subject_id, f"Approved: {title}", f"by {user['name']}" + (f": {note}" if note else ""), link)
     return "approved"
@@ -386,8 +417,14 @@ def decide_chain(db: Db, kind: str, ref_id: str, user: dict, decision: str, note
 
 def waiting_for(db: Db, user: dict) -> list[dict]:
     """Steps waiting for this user to decide."""
+    import perms
+
     rows = db.all("SELECT * FROM approval_steps WHERE status = 'waiting'")
-    return [s for s in rows if may_decide(user, s) and (user["role"] != "admin" or s["approver_id"] in (None, user["id"]) or s["role"] == "admin")]
+    if user["role"] != "admin":
+        return [s for s in rows if may_decide(db, user, s)]
+    # the director can decide anything, but only sees what is theirs, or a team step nobody else can take
+    return [s for s in rows if s["approver_id"] == user["id"] or s["role"] == "admin" or (
+        not s["approver_id"] and (not s["role"].startswith(("role:", "dept:")) or not [m for m in perms.members(db, s["role"]) if m["id"] != s.get("subject_id")]))]
 
 
 # ------------------------------------------------------------------ calendar, leave, attendance summary
@@ -655,7 +692,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
             st = steps_for(db, kind, rec["id"])
             rec["steps"] = st
             cur = next((s for s in st if s["status"] == "waiting"), None)
-            rec["waiting"] = (cur["approver_name"] or cur["role"]) if cur else ""
+            rec["waiting"] = (cur["approver_name"] or cur["role_label"]) if cur else ""
         if kind == "batch":
             d = rec["data"]
             rec["yield"] = round(num(d.get("output_kg")) / num(d.get("feedstock_kg"), 1) * 100, 1) if num(d.get("feedstock_kg")) else None
@@ -734,9 +771,13 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
     def get_record(kind: str, rid: str, user: user_dep, db: db_dep):
         k = kind_or_404(kind)
         rec = db.one("SELECT * FROM records WHERE id = ? AND kind = ?", rid, kind)
-        if not rec or not visible(user, k, rec, team_ids(db, user)):
+        if not rec:
+            raise HTTPException(404, "Not found")
+        approver = k.get("approval") and any(s["ref_id"] == rid for s in waiting_for(db, user))  # an approver from another team
+        if not (visible(user, k, rec, team_ids(db, user)) or approver):
             raise HTTPException(404, "Not found")
         rec = enrich(db, kind, rec, full=True)
+        rec["canDecide"] = bool(approver or (k.get("approval") and user["role"] == "admin")) and rec["status"] == "pending"
         if kind == "policy":
             rec["acked"] = bool(db.one("SELECT 1 FROM records WHERE kind = 'policy_ack' AND user_id = ? AND json_extract(data, '$.policy') = ?", user["id"], rid))
         if kind == "batch":
@@ -1038,8 +1079,9 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
     @r.get("/m-export/{kind}.csv")
     def export_kind(kind: str, user: user_dep, db: db_dep):
         k = kind_or_404(kind)
-        if not is_staff(user):
-            raise HTTPException(403, "Managers only")
+        import perms
+
+        perms.need(user, "reports.export")
         rows = [enrich(db, kind, x) for x in db.all("SELECT * FROM records WHERE kind = ? ORDER BY created_at", kind)]
         buf = io.StringIO()
         w = csv.writer(buf)
@@ -1121,17 +1163,20 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
         u["reports"] = db.all("SELECT id, name, designation FROM users WHERE manager_id = ? AND active = 1", uid)
         u["sites"] = [x["site_id"] for x in db.all("SELECT site_id FROM user_sites WHERE user_id = ?", uid)]
         u["projects"] = [x["project"] for x in db.all("SELECT project FROM user_projects WHERE user_id = ?", uid)]
-        u["canAssign"] = user["role"] in ("admin", "hr")
+        import perms
+
+        u["canAssign"] = perms.can(user, "users.assign")
         y = local_today().year
-        return {"user": u, "profile": p, "canEdit": user["role"] in ("admin", "hr"), "balances": leave_balances(db, uid, y),
+        return {"user": u, "profile": p, "canEdit": perms.can(user, "users.edit"), "balances": leave_balances(db, uid, y),
                 "assets": [enrich(db, "asset_issue", x) for x in db.all("SELECT * FROM records WHERE kind = 'asset_issue' AND user_id = ?", uid)],
                 "trainings": [enrich(db, "training", x) for x in db.all("SELECT * FROM records WHERE kind = 'training' AND user_id = ?", uid)],
                 "goals": [enrich(db, "goal", x) for x in db.all("SELECT * FROM records WHERE kind = 'goal' AND user_id = ?", uid)]}
 
     @r.post("/hr/profile/{uid}")
     def save_profile(uid: str, payload: dict, user: user_dep, db: db_dep):
-        if user["role"] not in ("admin", "hr"):
-            raise HTTPException(403, "HR only")
+        import perms
+
+        perms.need(user, "users.edit")
         if not db.one("SELECT 1 FROM users WHERE id = ?", uid):
             raise HTTPException(404, "Not found")
         keys = {f["key"] for f in PROFILE_FIELDS}
@@ -1191,8 +1236,9 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
     @r.post("/hr/assign")
     def assign(payload: dict, user: user_dep, db: db_dep):
         """HR puts a person at sites (they work there) and, for managers, over whole projects (they manage them)."""
-        if user["role"] not in ("admin", "hr"):
-            raise HTTPException(403, "HR only")
+        import perms
+
+        perms.need(user, "users.assign")
         uid = str(payload.get("userId", ""))
         u = db.one("SELECT id, name, role FROM users WHERE id = ?", uid)
         if not u:
@@ -1222,8 +1268,9 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
 
     @r.post("/hr/site-member")
     def site_member(payload: dict, user: user_dep, db: db_dep):
-        if user["role"] not in ("admin", "hr"):
-            raise HTTPException(403, "HR only")
+        import perms
+
+        perms.need(user, "users.assign")
         uid, sid = str(payload.get("userId", "")), str(payload.get("siteId", ""))
         if not db.one("SELECT 1 FROM users WHERE id = ?", uid) or not db.one("SELECT 1 FROM sites WHERE id = ?", sid):
             raise HTTPException(404, "Not found")
@@ -1298,8 +1345,8 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
             raise HTTPException(403, "HR only")
         import hrops
 
-        names = {"approval_chains": "Approval chains", "leave_policy": "Leave policy", "work_hours": "Work hours", "retention": "Data retention", "messaging": "Messaging"}
-        for key in ("approval_chains", "leave_policy", "work_hours", "retention", "messaging"):
+        names = {"leave_policy": "Leave policy", "work_hours": "Work hours", "retention": "Data retention", "messaging": "Messaging"}
+        for key in names:  # approval rules: Settings > Roles & permissions (director only)
             if key in payload:
                 old_v = db.setting(key)
                 if isinstance(old_v, dict) and isinstance(payload[key], dict):
@@ -1513,8 +1560,9 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
 
     @r.get("/reports/summary")
     def report_summary(user: user_dep, db: db_dep, month: str = ""):
-        if not is_staff(user):
-            raise HTTPException(403, "Managers only")
+        import perms
+
+        perms.need(user, "reports.view")
         month = month or local_today().strftime("%Y-%m")
 
         def recs(kind):
