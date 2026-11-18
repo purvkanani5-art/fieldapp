@@ -23,10 +23,14 @@ function permsView() {
     ${group('Approval rules', `<p class="hint" style="margin:-4px 0 10px">Steps run in order. The first approver decides every request; a later step joins only when the request is more than its limit. Changes apply to new requests.</p><div class="lc-grid">${d.rules.map((x) => ruleCard(x, d)).join('')}</div>`)}`;
 }
 
+/** The page's data: the fresh copy, or while it reloads after a save, the copy on screen (KL.stale). */
+const permsData = () => KL.cache['admin:perms'] || KL.stale?.['admin:perms'] || null;
+
 function ruleState(kind) {
   KL.ui.rules = KL.ui.rules || {};
   if (!KL.ui.rules[kind]) {
-    const r = KL.cache['admin:perms'].rules.find((x) => x.kind === kind);
+    const r = permsData()?.rules?.find((x) => x.kind === kind);
+    if (!r) return [];
     KL.ui.rules[kind] = r.steps.map((s) => ({ approver: s.approver, over: s.over === null || s.over === undefined ? '' : String(s.over) }));
   }
   return KL.ui.rules[kind];
@@ -67,15 +71,17 @@ Changes.permTick = async (el) => {
   el.disabled = true;
   try {
     await api('/api/admin/permissions/role', { json: { role: el.dataset.role, perm: el.dataset.perm, on } });
-    const r = KL.cache['admin:perms'].roles.find((x) => x.name === el.dataset.role);
-    r.perms = on ? [...new Set([...r.perms, el.dataset.perm])] : r.perms.filter((k) => k !== el.dataset.perm);
+    const r = permsData()?.roles?.find((x) => x.name === el.dataset.role);
+    if (r) r.perms = on ? [...new Set([...r.perms, el.dataset.perm])] : r.perms.filter((k) => k !== el.dataset.perm);
     toast(on ? 'Allowed' : 'Removed');
   } catch (e) { el.checked = !on; toast(e.message, 'error'); }
   el.disabled = false;
 };
 Changes.permLevel = async (el) => {
-  const r = KL.cache['admin:perms'].roles.find((x) => x.name === el.dataset.role);
-  const label = KL.cache['admin:perms'].levels[el.value];
+  const d = permsData();
+  const r = d?.roles?.find((x) => x.name === el.dataset.role);
+  if (!r) return;
+  const label = d.levels[el.value];
   const n = Number(el.dataset.people) || 0;
   if (n && !(await modal({ title: `Make ${r.name} ${label}?`, message: `${n === 1 ? '1 person' : `${n} people`} with this role move to ${label} and get its starting permissions. They see it the next time the app refreshes.`, confirmText: 'Change' }))) { el.value = r.level; return; }
   try {
@@ -84,7 +90,7 @@ Changes.permLevel = async (el) => {
   } catch (e) { el.value = r.level; toast(e.message, 'error'); }
 };
 Changes.ruleSet = (el) => {
-  if (!KL.cache['admin:perms']?.rules) return; // the page is reloading after a save
+  if (!permsData()?.rules) return;
   const st = ruleState(el.dataset.kind)[Number(el.dataset.i)];
   if (st) { st[el.dataset.f] = el.value.trim(); render(); }
 };
