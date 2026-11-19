@@ -259,6 +259,16 @@ function hideSplash() {
   s.dataset.going = '1';
   setTimeout(() => { s.classList.add('gone'); setTimeout(() => s.remove(), 500); }, Math.max(0, 700 - performance.now()));
 }
+/** Put the tab row back where it was, then make sure the open tab is in view (it may be past the edge). */
+function keepTabRow(wasAt) {
+  const row = document.querySelector('#app .sect-tabs');
+  if (!row) return;
+  if (wasAt && wasAt[0] === row.getAttribute('aria-label')) row.scrollLeft = wasAt[1];
+  const on = row.querySelector('.on');
+  if (!on) return;
+  const left = on.getBoundingClientRect().left - row.getBoundingClientRect().left + row.scrollLeft;
+  if (left < row.scrollLeft || left + on.offsetWidth > row.scrollLeft + row.clientWidth) row.scrollLeft = Math.max(0, left - 16);
+}
 function render() {
   const app = $('#app');
   const signedOut = !KL.token || !KL.user;
@@ -306,7 +316,10 @@ function render() {
   const main = drawer ? Views.rec(rk) : Views[view](arg);
   const side = drawer ? drawerShell(Views.rec(arg), `#rec/${rk}`) : '';
   const strip = isStaff() && !drawer ? sectionStrip(tab, name, arg) : '';
+  const was = app.querySelector('.sect-tabs'); // the section's tab row keeps its sideways scroll across screens
+  const wasAt = was ? [was.getAttribute('aria-label'), was.scrollLeft] : null;
   app.innerHTML = `${appHead()}${sideNav(tab)}<main class="view ${entering ? 'enter' : ''} ${strip ? 'is-top' : ''}" id="main">${strip}${main}</main>${side}${tabBar(tab)}${switcherPill()}`;
+  keepTabRow(wasAt);
   document.body.classList.toggle('has-drawer', Boolean(drawer));
   const canvas = $('#sig');
   if (canvas) {
