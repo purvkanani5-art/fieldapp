@@ -28,6 +28,7 @@ Views.me = () => {
       ${lrow({ href: '#leaves', icon: 'sun', tone: 'blue', title: 'Leave', sub: pendingLeaves ? `${pendingLeaves} request${pendingLeaves === 1 ? '' : 's'} pending` : 'Apply and see past leave' })}
       ${lrow({ href: '#committees', icon: 'shield', tone: 'violet', title: 'Committees', sub: 'Who looks after complaints and ideas' })}
       ${lrow({ href: '#feedback', icon: 'chat', tone: 'amber', title: 'Complaints & suggestions', sub: 'To a committee, with your name or without, with a tracking code' })}
+      ${lrow({ href: '#escalate', icon: 'alert', tone: 'red', title: 'Direct escalation', sub: 'Serious matters: money, safety, compliance, client commitments' })}
       ${(KL.cache.committees?.rows || []).some((c) => c.openCases !== undefined) ? lrow({ href: '#cases', icon: 'inbox', tone: 'red', title: 'Committee cases', sub: 'Confidential complaints for the committee' }) : ''}
       ${lrow({ href: '#changes/me', icon: 'clock', title: 'Changes to my records', sub: 'Attendance, leave and balance changes, with who and why' })}
       ${lrow({ href: '#attendance', icon: 'pin', tone: 'green', title: 'My attendance', sub: 'Check-ins of the last 31 days' })}

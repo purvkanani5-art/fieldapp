@@ -64,6 +64,7 @@ MIGRATIONS = [
     "ALTER TABLE leaves ADD COLUMN half TEXT DEFAULT ''",
     "ALTER TABLE users ADD COLUMN photo_id TEXT",
     "ALTER TABLE users ADD COLUMN level TEXT DEFAULT ''",
+    "ALTER TABLE sites ADD COLUMN locality TEXT DEFAULT ''",
     "ALTER TABLE sites ADD COLUMN village TEXT DEFAULT ''",
     "ALTER TABLE sites ADD COLUMN taluka TEXT DEFAULT ''",
     "ALTER TABLE sites ADD COLUMN district TEXT DEFAULT ''",
@@ -848,7 +849,8 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
         if not rec:
             raise HTTPException(404, "Not found")
         approver = k.get("approval") and any(s["ref_id"] == rid for s in waiting_for(db, user))  # an approver from another team
-        if not (visible(user, k, rec, team_ids(db, user)) or approver):
+        investigating = kind == "incident" and user["id"] in (json.loads(rec["data"] or "{}").get("investigators") or [])
+        if not (visible(user, k, rec, team_ids(db, user)) or approver or investigating):
             raise HTTPException(404, "Not found")
         rec = enrich(db, kind, rec, full=True)
         rec["canDecide"] = bool(approver or (k.get("approval") and user["role"] == "admin")) and rec["status"] == "pending"
@@ -873,6 +875,8 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
         if rid and not old:
             raise HTTPException(404, "Not found")
         if old:
+            if kind == "incident":
+                raise HTTPException(409, "A report cannot be changed once sent. Add a note on its timeline instead.")
             if not (is_staff(user) or old["created_by"] == user["id"]):
                 raise HTTPException(403, "Only the person who made it or a manager can change it")
             if old["status"] == "withdrawn":
@@ -1102,6 +1106,8 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
         if not rec or not visible(user, k, rec):
             raise HTTPException(404, "Not found")
         st = payload.get("status")
+        if kind == "incident":
+            raise HTTPException(409, "Use the timeline: start the investigation, or close it with the conclusion and action taken")
         if st not in (k.get("statuses") or []):
             raise HTTPException(422, "Unknown status")
         if rec["status"] == "withdrawn":
@@ -1159,6 +1165,8 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
             raise HTTPException(403, "Not allowed")
         if kind in STOCK_KINDS:
             raise HTTPException(409, "This moved stock; record a correction in the register instead of deleting it")
+        if kind == "incident":
+            raise HTTPException(409, "Incident reports are kept: they cannot be deleted")
         db.run("DELETE FROM records WHERE id = ?", rid)
         db.run("DELETE FROM approval_steps WHERE kind = ? AND ref_id = ?", KINDS[kind].get("approval") or kind, rid)
         db.audit(user["id"], f"{kind}_deleted", kind, rid, rec["title"])

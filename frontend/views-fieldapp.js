@@ -113,7 +113,7 @@ Actions.plusOpen = () => {
   // personal things only: everything done at a site is inside the site ("Site work" opens it)
   const tiles = [{ icon: 'pin', label: att ? 'Check out' : 'Check in', href: '#attendance' }, { icon: 'bike', label: KL.me?.openTrip ? 'End trip' : 'Travel', href: '#trips' }, { icon: 'sun', label: 'Leave', href: '#leaves' },
     { icon: 'receipt', label: 'Expense', kind: 'expense', site: s?.id || '' }, { icon: 'receipt', label: 'Advance', kind: 'advance', site: '' }, { icon: 'note', label: 'Daily update', href: '#updates' },
-    { icon: 'chat', label: 'Complaint or suggestion', href: '#feedback' }, ...(s ? [{ icon: 'flame', label: 'Site work', href: `#mysite/${s.id}` }] : [])];
+    { icon: 'chat', label: 'Complaint or suggestion', href: '#feedback' }, { icon: 'alert', label: 'Direct escalation', href: '#escalate' }, ...(s ? [{ icon: 'flame', label: 'Site work', href: `#mysite/${s.id}` }] : [])];
   data('m:checklist_template', () => api('/api/m/checklist_template')); // so "Daily safety check" opens the checklist itself
   modal({ title: 'Add new', html: `<div class="fa-tiles">${tiles.map(tileBtn).join('')}</div>`, noButtons: true });
 };
@@ -216,6 +216,7 @@ function fieldMe() {
       ${row('', 'doc', 'Payslips and documents', '', '', 'meDocs')}
       ${row('#notices', 'bell', 'Notices and surveys', '', newN ? `<span class="fa-new">${newN} new</span>` : '')}
       ${row('#feedback', 'chat', 'Complaints & suggestions', 'With your name or without')}
+      ${row('#escalate', 'alert', 'Direct escalation', 'Serious matters: money, safety, compliance')}
       ${row('#committees', 'shield', 'Committees', 'Who looks after complaints and ideas')}
       ${cmt && !cmt.error && cmt.rows.some((c) => c.openCases !== undefined) ? row('#cases', 'inbox', 'Committee cases', 'Confidential, for your committees') : ''}
       ${row('#settings', 'cog', 'Settings', 'Language, PIN, privacy')}
@@ -238,6 +239,7 @@ Views.settings = () => {
     ${isStaff() ? group('Administration', `<div class="fa-list">
       <a class="fa-row" href="#security"><span class="fa-ic">${ic('shield')}</span><span class="fa-tx"><b>Two-step sign-in</b><span>Authenticator code after the PIN</span></span><span class="chev">${ic('chevron')}</span></a>
       <a class="fa-row" href="#admin"><span class="fa-ic">${ic('cog')}</span><span class="fa-tx"><b>Administration</b><span>Users, sites, registers, templates, company</span></span><span class="chev">${ic('chevron')}</span></a>
+      ${['admin', 'hr'].includes(u.role) ? `<a class="fa-row" href="#esccontacts"><span class="fa-ic">${ic('alert')}</span><span class="fa-tx"><b>Escalation contacts</b><span>Who people call when a matter is severe</span></span><span class="chev">${ic('chevron')}</span></a>` : ''}
       ${['admin', 'hr'].includes(u.role) ? `<a class="fa-row" href="#policies"><span class="fa-ic">${ic('doc')}</span><span class="fa-tx"><b>Company policies</b><span>Upload, who must sign each one</span></span><span class="chev">${ic('chevron')}</span></a>` : ''}
       ${['admin', 'hr'].includes(u.role) ? `<a class="fa-row" href="#hrsettings"><span class="fa-ic">${ic('cog')}</span><span class="fa-tx"><b>HR settings</b><span>Leave policy, work hours</span></span><span class="chev">${ic('chevron')}</span></a>` : ''}
     </div>`) : ''}

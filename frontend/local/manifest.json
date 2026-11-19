@@ -2,6 +2,7 @@
  "backend": [
   "app.py",
   "auth.py",
+  "casetrack.py",
   "committees.py",
   "db.py",
   "demo.py",

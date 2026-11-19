@@ -17,6 +17,7 @@ function newTiles() {
     { icon: 'receipt', label: 'Expense', href: '#rec/expense/new' },
     { icon: 'sun', label: 'Leave', href: '#leaves' },
     { icon: 'alert', label: 'Incident', href: '#rec/incident/new' },
+    { icon: 'flag', label: 'Escalation', href: '#escalate' },
   ].filter(Boolean);
 }
 const newTile = (x) => `<button type="button" class="fa-tile" data-action="newGo" ${x.href ? `data-href="${esc(x.href)}"` : ''} ${x.action ? `data-act="${esc(x.action)}"` : ''}>${ic(x.icon)}<span>${esc(x.label)}</span></button>`;
@@ -246,7 +247,7 @@ Actions.copyText = async (el) => { try { await navigator.clipboard.writeText(el.
 /* ---------------------------------------------------------------- one page for a site, with its geofence */
 const SITE_RULES = [['0', 'Allow exceptions', 'Outside the circle, people give a reason and the manager decides'], ['1', 'Enforce at check-in', 'Check-in only inside the circle; check-out may be an exception'], ['2', 'Enforce at check-in and check-out', 'Both only inside the circle']];
 const sf = (k) => `sf-${k}`;
-const SITE_AREA = ['village', 'taluka', 'district', 'state'];
+const SITE_AREA = ['locality', 'village', 'taluka', 'district', 'state'];
 /** The plus code of the site's centre, under the coordinates. */
 function sfPlusLine() {
   const lat = Number(F(sf('lat'))), lng = Number(F(sf('lng')));
@@ -310,7 +311,7 @@ function siteForm(id) {
       <div id="sf-map" class="map-box" style="height:320px"></div>
       <div class="grid2">${field('Latitude', `<input id="sf-lat" class="input notr" inputmode="decimal" value="${esc(F(sf('lat')))}" data-input="sfCoord" data-key="sf-lat" placeholder="e.g. 24.25810" />`)}${field('Longitude', `<input id="sf-lng" class="input notr" inputmode="decimal" value="${esc(F(sf('lng')))}" data-input="sfCoord" data-key="sf-lng" placeholder="e.g. 72.19230" />`)}</div>
       <p class="hint sf-plus" id="sf-plus">${sfPlusLine()}</p>
-      ${fieldGroup('Area', `<div class="grid2">${field('Village / town', input(sf('village'), F(sf('village'))))}${field('Taluka', input(sf('taluka'), F(sf('taluka'))))}${field('District', input(sf('district'), F(sf('district'))))}${field('State', input(sf('state'), F(sf('state'))))}</div><p class="hint" id="sf-area-note">${esc(KL.ui.sfAreaNote || 'Filled in from the map when the centre is set. Correct anything that is wrong.')}</p>`)}
+      ${fieldGroup('Area', `<div class="grid2">${field('Locality', input(sf('locality'), F(sf('locality')), { placeholder: 'area, hamlet (if any)' }))}${field('Village / town', input(sf('village'), F(sf('village'))))}${field('Taluka', input(sf('taluka'), F(sf('taluka'))))}${field('District', input(sf('district'), F(sf('district'))))}${field('State', input(sf('state'), F(sf('state'))))}</div><p class="hint" id="sf-area-note">${esc(KL.ui.sfAreaNote || 'Filled in from the map when the centre is set. Correct anything that is wrong.')}</p>`)}
       ${fieldGroup('Allowed radius', `<div class="row" style="gap:10px;align-items:center"><input type="range" id="sf-radius-range" min="25" max="2000" step="25" value="${esc(F(sf('radius'), '200'))}" data-input="sfRadius" style="flex:1" aria-label="Radius" /><input id="sf-radius" class="input lc-short notr" inputmode="numeric" value="${esc(F(sf('radius'), '200'))}" data-input="sfRadius" aria-label="Radius in metres" style="width:90px" /><span>m</span></div>`, { help: '150–300 m suits most sites; more for big plantations.' })}
       ${fieldGroup('Check-in rule', `<div class="stack" style="gap:6px" role="radiogroup">${SITE_RULES.map(([v, l, h]) => `<label class="radio-row"><input type="radio" name="sf-rule" value="${v}" ${rule === v ? 'checked' : ''} data-change="sfRule" /><span><b>${esc(l)}</b><small class="muted" style="display:block">${esc(h)}</small></span></label>`).join('')}</div>`)}
     </div>`)}

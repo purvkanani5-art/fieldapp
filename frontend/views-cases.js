@@ -119,22 +119,23 @@ Views.case = (arg) => {
     <div class="case-facts">${facts.map(([k, v]) => `<span>${esc(k)}: <b>${esc(v)}</b></span>`).join('')}</div>
     ${handler && c.keptOut && c.keptOut.length ? `<div class="banner warn">${ic('shield')}<div><b>Kept out of this case</b><p>${esc(c.keptOut.join(', '))}: named in it, so they cannot see it. Do not share it with them.</p></div></div>` : ''}
     ${handler && c.mail_status ? `<p class="hint">Email to the committee: ${esc(c.mail_status)}</p>` : ''}
-    ${c.status === 'closed' && c.outcome ? `<div class="banner ok">${ic('check')}<div><b>Outcome</b><p>${esc(c.outcome)}</p></div></div>` : ''}</div>`;
+    </div>`;
   const conv = c.thread && c.thread.length ? group('Messages', `<div class="card">${caseThread(c.thread, handler)}</div>`) : '';
   let act = '';
   if (handler) {
-    act = `${c.status === 'open' ? `<button type="button" class="btn primary wide" data-action="caseStatus" data-id="${esc(c.id)}" data-status="in_progress">${ic('play')} Start review</button>` : ''}
-      ${group(c.anonymous ? 'Message the sender (they read it with their code)' : `Message ${firstName(c.user_name || 'the sender')}`, `<div class="card stack">${textarea('case-msg', F('case-msg'), 'Ask a question or give an update')}<button type="button" class="btn wide" data-action="caseMsg" data-id="${esc(c.id)}">${ic('send')} Send message</button></div>`)}
-      ${c.status !== 'closed' ? group('Close with an outcome', `<div class="card stack">${textarea('case-out', F('case-out'), 'What was decided or done. The sender sees this.')}<button type="button" class="btn wide redline" data-action="caseClose" data-id="${esc(c.id)}">Close the case</button></div>`) : ''}`;
+    act = `${group(c.anonymous ? 'Message the sender (they read it with their code)' : `Message ${firstName(c.user_name || 'the sender')}`, `<div class="card stack">${textarea('case-msg', F('case-msg'), 'Ask a question or give an update')}<button type="button" class="btn wide" data-action="caseMsg" data-id="${esc(c.id)}">${ic('send')} Send message</button></div>`)}
+`;
   } else if (code) {
     act = `${group('Write back (still without your name)', `<div class="card stack">${textarea('case-msg', F('case-msg'), 'Your message')}<button type="button" class="btn wide primary" data-action="trackReply" data-code="${esc(arg)}">${ic('send')} Send</button></div>`)}
       ${c.named ? '' : `<div class="card stack" style="margin-top:12px"><b>Add my name</b><p class="hint">The committee may be able to do more if it knows who you are. Only the committee sees your name. This cannot be undone.</p><button type="button" class="btn wide" data-action="trackName" data-code="${esc(arg)}">Add my name to it</button></div>`}`;
   } else {
     act = group('Write back', `<div class="card stack">${textarea('case-msg', F('case-msg'), 'Your message')}<button type="button" class="btn wide primary" data-action="caseReply" data-id="${esc(c.id)}">${ic('send')} Send</button></div>`);
   }
-  return `${head}${info}${conv}${act}`;
+  const track = code ? (c.timeline ? caseTrack('feedback', c.id, c.timeline) : '') : caseTrack('feedback', c.id);
+  return `${head}${info}${track}${conv}${act}`;
 };
 const caseDone = (msg) => { clearF('case-msg', 'case-out'); invalidate('case', 'track', 'feedback', 'committees'); toast(msg); render(); };
+const caseOverdue = () => (typeof overdueBanner === 'function' ? overdueBanner() : '');
 Actions.caseStatus = async (el) => { try { await api(`/api/feedback/${el.dataset.id}/respond`, { json: { status: el.dataset.status } }); caseDone('Review started. The sender is told.'); } catch (e) { toast(e.message, 'error'); } };
 Actions.caseMsg = async (el) => {
   if (F('case-msg', '').trim().length < 2) return toast('Write the message', 'error');
@@ -165,7 +166,7 @@ Views.cases = () => {
   const names = [...new Set(fb.rows.map((r) => r.committee).filter(Boolean))];
   const rows = fb.rows.filter((r) => (!cmf || r.committee === cmf) && (st === 'all' || (st === 'active' ? r.status !== 'closed' : r.status === st)));
   const pill = (key, v, label) => `<button type="button" data-action="csFilter" data-key="${key}" data-value="${esc(v)}" aria-pressed="${F(key, key === 'cs-st' ? 'active' : '') === v}">${esc(label)}</button>`;
-  return `${head}<p class="sub">Confidential. Committee members, HR and the director see these; POSH cases only the POSH committee. People named in a case never see it.</p>
+  return `${head}<p class="sub">Confidential. Committee members, HR and the director see these; POSH cases only the POSH committee. People named in a case never see it.</p>${caseOverdue()}
     <div class="chips pills">${pill('cs-st', 'active', `Open · ${fb.rows.filter((r) => r.status !== 'closed').length}`)}${pill('cs-st', 'closed', 'Closed')}${pill('cs-st', 'all', 'All')}</div>
     ${names.length > 1 ? `<div class="chips" style="margin-top:8px">${pill('cs-cm', '', 'Every committee')}${names.map((n) => pill('cs-cm', n, n)).join('')}</div>` : ''}
     <div style="margin-top:12px">${rows.length ? `<div class="card flush">${rows.map((r) => lrow({ href: `#case/${r.id}`, icon: r.category === 'posh' ? 'shield' : r.type === 'suggestion' ? 'sparkle' : 'chat', tone: r.category === 'posh' ? 'violet' : r.type === 'suggestion' ? 'amber' : 'red',

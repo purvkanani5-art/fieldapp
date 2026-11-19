@@ -53,7 +53,10 @@ def area_of(address: dict) -> dict:
     """Nominatim's address parts for India -> village / taluka / district / state (taluka is the OSM 'county' or
     'subdistrict'; it is missing in some places and then left empty for the person to type)."""
     a = address or {}
+    village = a.get("village") or a.get("hamlet") or a.get("town") or a.get("city") or a.get("suburb") or a.get("neighbourhood") or ""
+    locality = next((a[k] for k in ("neighbourhood", "quarter", "suburb", "hamlet", "residential", "isolated_dwelling") if a.get(k) and a.get(k) != village), "")
     return {
+        "locality": locality,
         "village": a.get("village") or a.get("hamlet") or a.get("town") or a.get("city") or a.get("suburb") or a.get("neighbourhood") or "",
         "taluka": re.sub(r"\s+(taluka|taluk|tehsil|tahsil)$", "", a.get("county") or a.get("subdistrict") or a.get("municipality") or "", flags=re.I),
         "district": a.get("state_district") or a.get("district") or "",

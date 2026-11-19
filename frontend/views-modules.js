@@ -175,7 +175,7 @@ function recDetail(k, id) {
   const back = KL.ui.siteBack || `#rec/${k.key}`;
   if (r === null) return `${topbar(k.one, back)}${spinner()}`;
   if (r.error) return `${topbar(k.one, back)}${errorBox(r.error)}`;
-  const mayEdit = r.status !== 'withdrawn' && (isStaff() || (r.created_by === KL.user.id && !(k.approval && ['approved', 'rejected'].includes(r.status))));
+  const mayEdit = k.key !== 'incident' && r.status !== 'withdrawn' && (isStaff() || (r.created_by === KL.user.id && !(k.approval && ['approved', 'rejected'].includes(r.status)))); // a report is never edited once sent
   const right = `${mayEdit && !['batch', 'application', 'transfer', 'dispatch', 'checklist_run'].includes(k.key) ? `<a class="btn small" href="#rec/${esc(k.key)}/${esc(id)}/edit">${ic('pen')} Edit</a>` : ''}`;
   const kv = k.fields.filter((f) => !['checklist', 'answers', 'textarea'].includes(f.type)).map((f) => `<span>${esc(f.label)}</span><span>${esc(fmtVal(f, r.data[f.key]))}</span>`).join('');
   const long = k.fields.filter((f) => f.type === 'textarea' && r.data[f.key]).map((f) => `<div class="sec-text"><small>${esc(f.label)}</small><p>${esc(r.data[f.key])}</p></div>`).join('');
@@ -190,7 +190,8 @@ function recDetail(k, id) {
   if (k.key === 'checklist_template') extra = `<a class="btn primary wide" style="margin-top:12px" href="#rec/checklist_run/new" data-action="startChecklist" data-id="${esc(id)}">${ic('play')} Start today's checklist</a>`;
   if (k.key === 'checklist_run') extra = group('Answers', `<div class="card flush">${(r.data.answers || []).map((a) => `<div class="lrow-static row"><span class="icon ${a.ok ? 'green' : 'red'}">${ic(a.ok ? 'check' : 'alert')}</span><span class="tx" style="flex:1"><b>${esc(a.item)}</b>${a.note ? `<span class="muted" style="font-size:13px;display:block">${esc(a.note)}</span>` : ''}</span>${tag(a.ok ? 'OK' : 'not OK', a.ok ? 'ok' : 'bad')}</div>`).join('')}</div>`);
   if (k.key === 'equipment') extra = equipmentHistory(r);
-  const statusBtns = (k.statuses || []).length && !k.approval && !['batch', 'purchase_request'].includes(k.key) && (isStaff() || r.created_by === KL.user.id) ? `<div class="chips" style="margin-top:12px">${k.statuses.map((s) => `<button type="button" data-action="recStatus" data-kind="${esc(k.key)}" data-id="${esc(id)}" data-status="${esc(s)}" aria-pressed="${r.status === s}">${esc(s)}</button>`).join('')}</div>` : '';
+  if (k.key === 'incident') extra = caseTrack('incident', id);
+  const statusBtns = (k.statuses || []).length && !k.approval && !['batch', 'purchase_request', 'incident'].includes(k.key) && (isStaff() || r.created_by === KL.user.id) ? `<div class="chips" style="margin-top:12px">${k.statuses.map((s) => `<button type="button" data-action="recStatus" data-kind="${esc(k.key)}" data-id="${esc(id)}" data-status="${esc(s)}" aria-pressed="${r.status === s}">${esc(s)}</button>`).join('')}</div>` : '';
   const prBtns = k.key === 'purchase_request' && isStaff() && ['approved', 'ordered'].includes(r.status) ? `<div class="btns" style="margin-top:12px">${r.status === 'approved' ? `<button type="button" class="btn primary" data-action="recStatus" data-kind="purchase_request" data-id="${esc(id)}" data-status="ordered">${ic('send')} Place order</button>` : `<button type="button" class="btn primary" data-action="recStatus" data-kind="purchase_request" data-id="${esc(id)}" data-status="received">${ic('box')} Mark received (adds to stock)</button>`}</div>` : '';
   return `${topbar(r.title || k.one, back, right)}
     <div class="card stack">
@@ -203,7 +204,7 @@ function recDetail(k, id) {
     ${r.steps && r.steps.length ? stepsBox(k, r) : ''}
     ${r.canWithdraw ? `<button type="button" class="btn" style="margin-top:14px" data-action="recWithdraw" data-kind="${esc(k.key)}" data-id="${esc(id)}">${ic('back')} Withdraw this request</button>` : ''}
     ${extra}
-    ${isStaff() && !['batch', 'application', 'transfer', 'dispatch'].includes(k.key) ? `<button type="button" class="btn ghost" style="margin-top:14px;color:var(--danger)" data-action="recDelete" data-kind="${esc(k.key)}" data-id="${esc(id)}">${ic('trash')} Delete</button>` : ''}`;
+    ${isStaff() && !['batch', 'application', 'transfer', 'dispatch', 'incident'].includes(k.key) ? `<button type="button" class="btn ghost" style="margin-top:14px;color:var(--danger)" data-action="recDelete" data-kind="${esc(k.key)}" data-id="${esc(id)}">${ic('trash')} Delete</button>` : ''}`;
 }
 function stepsBox(k, r) {
   const cur = r.steps.find((s) => s.status === 'waiting');

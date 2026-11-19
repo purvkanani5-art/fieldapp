@@ -136,7 +136,7 @@ REF_RECORD_CODES = {"expense": "EX", "advance": "AD", "regularisation": "AC", "p
                     "lab_result": "LR", "labour": "LB", "maintenance": "MT", "nursery": "NE", "sapling": "SA", "survival": "SV",
                     "onboarding": "OB", "exit": "XT", "review": "RV", "training": "TN"}
 REF_TABLES = {"work_updates": "created_at", "leaves": "created_at", "trips": "start_at", "tasks": "created_at", "feedback": "created_at",
-              "attendance": "checkin_at", "records": "created_at"}
+              "attendance": "checkin_at", "records": "created_at", "escalations": "created_at"}
 
 
 def ref_code(table: str, row: dict) -> str | None:
@@ -146,7 +146,7 @@ def ref_code(table: str, row: dict) -> str | None:
         return "SG" if row.get("type") == "suggestion" else "CP"  # POSH complaints are CP too: the number does not tell
     if table == "attendance":
         return "CE" if row.get("status") == "pending" else None  # only check-in / check-out exceptions
-    return {"work_updates": "DU", "leaves": "LV", "trips": "TR", "tasks": "TK"}.get(table)
+    return {"work_updates": "DU", "leaves": "LV", "trips": "TR", "tasks": "TK", "escalations": "ES"}.get(table)
 
 
 def fin_year(iso: str | None) -> str:

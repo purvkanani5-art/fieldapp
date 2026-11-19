@@ -98,6 +98,8 @@ def init(db: Db) -> None:
             pass
     db.con.commit()
     committees.init(db)
+    import casetrack
+    casetrack.init(db)
     for k, v in DEFAULTS.items():
         if db.setting(k) is None:
             db.set_setting(k, v)
@@ -865,15 +867,24 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
         status = payload.get("status", fb["status"] if text else "closed")
         if status not in ("open", "in_progress", "closed"):
             raise HTTPException(422, "Unknown status")
-        outcome = str(payload.get("outcome", "")).strip()[:1000]
-        if status == "closed" and fb["status"] != "closed" and len(outcome) < 3:
-            raise HTTPException(422, "Write the outcome before closing")
+        outcome = str(payload.get("conclusion") or payload.get("outcome") or "").strip()[:1000]
+        action = str(payload.get("action", "")).strip()[:1000]
+        if status == "closed" and fb["status"] != "closed" and (len(outcome) < 3 or len(action) < 3):
+            raise HTTPException(422, "Write the conclusion and the action taken before closing")
+        if fb["status"] == "closed" and status != "closed":
+            raise HTTPException(409, "It is closed; reopen it with a reason from its timeline")
         if text:
             db.insert("feedback_msgs", {"feedback_id": fid, "from_hr": 1, "by_id": user["id"], "text": text[:2000], "at": now_iso()})
         patch = {"response": text[:2000] or fb["response"], "status": status, "responded_by": user["id"], "responded_at": now_iso()}
         if status == "closed" and fb["status"] != "closed":
-            patch.update(outcome=outcome, closed_at=now_iso())
+            patch.update(outcome=outcome, action_taken=action, closed_at=now_iso())
         db.update("feedback", fid, patch)
+        import casetrack
+        case = casetrack.load(db, "feedback", fid)
+        if status == "in_progress" and fb["status"] == "open":
+            casetrack.log(db, case, "investigation", "", user["id"])
+        if status == "closed" and fb["status"] != "closed":
+            casetrack.log(db, case, "closed", f"Conclusion: {outcome}\nAction taken: {action}", user["id"])
         if fb["user_id"]:
             note = f"Closed: {outcome[:160]}" if status == "closed" and fb["status"] != "closed" else "The committee started the review" if status == "in_progress" and fb["status"] == "open" and not text else text[:200]
             if note:
@@ -890,20 +901,19 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
         if len(text) < 2:
             raise HTTPException(422, "Write a few words")
         db.insert("feedback_msgs", {"feedback_id": fid, "from_hr": 0, "by_id": user["id"], "text": text[:2000], "at": now_iso()})
-        if fb["status"] == "closed":
-            db.update("feedback", fid, {"status": "open"})
         committees.tell(db, fb, f"{user['name']} wrote back", "Confidential" if fb["category"] == "posh" else text[:120])
         return {"ok": True}
 
     @r.get("/feedback/track")
     def track(code: str, user: user_dep, db: db_dep):
+        import casetrack
         fb = db.one("SELECT * FROM feedback WHERE track_hash = ?", code_hash(code))
         if not fb:
             raise HTTPException(404, "No complaint with that code. Check the letters and try again.")
         c = db.one("SELECT name FROM committees WHERE id = ?", fb["committee_id"]) or {}
         return {"id": fb["id"], "ref": fb.get("ref"), "type": fb["type"], "category": fb["category"], "text": fb["text"], "status": fb["status"], "created_at": fb["created_at"],
                 "committee": c.get("name", ""), "policy": fb["policy"], "against": fb["against"], "outcome": fb["outcome"], "named": bool(fb["user_id"]),
-                "thread": thread(db, fb["id"])}
+                "thread": thread(db, fb["id"]), "timeline": casetrack.timeline(db, casetrack.load(db, "feedback", fb["id"]), None)}
 
     @r.post("/feedback/track")
     def track_reply(payload: dict, user: user_dep, db: db_dep):
@@ -914,8 +924,6 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
         if len(text) < 2:
             raise HTTPException(422, "Write a few words")
         db.insert("feedback_msgs", {"feedback_id": fb["id"], "from_hr": 0, "by_id": None, "text": text[:2000], "at": now_iso()})
-        if fb["status"] == "closed":
-            db.update("feedback", fb["id"], {"status": "open"})
         committees.tell(db, fb, "The sender wrote back" + (" (anonymous)" if not fb["user_id"] else ""), "Confidential" if fb["category"] == "posh" else text[:120])
         return {"ok": True}
 

@@ -14,7 +14,7 @@ const SECTIONS = [
 const SECTION_OF = { home: 'home', approvals: 'inbox', inbox: 'inbox',
   sites: 'ops', site: 'ops', sitenew: 'ops', siteedit: 'ops', mysite: 'ops', planner: 'ops', tasks: 'ops', carbon: 'ops', map: 'ops', registers: 'ops', farmers: 'ops', sign: 'ops', muster: 'ops', work: 'ops',
   people: 'people', person: 'people', personedit: 'people', empnew: 'people', empedit: 'people', dailyupd: 'people', assign: 'people', attsum: 'people', team: 'people', monthend: 'people', hrreg: 'people', changes: 'people',
-  notices: 'people', notice: 'people', noticenew: 'people', surveys: 'people', survey: 'people', surveynew: 'people', hrdesk: 'people', poshdesk: 'people', policies: 'people', policy: 'people', policyedit: 'people', policybulk: 'people', mypolicies: 'me', cases: 'people', case: 'people', committees: 'people', committee: 'people',
+  notices: 'people', notice: 'people', noticenew: 'people', surveys: 'people', survey: 'people', surveynew: 'people', hrdesk: 'people', poshdesk: 'people', policies: 'people', policy: 'people', policyedit: 'people', policybulk: 'people', escalate: 'me', esc: 'me', esccontacts: 'me', mypolicies: 'me', cases: 'people', case: 'people', committees: 'people', committee: 'people',
   reports: 'reports', dashboard: 'reports',
   me: 'me', leaves: 'me', trips: 'me', attendance: 'me', updates: 'me', feedback: 'me',
   settings: 'settings', privacy: 'settings', security: 'settings', admin: 'settings', hrsettings: 'settings', messages: 'settings' };
@@ -51,7 +51,7 @@ function appHead() {
 const fieldTabs = () => TABS_FIELD_ALL.filter(([k]) => k !== 'mysite' || (KL.boot?.mySites || []).some((s) => s.project_type !== 'office'));
 const TAB_OF = { attendance: 'work', trips: 'work', registers: 'work', farmers: 'work', sign: 'work', updates: 'me', leaves: 'me', feedback: 'me', dashboard: 'manage', approvals: 'manage', team: 'manage', hrdesk: 'manage', admin: 'manage',
   people: 'manage', personedit: 'manage', reports: 'manage', hrsettings: 'manage', messages: 'manage', privacy: 'me', security: 'me',
-  notices: 'me', notice: 'me', surveys: 'me', survey: 'me', changes: 'me', poshdesk: 'me', mypolicies: 'me', cases: 'me', case: 'me', committees: 'me', committee: 'me' };
+  notices: 'me', notice: 'me', surveys: 'me', survey: 'me', changes: 'me', poshdesk: 'me', mypolicies: 'me', escalate: 'me', esc: 'me', esccontacts: 'me', cases: 'me', case: 'me', committees: 'me', committee: 'me' };
 const FIELD_ONLY = new Set(['requests']);
 const STAFF_ROUTES = new Set(['manage', 'dashboard', 'team', 'dailyupd', 'hrdesk', 'policies', 'policy', 'policyedit', 'policybulk', 'admin', 'people', 'personedit', 'empnew', 'empedit', 'sitenew', 'siteedit', 'reports', 'hrsettings', 'messages', 'hr', 'assign', 'monthend', 'hrreg', 'noticenew']);
 const NEEDS_GPS = new Set(['attendance', 'trips', 'registers', 'sign', 'farmers']);
@@ -63,10 +63,10 @@ function route() {
   return i === -1 ? { name: h, arg: '' } : { name: h.slice(0, i), arg: h.slice(i + 1) };
 }
 const SITE_VIEWS = new Set(['site', 'sites', 'mysite', 'work', 'registers', 'farmers', 'sign', 'carbon', 'map', 'muster']);
-const PEOPLE_VIEWS = new Set(['hr', 'hub', 'people', 'person', 'personedit', 'assign', 'attsum', 'monthend', 'hrreg', 'changes', 'notices', 'notice', 'noticenew', 'surveys', 'survey', 'surveynew', 'poshdesk', 'policies', 'policy', 'policyedit', 'policybulk', 'mypolicies', 'cases', 'case', 'committees', 'committee', 'hrsettings', 'messages', 'approvals', 'team', 'hrdesk', 'admin', 'manage', 'reports', 'dashboard', 'me', 'updates', 'leaves', 'feedback', 'privacy', 'security']);
+const PEOPLE_VIEWS = new Set(['hr', 'hub', 'people', 'person', 'personedit', 'assign', 'attsum', 'monthend', 'hrreg', 'changes', 'notices', 'notice', 'noticenew', 'surveys', 'survey', 'surveynew', 'poshdesk', 'policies', 'policy', 'policyedit', 'policybulk', 'mypolicies', 'escalate', 'esc', 'esccontacts', 'cases', 'case', 'committees', 'committee', 'hrsettings', 'messages', 'approvals', 'team', 'hrdesk', 'admin', 'manage', 'reports', 'dashboard', 'me', 'updates', 'leaves', 'feedback', 'privacy', 'security']);
 const FIELD_TAB = { home: 'home', tasks: 'home', inbox: 'home', attendance: 'home', updates: 'home', task: 'home', notice: 'me', notices: 'me', survey: 'me', surveys: 'me',
   mysite: 'mysite', site: 'mysite', muster: 'mysite', registers: 'mysite', farmers: 'mysite', sign: 'mysite', map: 'mysite', carbon: 'mysite',
-  requests: 'requests', leaves: 'requests', trips: 'requests', me: 'me', person: 'me', attsum: 'me', feedback: 'me', settings: 'me', privacy: 'me', security: 'me', changes: 'me', poshdesk: 'me', mypolicies: 'me', cases: 'me', case: 'me', committees: 'me', committee: 'me', hr: 'me', hub: 'me' };
+  requests: 'requests', leaves: 'requests', trips: 'requests', me: 'me', person: 'me', attsum: 'me', feedback: 'me', settings: 'me', privacy: 'me', security: 'me', changes: 'me', poshdesk: 'me', mypolicies: 'me', escalate: 'me', esc: 'me', esccontacts: 'me', cases: 'me', case: 'me', committees: 'me', committee: 'me', hr: 'me', hub: 'me' };
 function tabOf(view) {
   if (KL.user && KL.user.role === 'field') {
     if (view === 'rec') { const k = kindDef(route().arg.split('/')[0]); return k && ['expense', 'advance', 'regularisation'].includes(k.key) ? 'requests' : k && ['hr', 'money'].includes(k.group) ? 'me' : 'mysite'; }
@@ -270,14 +270,46 @@ function bindSig(keep) {
   if (keep) { const im = new Image(); im.onload = () => { canvas.getContext('2d').drawImage(im, 0, 0, canvas.width / (devicePixelRatio || 1), canvas.height / (devicePixelRatio || 1)); KL.sig.restored = true; }; im.src = keep; KL.sig.isEmpty = () => false; }
 }
 /** Put the tab row back where it was, then make sure the open tab is in view (it may be past the edge). */
-function keepTabRow(wasAt) {
+function keepTabRow(wasAt, entering = true) {
   const row = document.querySelector('#app .sect-tabs');
   if (!row) return;
   if (wasAt && wasAt[0] === row.getAttribute('aria-label')) row.scrollLeft = wasAt[1];
+  if (!entering) return; // a redraw (data arriving) never pulls the row back to the chosen tab
   const on = row.querySelector('.on');
   if (!on) return;
   const left = on.getBoundingClientRect().left - row.getBoundingClientRect().left + row.scrollLeft;
   if (left < row.scrollLeft || left + on.offsetWidth > row.scrollLeft + row.clientWidth) row.scrollLeft = Math.max(0, left - 16);
+}
+/**
+ * Every row or box that scrolls inside the page (tab rows, filter chips, the planner board, a drawer) keeps where it was
+ * when the screen is drawn again (owner 2026-11-20: "make sure the scrolling back doesnt happen anywhere in the whole
+ * app"). Keyed by the element's tag, classes and position among its look-alikes.
+ */
+function scrollKeys(root) {
+  const seen = {}, out = [];
+  for (const el of root.querySelectorAll('nav, div, section, ul, aside, main')) {
+    const k = `${el.tagName}.${String(el.className).replace(/\b(on|busy|enter|is-top)\b/g, '').trim()}`;
+    seen[k] = (seen[k] || 0) + 1;
+    out.push([`${k}#${seen[k]}`, el]);
+  }
+  return out;
+}
+function rememberScroll(root) {
+  const m = {};
+  for (const [k, el] of scrollKeys(root)) if (el.scrollLeft > 0 || el.scrollTop > 0) m[k] = [el.scrollLeft, el.scrollTop];
+  return m;
+}
+function restoreScroll(root, m, entering) {
+  for (const [k, el] of scrollKeys(root)) if (m[k]) { el.scrollLeft = m[k][0]; el.scrollTop = m[k][1]; }
+  if (!entering) return; // a redraw keeps exactly what the person scrolled to
+  // on opening a screen, the chosen tab or chip is in view
+  for (const row of root.querySelectorAll('.site-tabs, .sect-tabs, .tabs, .chips, .seg')) {
+    if (row.scrollWidth <= row.clientWidth + 2) continue;
+    const on = row.querySelector('.on, [aria-current="page"], [aria-pressed="true"]');
+    if (!on) continue;
+    const left = on.getBoundingClientRect().left - row.getBoundingClientRect().left + row.scrollLeft;
+    if (left < row.scrollLeft || left + on.offsetWidth > row.scrollLeft + row.clientWidth) row.scrollLeft = Math.max(0, left - 16);
+  }
 }
 function render() {
   const app = $('#app');
@@ -314,12 +346,17 @@ function render() {
   if (NEEDS_GPS.has(view)) locate();
   const entering = KL.lastRoute !== location.hash;
   KL.lastRoute = location.hash;
+  // a tab inside the same page (a site's Overview / Stock / Equipment...) is not a new page: no fade, no jump to the top
+  const base = `${view}/${String(arg || '').split('/')[0]}`;
+  const newPage = KL.lastBase !== base;
+  KL.lastBase = base;
   if (entering && view === 'empedit') { KL.ui.efInit = null; invalidate(`hr:profile:${arg}`, `hr:docs:${arg}`); } // an edit page starts from what is saved now
   if (entering && view === 'siteedit') KL.ui.sfInit = null;
   if (entering) { KL.seenCounts = new Set(); KL.ui.previewFn = null; }
   // keep the signature across re-renders (the canvas is rebuilt with the DOM)
   const sigKeep = KL.sig && $('#sig') && !KL.sig.isEmpty() ? KL.sig.dataUrl() : null;
-  const scroll = entering ? 0 : window.scrollY;
+  const scroll = entering && newPage ? 0 : window.scrollY;
+  const kept = rememberScroll(app);
   const boardX = entering ? 0 : $('.board')?.scrollLeft || 0;
   const tab = tabOf(view);
   KL.ui.section = { href: isStaff() ? sectionHref(tab) : `#${tab}`, label: SECTION_LABEL[tab] || tab };
@@ -332,8 +369,9 @@ function render() {
   const strip = isStaff() && !drawer ? sectionStrip(tab, name, arg) : '';
   const was = app.querySelector('.sect-tabs'); // the section's tab row keeps its sideways scroll across screens
   const wasAt = was ? [was.getAttribute('aria-label'), was.scrollLeft] : null;
-  app.innerHTML = `${appHead()}${sideNav(tab)}<main class="view ${entering ? 'enter' : ''} ${strip ? 'is-top' : ''}" id="main">${strip}${main}</main>${side}${tabBar(tab)}${switcherPill()}`;
-  keepTabRow(wasAt);
+  app.innerHTML = `${appHead()}${sideNav(tab)}<main class="view ${entering && newPage ? 'enter' : ''} ${strip ? 'is-top' : ''}" id="main">${strip}${main}</main>${side}${tabBar(tab)}${switcherPill()}`;
+  restoreScroll(app, kept, entering);
+  keepTabRow(wasAt, entering);
   document.body.classList.toggle('has-drawer', Boolean(drawer));
   bindSig(sigKeep);
   if (boardX && $('.board')) $('.board').scrollLeft = boardX;
@@ -383,7 +421,7 @@ function bindEvents() {
     else if (id === 'tc-item') { e.preventDefault(); Actions.taskCheckAdd(); }
     else if (e.target.matches?.('[role="button"][data-action]')) { e.preventDefault(); e.target.click(); }
   });
-  window.addEventListener('hashchange', () => { if (route().name !== 'sign') KL.sig = null; if (route().name !== 'case') KL.ui.caseOpen = null; if (route().name !== 'task' && KL.ui.sheetTask) { KL.ui.sheetTask = null; KL.ui.completing = null; } render(); });
+  window.addEventListener('hashchange', () => { if (route().name !== 'sign') KL.sig = null; if (route().name !== 'case') KL.ui.caseOpen = null; KL.ui.trkOpen = null; if (route().name !== 'task' && KL.ui.sheetTask) { KL.ui.sheetTask = null; KL.ui.completing = null; } render(); });
   window.addEventListener('online', () => { Outbox.flush(); render(); });
   window.addEventListener('offline', () => render());
   document.addEventListener('visibilitychange', async () => { if (document.visibilityState === 'visible' && KL.token) { await Outbox.flush(); await refreshMe(); render(); } });

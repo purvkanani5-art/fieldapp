@@ -392,3 +392,26 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
    (filled when the centre moves, editable; " Taluka" suffix dropped). Map / Satellite switch (Esri World Imagery,
    remembered per phone) on both maps; site form shows the plus code with Copy; site page shows area, plus code, Copy,
    Open in Google Maps; Map page search drops a pin with "Make a site here". Test: kl-maps-ui.mjs (uses the internet).
+37. **Case timeline, no edits after sending, direct escalation (2026-11-20, v0.6.5)**. Owner: track every incident,
+   complaint and suggestion "when it was opened, who investigated it ... what was the conclusion ... what was the action
+   taken when marked closed ... if decision by committee, it should show under committee review and not any individual",
+   "no option to edit once submitted", and an "important person's contact list for direct escalation ... money, safety,
+   compliance violation, commitment to client". backend/casetrack.py: case_events (stages opened / investigation / note /
+   closed / reopened; actor stored; by_reporter), one view of the three kinds (load / can_handle / can_view / timeline),
+   /api/track/{incident|feedback|escalation}/{id} (+ /start with investigators, /note, /close needing conclusion AND
+   action, /reopen needing a reason), GET /api/track = cases open 7+ days (HR desk banner, committee cases); nightly
+   remind_overdue (7, 14, 21... days). Committee cases show "Committee review · <committee>"; only the director sees the
+   member's name (owner chose). Investigators' notes are internal; the reporter sees stages, conclusion, action and their
+   own notes. Incidents: edit, delete and direct status changes are refused (409); investigators can open them.
+   Complaints: the old /respond still works but needs conclusion + action to close and logs the events; a reply after
+   closing no longer reopens it. Escalations: table escalations (ref ES-), setting escalation_contacts (name, role, phone,
+   WhatsApp, email, linked user, matters), /api/escalation (+ /contacts HR/director, POST to record: optional, goes to
+   the contact and the director). Screens: views-track.js (caseTrack on incident records, cases, escalations; #escalate,
+   #esc/<id>, #esccontacts); entries in Me, field Me, both "+" sheets, Settings. Tests: kl-track-ui.mjs.
+38. **Place on photo stamps; scroll kept everywhere; no flicker on site tabs (2026-11-20, v0.6.5)**. Photo stamps add
+   "Locality, Village · Taluka · District · State" (places.js stampPlace: the site's saved area when within 1 km or its
+   circle, works offline; else a 2.5 s map lookup when online; else nothing). Sites gained a locality field. app.js:
+   rememberScroll / restoreScroll keep every inner scroll position (sideways rows, drawers) across any redraw; the
+   chosen tab is brought into view only when a screen is opened, never on a redraw; a tab inside the same page
+   (site/<id>/<tab>) has no fade and keeps the page scroll; the loading placeholder shows after 0.25 s. Tests:
+   kl-scroll-ui.mjs, kl-small-ui.mjs (every screen at 320 px for four roles: no overflow, no errors).

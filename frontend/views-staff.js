@@ -141,7 +141,7 @@ Views.hrdesk = () => {
   data('hr:posh', () => api('/api/hr/posh'));
   const lv = data('leaves:team', () => api('/api/leaves?scope=team'));
   const users = data('admin:users', () => api('/api/admin/users'));
-  return `${topbar('HR desk', '#home')}
+  return `${topbar('HR desk', '#home')}${overdueBanner()}
     ${group('Complaints & suggestions', `<div class="card flush">${lrow({ href: '#cases', icon: 'inbox', tone: 'red', title: 'Committee cases', sub: fb && !fb.error ? esc(`${fb.rows.filter((r) => r.status !== 'closed').length} open`) : '' })}${lrow({ href: '#committees', icon: 'users', tone: 'violet', title: 'Committees', sub: 'Members, mailboxes, policies' })}</div>`)}
     ${group('Employee documents', `<div class="card stack"><p class="hint">Upload a payslip from Zoho Payroll, a letter or an ID document; the employee sees it under Me → My documents and gets a notification.</p>
       ${users === null ? spinner() : users.error ? errorBox(users.error) : field('Employee', select('hr-user', F('hr-user', ''), users.rows.filter((u) => u.active).map((u) => [u.id, `${u.employee_id} · ${u.name}`]), { blank: 'Choose' }))}

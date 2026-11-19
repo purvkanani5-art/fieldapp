@@ -1419,3 +1419,17 @@ body.side-mini .side .brand .side-icon { display: block; width: 32px; height: 32
 .site-where .sw-area { display: inline-flex; align-items: center; gap: 4px; }
 .site-where .sw-area svg { width: 16px; height: 16px; }
 .site-where .sw-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* Case timeline (views-track.js) and Direct escalation */
+.trk-text { margin: 4px 0 0; white-space: pre-wrap; font-size: 14px; color: var(--text-2); }
+.tl .ev.red::before { border-color: var(--danger); }
+.tl .ev small { display: block; color: var(--muted); font-size: 12.5px; }
+.trk-closed { display: grid; gap: 10px; padding: 12px; border-radius: var(--r-sm); background: var(--accent-tint, #e7f3ec); }
+.trk-closed small { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.trk-closed p { margin: 2px 0 0; white-space: pre-wrap; }
+.trk-pick { display: grid; gap: 8px; max-height: 50vh; overflow-y: auto; margin-bottom: 8px; }
+.esc-card .btns .btn { flex: 1 1 auto; }
+
+/* No flash on quick loads: the loading placeholder shows only after a quarter of a second (owner 2026-11-20: "screen
+   flickers like an old bulb" when a site tab is tapped) */
+.spinner { animation: fade .2s var(--ease) .25s both; }

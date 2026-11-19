@@ -91,7 +91,8 @@ async function geoGet(path, params) {
     ? `https://nominatim.openstreetmap.org/search?${new URLSearchParams({ q: params.q, format: 'jsonv2', addressdetails: 1, limit: 8, countrycodes: 'in' })}`
     : `https://nominatim.openstreetmap.org/reverse?${new URLSearchParams({ lat: params.lat, lon: params.lng, format: 'jsonv2', addressdetails: 1, zoom: 16 })}`;
   const r = await fetch(nm, { headers: { 'Accept-Language': 'en' } }).then((x) => x.json()).catch(() => { throw new Error('Map search is not reachable right now'); });
-  const area = (a = {}) => ({ village: a.village || a.hamlet || a.town || a.city || a.suburb || '', taluka: (a.county || a.subdistrict || '').replace(/\s+(taluka|taluk|tehsil|tahsil)$/i, ''), district: a.state_district || a.district || '', state: a.state || '' });
+  const area = (a = {}) => ({ locality: ['neighbourhood', 'quarter', 'suburb', 'hamlet', 'residential'].map((k) => a[k]).find((v) => v && v !== (a.village || a.town || a.city)) || '',
+    village: a.village || a.hamlet || a.town || a.city || a.suburb || '', taluka: (a.county || a.subdistrict || '').replace(/\s+(taluka|taluk|tehsil|tahsil)$/i, ''), district: a.state_district || a.district || '', state: a.state || '' });
   if (path === 'reverse') return { area: area(r.address), label: r.display_name || '' };
   return { rows: (r || []).map((x) => ({ name: x.name || x.display_name.split(',')[0], label: x.display_name.split(',').slice(0, 4).join(','), lat: Number(x.lat), lng: Number(x.lon), area: area(x.address) })) };
 }
@@ -195,7 +196,29 @@ function addBaseLayers(map) {
 }
 
 /* ---------------------------------------------------------------- a site's place: area line, plus code, Google Maps */
-const areaText = (s) => [s.village, s.taluka ? (/taluk|tehsil|tahsil/i.test(s.taluka) ? s.taluka : `${s.taluka} taluka`) : '', s.district, s.state].filter(Boolean).join(' · ');
+const areaText = (s) => [[s.locality, s.village].filter(Boolean).join(', '), s.taluka ? (/taluk|tehsil|tahsil/i.test(s.taluka) ? s.taluka : `${s.taluka} taluka`) : '', s.district, s.state].filter(Boolean).join(' · ');
+/**
+ * The place line on a photo (owner 2026-11-20): at or near one of our sites, the site's saved area (works offline);
+ * elsewhere the map's answer for the GPS point when there is signal (2.5 s at most); otherwise nothing.
+ */
+async function stampPlace(g) {
+  if (!g) return '';
+  let best = null, bd = Infinity;
+  for (const s of KL.boot?.sites || []) {
+    if (!(s.village || s.district)) continue;
+    const d = distanceM(g.lat, g.lng, s.lat, s.lng);
+    if (d < Math.max(1000, s.radius_m || 0) && d < bd) { best = s; bd = d; }
+  }
+  if (best) return areaText(best);
+  const key = `${g.lat.toFixed(3)},${g.lng.toFixed(3)}`;
+  KL.ui.stampPlaces = KL.ui.stampPlaces || {};
+  if (KL.ui.stampPlaces[key] !== undefined) return KL.ui.stampPlaces[key];
+  if (navigator.onLine === false) return '';
+  try {
+    const r = await Promise.race([placeArea(g.lat, g.lng), new Promise((_, no) => setTimeout(() => no(new Error('slow')), 2500))]);
+    return (KL.ui.stampPlaces[key] = areaText(r.area || {}));
+  } catch { return ''; }
+}
 const googleMapsUrl = (lat, lng) => `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
 /** The location strip on a site's page. */
 function siteWhere(s) {

@@ -477,10 +477,11 @@ function insideSite(site) {
 
 /* ---------------------------------------------------------------- camera */
 /** Open the camera (file input with capture) and return a stamped, compressed JPEG. Must be called from a tap. */
-function stampLines(stamp, sample) {
+async function stampLines(stamp, sample) {
   const at = new Date();
   const g = KL.ui.gps;
-  return { at, g, lines: [...(sample ? ['DEMO SAMPLE PHOTO'] : []), ...stamp, at.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }), g ? `GPS ${g.lat.toFixed(5)}, ${g.lng.toFixed(5)} (±${Math.round(g.accuracy)} m)` : 'GPS not available'] };
+  const place = typeof stampPlace === 'function' ? await stampPlace(g) : '';
+  return { at, g, lines: [...(sample ? ['DEMO SAMPLE PHOTO'] : []), ...stamp, at.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }), ...(place ? [place] : []), g ? `GPS ${g.lat.toFixed(5)}, ${g.lng.toFixed(5)} (±${Math.round(g.accuracy)} m)` : 'GPS not available'] };
 }
 function setPhoto(slot, blob, at, gps, sample = false) {
   if (KL.ui.photos[slot]) URL.revokeObjectURL(KL.ui.photos[slot].url);
@@ -523,7 +524,7 @@ function openCamera(slot, { facing = 'environment', stamp = [], kind = '' } = {}
   };
   const finish = async (source, sample) => {
     try {
-      const { at, g, lines } = stampLines(stamp, sample);
+      const { at, g, lines } = await stampLines(stamp, sample);
       const out = await stampImage(source, lines, false); // never mirror: evidence photos show what the camera saw
       setPhoto(slot, out.blob, at, g, sample);
       closeCamera();
@@ -616,7 +617,7 @@ function pickPhoto(slot, { facing = 'environment', stamp = [] } = {}) {
     const file = input.files && input.files[0];
     if (!file) return;
     try {
-      const { at, g, lines } = stampLines(stamp, false);
+      const { at, g, lines } = await stampLines(stamp, false);
       const out = await stampImage(file, lines, false); // never mirror: evidence photos must show what the camera saw
       setPhoto(slot, out.blob, at, g);
       render();
