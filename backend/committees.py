@@ -60,7 +60,7 @@ DEFAULT_COMMITTEES = [
      "why": "Everyone should have a fair and safe way to raise a problem and get an answer, without fear.",
      "how": "Send a complaint and pick the policy it breaks. Not sure which? Pick \"Not sure\" and it comes here.",
      "policies": ["Code of conduct", "Pay, leave and attendance", "Bullying and abusive behaviour", "Equal treatment, no discrimination", "Travel and expense rules", NOT_SURE]},
-    {"key": "ideas", "name": "Suggestions Committee", "mailbox": "ideas@sajeevan.co.in",
+    {"key": "ideas", "name": "Suggestions Committee", "mailbox": "suggestion@sajeevan.co.in",
      "purpose": "Reads every suggestion and takes the good ones forward.",
      "why": "The people doing the work know best how to make it better, safer and cheaper.",
      "how": "Send a suggestion from Complaints & suggestions. You can send it with your name or without.",
@@ -80,6 +80,8 @@ def init(db: Db) -> None:
         for i, c in enumerate(DEFAULT_COMMITTEES):
             db.insert("committees", {**c, "policies": json.dumps(c["policies"]), "external": "[]", "sort": i, "created_at": now_iso()})
         import_posh_setting(db)
+    # the first release guessed ideas@; the company's mailbox is suggestion@ (owner, 2026-11-19)
+    db.run("UPDATE committees SET mailbox = 'suggestion@sajeevan.co.in' WHERE key = 'ideas' AND mailbox = 'ideas@sajeevan.co.in'")
     route_old_cases(db)
 
 

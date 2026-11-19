@@ -285,7 +285,7 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
    task (planner); Activity keeps attendance and trips only. Approvals are compact cards with Details folded.
    Committees (backend/committees.py; tables committees, committee_members; feedback gains committee_id, policy,
    against, excluded, outcome, closed_at, mail_status, named_at): POSH Internal Committee posh@, Workplace Health &
-   Safety safety@, Grievance grievance@, Suggestions ideas@ (sajeevan.co.in; each its own mailbox). Created without
+   Safety safety@, Grievance grievance@, Suggestions suggestion@ (sajeevan.co.in; each its own mailbox). Created without
    members (HR adds them at #committee/<id>); the old "posh" setting's committee is imported once. Routing: POSH
    switch -> POSH; suggestion -> Suggestions; else the committee whose policies list the chosen policy ("Not sure"
    -> Grievance). Visible: members + HR + director, except POSH (members only; HR / director only while it has no
