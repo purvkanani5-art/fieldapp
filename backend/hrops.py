@@ -29,6 +29,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
 from starlette.datastructures import UploadFile as FormFile
 
+import committees
 import modules
 import perms
 from db import Db, now_iso
@@ -96,6 +97,7 @@ def init(db: Db) -> None:
         except Exception:  # noqa: BLE001 - column already there
             pass
     db.con.commit()
+    committees.init(db)
     for k, v in DEFAULTS.items():
         if db.setting(k) is None:
             db.set_setting(k, v)
@@ -296,12 +298,8 @@ def code_hash(code: str) -> str:
     return hashlib.sha256(code.strip().upper().replace(" ", "").encode()).hexdigest()
 
 
-def ic_members(db: Db) -> list[dict]:
-    return (db.setting("posh") or {}).get("committee", [])
-
-
 def on_ic(db: Db, user: dict) -> bool:
-    return any(m.get("user_id") == user["id"] for m in ic_members(db))
+    return committees.on_posh(db, user)
 
 
 def thread(db: Db, fid: str) -> list[dict]:
@@ -786,48 +784,70 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
     @r.get("/hr/posh")
     def posh(user: user_dep, db: db_dep):
         p = db.setting("posh") or {}
-        return {**p, "onCommittee": on_ic(db, user), "categories": CATEGORIES}
+        c = committees.by_key(db, "posh") or {}
+        members = [{"name": m["name"], "role": "Presiding Officer" if m["presiding"] else "Member", "user_id": m["id"], "phone": ""} for m in
+                   db.all("SELECT u.id, u.name, cm.presiding FROM committee_members cm JOIN users u ON u.id = cm.user_id WHERE cm.committee_id = ? AND u.active = 1 ORDER BY cm.presiding DESC", c.get("id", ""))]
+        ext = [{**e, "user_id": None} for e in json.loads(c.get("external") or "[]")]
+        return {**p, "committee": members + ext, "email": c.get("mailbox") or p.get("email", ""), "onCommittee": on_ic(db, user), "categories": CATEGORIES}
+
+    def case_out(db: Db, x: dict, cnames: dict, *, handler: bool) -> dict:
+        o = {**x, "committee": cnames.get(x["committee_id"], ""), "thread": thread(db, x["id"]), "tracked": bool(x.get("track_hash")), "anonymous": not x["user_id"]}
+        o.pop("track_hash", None)
+        o.pop("mail_status", None) if not handler else None
+        ex = committees.excluded(x)
+        o.pop("excluded", None)
+        if handler:
+            o["user_name"] = user_name(db, x["user_id"]) if x["user_id"] else "Anonymous"
+            o["keptOut"] = [user_name(db, u) for u in ex]
+        return o
 
     @r.get("/feedback")
     def feedback_list(user: user_dep, db: db_dep):
-        hr, ic = perms.can(user, "hr.complaints"), on_ic(db, user)
-        if hr or ic:
-            rows = db.all("SELECT fb.*, u.name AS user_name FROM feedback fb LEFT JOIN users u ON u.id = fb.user_id ORDER BY fb.created_at DESC")
-            rows = [x for x in rows if (ic if x["category"] == "posh" else hr)]
-            for x in rows:
-                if not x["user_id"]:
-                    x["user_name"] = "Anonymous"
-                x["thread"] = thread(db, x["id"])
-                x["tracked"] = bool(x.get("track_hash"))
-                x.pop("track_hash", None)
-            return {"rows": rows, "ic": ic}
-        rows = db.all("SELECT * FROM feedback WHERE user_id = ? ORDER BY created_at DESC", user["id"])
-        for x in rows:
-            x["thread"] = thread(db, x["id"])
-            x.pop("track_hash", None)
-        return {"rows": rows, "ic": False}
+        """Cases this person handles (committee member, HR, director), and what they sent with their name."""
+        cnames = {c["id"]: c["name"] for c in db.all("SELECT id, name FROM committees")}
+        cache: dict = {}
+        handle = [case_out(db, x, cnames, handler=True) for x in db.all("SELECT * FROM feedback ORDER BY created_at DESC") if committees.can_handle(db, user, x, cache)]
+        mine = [case_out(db, x, cnames, handler=False) for x in db.all("SELECT * FROM feedback WHERE user_id = ? ORDER BY created_at DESC", user["id"])]
+        return {"rows": handle, "mine": mine, "ic": committees.on_posh(db, user), "policies": committees.all_policies(db)}
+
+    @r.get("/cases/{fid}")
+    def case(fid: str, user: user_dep, db: db_dep):
+        x = fb_or_404(db, fid)
+        cnames = {c["id"]: c["name"] for c in db.all("SELECT id, name FROM committees")}
+        if committees.can_handle(db, user, x):
+            return {**case_out(db, x, cnames, handler=True), "canHandle": True}
+        if x["user_id"] == user["id"]:
+            return {**case_out(db, x, cnames, handler=False), "canHandle": False}
+        raise HTTPException(404, "Not found")
 
     @r.post("/feedback")
     def add_feedback(payload: dict, user: user_dep, db: db_dep):
+        """A complaint or suggestion. Anonymous: no user is stored, only the hash of a tracking code the sender keeps."""
         kind = payload.get("type")
         text = str(payload.get("text", "")).strip()
-        cat = payload.get("category") or ("other" if kind == "complaint" else "")
         if kind not in ("complaint", "suggestion") or len(text) < 5:
             raise HTTPException(422, "Choose complaint or suggestion and write a few words")
-        if kind == "complaint" and cat not in CATEGORIES:
-            raise HTTPException(422, "Choose what the complaint is about")
+        posh = kind == "complaint" and bool(payload.get("posh") or payload.get("category") == "posh")
+        policy = str(payload.get("policy", "")).strip()[:100] if kind == "complaint" and not posh else ""
+        if kind == "complaint" and not posh and not policy and payload.get("category"):  # the older app (or its offline outbox) sends a category
+            policy = {"safety": "Health & safety policy", "pay_leave": "Pay, leave and attendance", "workplace": "Code of conduct"}.get(payload["category"], committees.NOT_SURE)
+        if kind == "complaint" and not posh and not policy:
+            raise HTTPException(422, "Choose which policy this breaks (or Not sure)")
+        against = str(payload.get("against", "")).strip()[:500] if kind == "complaint" else ""
+        c = committees.route(db, kind, posh, policy)
         anon = bool(payload.get("anonymous"))
         code = new_code() if anon else None
+        cat = "posh" if posh else ("safety" if c["key"] == "safety" else "other") if kind == "complaint" else ""
+        named = [u for u in committees.named_people(db, against) if u != (None if anon else user["id"])]
         fid = db.insert("feedback", {"user_id": None if anon else user["id"], "type": kind, "text": text[:3000], "status": "open", "created_at": now_iso(),
-                                     "category": cat if kind == "complaint" else "", "track_hash": code_hash(code) if code else None})
-        label = f"New {kind}" + (" (anonymous)" if anon else f" from {user['name']}")
-        if cat == "posh":
-            for m in ic_members(db):
-                if m.get("user_id"):
-                    db.notify(m["user_id"], "POSH complaint for the Internal Committee", "Confidential. Open it in the Internal Committee desk.", "#poshdesk")
-        else:
-            db.notify_role(("hr", "admin"), label, text[:120], "#hrdesk")
-        return {"id": fid, "code": code}
+                                     "category": cat, "track_hash": code_hash(code) if code else None, "committee_id": c["id"], "policy": policy,
+                                     "against": against, "excluded": json.dumps(named)})
+        case_row = db.one("SELECT * FROM feedback WHERE id = ?", fid)
+        what = "POSH complaint" if posh else kind
+        committees.tell(db, case_row, f"New {what} for the {c['name']}", "Confidential. Anonymous." if anon and posh else "Confidential." if posh else
+                        f"{'Anonymous' if anon else user['name']}: {text[:100]}")
+        committees.mail_case(fid)
+        return {"id": fid, "ref": case_row["ref"], "code": code, "committee": c["name"], "mailbox": c["mailbox"]}
 
     def fb_or_404(db: Db, fid: str) -> dict:
         fb = db.one("SELECT * FROM feedback WHERE id = ?", fid)
@@ -835,23 +855,44 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
             raise HTTPException(404, "Not found")
         return fb
 
-    def may_answer(db: Db, user: dict, fb: dict) -> bool:
-        return on_ic(db, user) if fb["category"] == "posh" else perms.can(user, "hr.complaints")
-
     @r.post("/feedback/{fid}/respond")
     def respond(fid: str, payload: dict, user: user_dep, db: db_dep):
+        """Start the review, message the sender, or close with an outcome."""
         fb = fb_or_404(db, fid)
-        if not may_answer(db, user, fb):
-            raise HTTPException(403, "Only HR (or the Internal Committee for POSH) can reply")
+        if not committees.can_handle(db, user, fb):
+            raise HTTPException(403, "Only the committee (and HR or the director, outside POSH) can act on this")
         text = str(payload.get("response", "")).strip()
-        status = payload.get("status", "closed")
+        status = payload.get("status", fb["status"] if text else "closed")
         if status not in ("open", "in_progress", "closed"):
             raise HTTPException(422, "Unknown status")
+        outcome = str(payload.get("outcome", "")).strip()[:1000]
+        if status == "closed" and fb["status"] != "closed" and len(outcome) < 3:
+            raise HTTPException(422, "Write the outcome before closing")
         if text:
             db.insert("feedback_msgs", {"feedback_id": fid, "from_hr": 1, "by_id": user["id"], "text": text[:2000], "at": now_iso()})
-        db.update("feedback", fid, {"response": text[:2000] or fb["response"], "status": status, "responded_by": user["id"], "responded_at": now_iso()})
-        if fb["user_id"] and text:
-            db.notify(fb["user_id"], f"Reply to your {fb['type']}", text[:200], "#feedback")
+        patch = {"response": text[:2000] or fb["response"], "status": status, "responded_by": user["id"], "responded_at": now_iso()}
+        if status == "closed" and fb["status"] != "closed":
+            patch.update(outcome=outcome, closed_at=now_iso())
+        db.update("feedback", fid, patch)
+        if fb["user_id"]:
+            note = f"Closed: {outcome[:160]}" if status == "closed" and fb["status"] != "closed" else "The committee started the review" if status == "in_progress" and fb["status"] == "open" and not text else text[:200]
+            if note:
+                db.notify(fb["user_id"], f"Update on your {fb['type']}", note, f"#case/{fid}")
+        return {"ok": True}
+
+    @r.post("/feedback/{fid}/reply")
+    def sender_reply(fid: str, payload: dict, user: user_dep, db: db_dep):
+        """The sender (with their name on it) writes back to the committee."""
+        fb = fb_or_404(db, fid)
+        if fb["user_id"] != user["id"]:
+            raise HTTPException(404, "Not found")
+        text = str(payload.get("text", "")).strip()
+        if len(text) < 2:
+            raise HTTPException(422, "Write a few words")
+        db.insert("feedback_msgs", {"feedback_id": fid, "from_hr": 0, "by_id": user["id"], "text": text[:2000], "at": now_iso()})
+        if fb["status"] == "closed":
+            db.update("feedback", fid, {"status": "open"})
+        committees.tell(db, fb, f"{user['name']} wrote back", "Confidential" if fb["category"] == "posh" else text[:120])
         return {"ok": True}
 
     @r.get("/feedback/track")
@@ -859,7 +900,10 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
         fb = db.one("SELECT * FROM feedback WHERE track_hash = ?", code_hash(code))
         if not fb:
             raise HTTPException(404, "No complaint with that code. Check the letters and try again.")
-        return {"id": fb["id"], "type": fb["type"], "category": fb["category"], "text": fb["text"], "status": fb["status"], "created_at": fb["created_at"], "thread": thread(db, fb["id"])}
+        c = db.one("SELECT name FROM committees WHERE id = ?", fb["committee_id"]) or {}
+        return {"id": fb["id"], "ref": fb.get("ref"), "type": fb["type"], "category": fb["category"], "text": fb["text"], "status": fb["status"], "created_at": fb["created_at"],
+                "committee": c.get("name", ""), "policy": fb["policy"], "against": fb["against"], "outcome": fb["outcome"], "named": bool(fb["user_id"]),
+                "thread": thread(db, fb["id"])}
 
     @r.post("/feedback/track")
     def track_reply(payload: dict, user: user_dep, db: db_dep):
@@ -872,12 +916,21 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
         db.insert("feedback_msgs", {"feedback_id": fb["id"], "from_hr": 0, "by_id": None, "text": text[:2000], "at": now_iso()})
         if fb["status"] == "closed":
             db.update("feedback", fb["id"], {"status": "open"})
-        if fb["category"] == "posh":
-            for m in ic_members(db):
-                if m.get("user_id"):
-                    db.notify(m["user_id"], "New message on a POSH complaint", "Confidential", "#poshdesk")
-        else:
-            db.notify_role(("hr",), "Anonymous sender replied", text[:120], "#hrdesk")
+        committees.tell(db, fb, "The sender wrote back" + (" (anonymous)" if not fb["user_id"] else ""), "Confidential" if fb["category"] == "posh" else text[:120])
+        return {"ok": True}
+
+    @r.post("/feedback/track/name")
+    def add_my_name(payload: dict, user: user_dep, db: db_dep):
+        """An anonymous sender decides to put their name on it (the committee may need it to act)."""
+        fb = db.one("SELECT * FROM feedback WHERE track_hash = ?", code_hash(str(payload.get("code", ""))))
+        if not fb:
+            raise HTTPException(404, "No complaint with that code")
+        if fb["user_id"]:
+            raise HTTPException(409, "Your name is already on it")
+        db.update("feedback", fb["id"], {"user_id": user["id"], "named_at": now_iso(), "excluded": json.dumps([u for u in committees.excluded(fb) if u != user["id"]])})
+        fb = db.one("SELECT * FROM feedback WHERE id = ?", fb["id"])
+        committees.tell(db, fb, f"{user['name']} added their name to a {fb['type']}", "It was anonymous until now")
+        committees.mail_case(fb["id"], "named")
         return {"ok": True}
 
     # -------------------------------------------------------------- notice board
@@ -1240,3 +1293,5 @@ def seed(db: Db) -> None:
         db.insert("survey_done", {"survey_id": sp, "user_id": users[emp]["id"], "at": now_iso()})
         db.insert("survey_answers", {"survey_id": sp, "user_id": None, "project": main_project(db, users[emp]["id"]), "at": today.isoformat(), "answers": json.dumps(a)})
     _ = purv
+    committees.seed_demo(db, users)
+    committees.route_old_cases(db)

@@ -781,6 +781,13 @@ function select(id, value, options, { blank = '' } = {}) {
 function textarea(id, value, placeholder = '') {
   return `<textarea id="${esc(id)}" class="input" placeholder="${esc(placeholder)}" data-input="form" data-key="${esc(id)}">${esc(value ?? '')}</textarea>`;
 }
+/** The reference number of anything sent or logged (LV-2026-27-0014), as a small chip. */
+const refLine = (x) => (x && x.ref ? `<span class="ref mono">${esc(x.ref)}</span>` : '');
+/** A few choices as big tap-to-pick pills (instead of a dropdown); the value lives in the form like a select's. */
+function pills(label, id, value, options) {
+  return `<div class="field" role="group" aria-label="${esc(label)}"><span>${esc(label)}</span><div class="chips pills">${options.map(([v, l]) => `<button type="button" data-action="pill" data-key="${esc(id)}" data-value="${esc(v)}" aria-pressed="${String(v) === String(value)}">${esc(l)}</button>`).join('')}</div></div>`;
+}
+Actions.pill = (el) => { setF(el.dataset.key, el.dataset.value); render(); };
 /** Form values live in KL.ui.forms[key] so re-renders keep what was typed. */
 const F = (key, def = '') => (KL.ui.forms[key] === undefined ? def : KL.ui.forms[key]);
 const setF = (key, v) => { KL.ui.forms[key] = v; };

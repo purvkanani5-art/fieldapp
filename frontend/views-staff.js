@@ -7,7 +7,7 @@ Views.manage = () => {
     lrow({ href: '#approvals', icon: 'check', tone: pend ? 'amber' : '', title: 'Approvals', sub: 'Claims, leave, purchases, corrections, trips, exceptions', right: pend ? tag(String(pend), 'warn') : '' }),
     lrow({ href: '#dashboard', icon: 'chart', tone: 'green', title: 'Dashboard', sub: 'Who is on site, stock, travel spend, farmers' }),
     lrow({ href: '#team', icon: 'users', tone: 'blue', title: 'Team activity', sub: 'Attendance, trips and daily updates of everyone' }),
-    ['admin', 'hr'].includes(KL.user.role) ? lrow({ href: '#hrdesk', icon: 'folder', tone: 'amber', title: 'HR desk', sub: 'Complaints, suggestions, employee documents' }) : '',
+    ['admin', 'hr'].includes(KL.user.role) ? lrow({ href: '#hrdesk', icon: 'folder', tone: 'amber', title: 'HR desk', sub: 'Committee cases, employee documents' }) : '',
     ['admin', 'manager', 'hr'].includes(KL.user.role) ? lrow({ href: '#admin', icon: 'cog', title: 'Administration', sub: 'Users, sites, registers, templates, company' }) : '',
   ].join('');
   const mods = [['hr', 'users', 'blue', 'People', 'Employee records, attendance, month end for Zoho Payroll, leave, assets, training, goals, policies'],
@@ -78,7 +78,7 @@ Actions.decide = async (el) => {
 
 /* ---------------------------------------------------------------- Team */
 Views.team = () => {
-  const tab = F('team-tab', 'attendance');
+  const tab = F('team-tab', 'attendance') === 'updates' ? 'attendance' : F('team-tab', 'attendance'); // daily updates have their own tab
   const att = tab === 'attendance' ? data('attendance:team', () => api('/api/attendance?scope=team&days=7')) : null;
   const trips = tab === 'trips' ? data('trips:team', () => api('/api/trips?scope=team')) : null;
   const upd = tab === 'updates' ? data('updates:team', () => api('/api/updates?scope=team&days=7')) : null;
@@ -87,10 +87,53 @@ Views.team = () => {
   if (tab === 'trips') body = trips === null ? spinner() : trips.error ? errorBox(trips.error) : trips.rows.length ? `<div class="card flush">${trips.rows.filter((t) => t.status !== 'open').map((t) => tripRow(t, true)).join('')}</div>` : '<div class="card"><p class="empty">No trips yet.</p></div>';
   if (tab === 'updates') body = upd === null ? spinner() : upd.error ? errorBox(upd.error) : upd.rows.length ? `<div class="card flush">${timeline(upd.rows.map((r) => ({ title: `${r.user_name} · ${fmtDate(r.date, false)}${r.hours ? ` · ${r.hours} h` : ''}${r.site_name ? ` · ${r.site_name}` : ''}`, sub: `${esc(r.summary)}${r.blockers ? `<br><b class="bad-text">Blocker:</b> ${esc(r.blockers)}` : ''}`, tone: r.blockers ? 'warn' : '' })))}</div>` : emptyState('note', 'No updates in 7 days');
   return `${topbar('Team activity', '#hr')}
-    <div class="seg">${[['attendance', 'Attendance'], ['trips', 'Trips'], ['updates', 'Updates']].map(([k, l]) => `<button type="button" data-action="teamTab" data-tab="${k}" aria-pressed="${tab === k}">${l}</button>`).join('')}</div>
+    <div class="seg">${[['attendance', 'Attendance'], ['trips', 'Trips']].map(([k, l]) => `<button type="button" data-action="teamTab" data-tab="${k}" aria-pressed="${tab === k}">${l}</button>`).join('')}</div>
     <div style="margin-top:10px">${body}</div>`;
 };
 Actions.teamTab = (el) => { setF('team-tab', el.dataset.tab); render(); };
+
+/* ---------------------------------------------------------------- Daily updates (managers, HR, director) */
+Views.dailyupd = () => {
+  const show = F('du-show', 'today');
+  const days = show === 'today' ? 1 : 7;
+  const upd = data(`updates:team:${days}`, () => api(`/api/updates?scope=team&days=${days}`));
+  const ppl = data('hr:people', () => api('/api/hr/people'));
+  const head = `${topbar('Daily updates')}<p class="sub">What the team did, what is next, and who needs help</p>`;
+  if (upd === null || ppl === null) return `${head}${spinner()}`;
+  if (upd.error || ppl.error) return `${head}${errorBox(upd.error || ppl.error)}`;
+  const today = todayISO();
+  const field = ppl.rows.filter((u) => u.active && u.role === 'field' && u.app_access);
+  const sentToday = new Set(upd.rows.filter((r) => r.date === today).map((r) => r.user_id));
+  const help = upd.rows.filter((r) => r.blockers && r.blockers.trim());
+  const rows = show === 'help' ? help : show === 'today' ? upd.rows.filter((r) => r.date === today) : upd.rows;
+  const missing = field.filter((u) => !sentToday.has(u.id));
+  const card = (r) => `<div class="card du-card"><div class="row" style="align-items:flex-start">${avatar(r.user_name, 'lg')}<div class="tx" style="flex:1;min-width:0"><b>${esc(r.user_name)}</b><span class="muted" style="font-size:13px;display:block">${r.ref ? `${esc(r.ref)} · ` : ''}${esc(fmtDate(r.date, false))}${r.hours ? ` · ${fmtNum(r.hours, 1)} h` : ''}${r.site_name ? ` · ${esc(r.site_name)}` : ''}</span></div>${r.blockers && r.blockers.trim() ? tag('Help', 'warn') : ''}</div>
+    <p class="du-text">${esc(r.summary)}</p>${r.blockers && r.blockers.trim() ? `<div class="banner warn">${ic('alert')}<div><b>Needs help</b><p>${esc(r.blockers)}</p></div></div>` : ''}
+    <div class="btns"><button type="button" class="btn small" data-action="duReply" data-user="${esc(r.user_id)}" data-name="${esc(r.user_name)}">${ic('chat')} Message</button>${r.blockers && r.blockers.trim() && can('planner.plans') ? `<button type="button" class="btn small primary" data-action="duTask" data-user="${esc(r.user_id)}" data-title="${esc(r.blockers)}">${ic('kanban')} Make it a task</button>` : ''}</div></div>`;
+  return `${head}
+    <div class="today-tiles" style="grid-template-columns:repeat(2,minmax(0,1fr))"><div class="today-tile ok"><span class="tt-lbl">Sent today</span><b>${field.length - missing.length}<small> / ${field.length}</small></b></div><button type="button" class="today-tile warn" data-action="duShow" data-show="help" style="border:0;font:inherit;text-align:left;cursor:pointer"><span class="tt-lbl">Need help</span><b>${help.filter((r) => r.date === today).length}</b></button></div>
+    <div class="chips pills" style="margin:14px 0 4px">${[['today', 'Today'], ['help', 'Needs help'], ['week', 'Last 7 days']].map(([k, l]) => `<button type="button" data-action="duShow" data-show="${k}" aria-pressed="${show === k}">${l}</button>`).join('')}</div>
+    ${rows.length ? `<div class="stack" style="margin-top:12px">${rows.map(card).join('')}</div>` : `<div class="card" style="margin-top:12px"><p class="empty">${show === 'help' ? 'Nobody asked for help.' : 'No updates yet today.'}</p></div>`}
+    ${show === 'today' && missing.length ? group(`Not sent yet · ${missing.length}`, `<div class="card flush">${missing.map((u) => `<div class="lrow-static row">${avatar(u.name, 'lg')}<span class="tx" style="flex:1;min-width:0"><b>${esc(u.name)}</b><span class="muted" style="font-size:13px;display:block">${esc(u.designation || '')}</span></span><button type="button" class="btn small" data-action="duRemind" data-user="${esc(u.id)}" data-name="${esc(u.name)}">Remind</button></div>`).join('')}</div>`) : ''}`;
+};
+Actions.duShow = (el) => { setF('du-show', el.dataset.show); render(); };
+Actions.duRemind = async (el) => {
+  try { await api('/api/updates/remind', { json: { userId: el.dataset.user } }); toast(`Reminder sent to ${firstName(el.dataset.name)}`); el.disabled = true; el.textContent = 'Reminded'; } catch (e) { toast(e.message, 'error'); }
+};
+Actions.duReply = async (el) => {
+  const v = await modal({ title: `Message ${firstName(el.dataset.name)}`, fields: [{ key: 'text', label: 'Message', type: 'textarea', value: 'Thanks for the update.' }], confirmText: 'Send' });
+  if (!v) return;
+  try { await api('/api/updates/reply', { json: { userId: el.dataset.user, text: v.text } }); toast('Sent'); } catch (e) { toast(e.message, 'error'); }
+};
+Actions.duTask = async (el) => {
+  let plans;
+  try { plans = (await api('/api/planner/plans')).plans || []; } catch (e) { toast(e.message, 'error'); return; }
+  if (!plans.length) { toast('Make a plan in the Planner first', 'error'); return; }
+  const v = await modal({ title: 'Make it a task', fields: [{ key: 'title', label: 'Task', value: el.dataset.title }, { key: 'plan', label: 'Plan', type: 'select', options: plans.map((p) => p.name), value: plans[0].name }, { key: 'due', label: 'Due date', type: 'date', value: addDays(todayISO(), 1) }], confirmText: 'Add task' });
+  if (!v) return;
+  const plan = plans.find((p) => p.name === v.plan) || plans[0];
+  try { await api('/api/planner/tasks', { json: { planId: plan.id, title: v.title, assignees: [el.dataset.user], dueDate: v.due, priority: 'important' } }); invalidate('planner'); toast('Task added. They see it on Today.'); } catch (e) { toast(e.message, 'error'); }
+};
 
 /* ---------------------------------------------------------------- HR desk */
 Views.hrdesk = () => {
@@ -99,11 +142,11 @@ Views.hrdesk = () => {
   const lv = data('leaves:team', () => api('/api/leaves?scope=team'));
   const users = data('admin:users', () => api('/api/admin/users'));
   return `${topbar('HR desk', '#home')}
+    ${group('Complaints & suggestions', `<div class="card flush">${lrow({ href: '#cases', icon: 'inbox', tone: 'red', title: 'Committee cases', sub: fb && !fb.error ? esc(`${fb.rows.filter((r) => r.status !== 'closed').length} open`) : '' })}${lrow({ href: '#committees', icon: 'users', tone: 'violet', title: 'Committees', sub: 'Members, mailboxes, policies' })}</div>`)}
     ${group('Employee documents', `<div class="card stack"><p class="hint">Upload a payslip from Zoho Payroll, a letter or an ID document; the employee sees it under Me → My documents and gets a notification.</p>
       ${users === null ? spinner() : users.error ? errorBox(users.error) : field('Employee', select('hr-user', F('hr-user', ''), users.rows.filter((u) => u.active).map((u) => [u.id, `${u.employee_id} · ${u.name}`]), { blank: 'Choose' }))}
       <div class="grid2">${field('Title', input('hr-title', F('hr-title'), { placeholder: 'e.g. Payslip October 2026' }))}${field('Category', select('hr-cat', F('hr-cat', 'Payslip'), ['Payslip', 'Offer letter', 'Appointment letter', 'ID card', 'Policy', 'Form 16', 'Other']))}</div>
       <button type="button" class="btn primary wide" data-action="hrUpload">Choose file and upload</button></div>`)}
-    ${group('Complaints & suggestions', complaintsDesk(fb))}
     ${group('Leave register', lv === null ? spinner() : lv.error ? errorBox(lv.error) : lv.rows.length ? `<div class="card flush">${lv.rows.map((l) => `<div class="lrow-static row"><span class="tx" style="flex:1"><b>${esc(l.user_name)} · ${esc(l.type)}</b><span class="muted" style="font-size:13px;display:block">${esc(fmtDate(l.from_date, false))}${l.to_date !== l.from_date ? ` to ${esc(fmtDate(l.to_date, false))}` : ''}${l.reason ? ` · ${esc(l.reason)}` : ''}</span></span>${statusTag(l.status)}</div>`).join('')}</div>` : '<div class="card"><p class="empty">No leave yet.</p></div>')}`;
 };
 Actions.hrUpload = () => {

@@ -8,17 +8,17 @@ const SECTIONS = [
   { key: 'home', icon: 'home', label: 'Home', tabs: [['home', 'Home']] },
   { key: 'inbox', icon: 'bell', label: 'Inbox', tabs: [['approvals', 'Approvals'], ['inbox', 'Messages']] },
   { key: 'ops', icon: 'pin', label: 'Operations', tabs: [['sites', 'Sites'], ['planner', 'Planner'], ['hub/ops', 'Records'], ['carbon', 'Carbon'], ['map', 'Map']] },
-  { key: 'people', icon: 'users', label: 'People', tabs: [['people', 'Directory'], ['attsum', 'Attendance'], ['team', 'Activity'], ['monthend', 'Month end'], ['hub/hr', 'Records'], ['notices', 'Notices'], ['surveys', 'Surveys'], ['hrdesk', 'HR desk', 'hr']] },
+  { key: 'people', icon: 'users', label: 'People', tabs: [['people', 'Directory'], ['attsum', 'Attendance'], ['dailyupd', 'Daily updates', 'leads'], ['team', 'Activity'], ['monthend', 'Month end'], ['hub/hr', 'Records'], ['notices', 'Notices'], ['surveys', 'Surveys'], ['hrdesk', 'HR desk', 'hr']] },
   { key: 'reports', icon: 'chart', label: 'Reports', tabs: [['reports', 'Reports', 'reports.view'], ['dashboard', 'Dashboard', 'reports.view']] },
 ];
 const SECTION_OF = { home: 'home', approvals: 'inbox', inbox: 'inbox',
   sites: 'ops', site: 'ops', sitenew: 'ops', siteedit: 'ops', mysite: 'ops', planner: 'ops', tasks: 'ops', carbon: 'ops', map: 'ops', registers: 'ops', farmers: 'ops', sign: 'ops', muster: 'ops', work: 'ops',
-  people: 'people', person: 'people', personedit: 'people', empnew: 'people', empedit: 'people', assign: 'people', attsum: 'people', team: 'people', monthend: 'people', hrreg: 'people', changes: 'people',
-  notices: 'people', notice: 'people', noticenew: 'people', surveys: 'people', survey: 'people', surveynew: 'people', hrdesk: 'people', poshdesk: 'people',
+  people: 'people', person: 'people', personedit: 'people', empnew: 'people', empedit: 'people', dailyupd: 'people', assign: 'people', attsum: 'people', team: 'people', monthend: 'people', hrreg: 'people', changes: 'people',
+  notices: 'people', notice: 'people', noticenew: 'people', surveys: 'people', survey: 'people', surveynew: 'people', hrdesk: 'people', poshdesk: 'people', cases: 'people', case: 'people', committees: 'people', committee: 'people',
   reports: 'reports', dashboard: 'reports',
   me: 'me', leaves: 'me', trips: 'me', attendance: 'me', updates: 'me', feedback: 'me',
   settings: 'settings', privacy: 'settings', security: 'settings', admin: 'settings', hrsettings: 'settings', messages: 'settings' };
-const sectionTabs = (s) => s.tabs.filter(([, , need]) => !need || (need === 'hr' ? hrRoleNow() : can(need)));
+const sectionTabs = (s) => s.tabs.filter(([, , need]) => !need || (need === 'hr' ? hrRoleNow() : need === 'leads' ? ['admin', 'hr', 'manager'].includes(KL.user.role) : can(need)));
 const shownSections = () => SECTIONS.filter((s) => sectionTabs(s).length);
 function sectionOf(view) {
   if (view === 'rec' || view === 'hub') {
@@ -49,9 +49,9 @@ function appHead() {
 const fieldTabs = () => TABS_FIELD_ALL.filter(([k]) => k !== 'mysite' || (KL.boot?.mySites || []).some((s) => s.project_type !== 'office'));
 const TAB_OF = { attendance: 'work', trips: 'work', registers: 'work', farmers: 'work', sign: 'work', updates: 'me', leaves: 'me', feedback: 'me', dashboard: 'manage', approvals: 'manage', team: 'manage', hrdesk: 'manage', admin: 'manage',
   people: 'manage', personedit: 'manage', reports: 'manage', hrsettings: 'manage', messages: 'manage', privacy: 'me', security: 'me',
-  notices: 'me', notice: 'me', surveys: 'me', survey: 'me', changes: 'me', poshdesk: 'me' };
+  notices: 'me', notice: 'me', surveys: 'me', survey: 'me', changes: 'me', poshdesk: 'me', cases: 'me', case: 'me', committees: 'me', committee: 'me' };
 const FIELD_ONLY = new Set(['requests']);
-const STAFF_ROUTES = new Set(['manage', 'dashboard', 'team', 'hrdesk', 'admin', 'people', 'personedit', 'empnew', 'empedit', 'sitenew', 'siteedit', 'reports', 'hrsettings', 'messages', 'hr', 'assign', 'monthend', 'hrreg', 'noticenew']);
+const STAFF_ROUTES = new Set(['manage', 'dashboard', 'team', 'dailyupd', 'hrdesk', 'admin', 'people', 'personedit', 'empnew', 'empedit', 'sitenew', 'siteedit', 'reports', 'hrsettings', 'messages', 'hr', 'assign', 'monthend', 'hrreg', 'noticenew']);
 const NEEDS_GPS = new Set(['attendance', 'trips', 'registers', 'sign', 'farmers']);
 
 const SECTION_LABEL = {'home': 'Home', 'sites': 'Sites', 'mysite': 'My site', 'planner': 'Planner', 'tasks': 'My tasks', 'hr': 'People', 'me': 'Me', 'inbox': 'Inbox', 'manage': 'Manage', 'ops': 'Operations', 'people': 'People', 'reports': 'Reports', 'settings': 'Settings'};
@@ -61,10 +61,10 @@ function route() {
   return i === -1 ? { name: h, arg: '' } : { name: h.slice(0, i), arg: h.slice(i + 1) };
 }
 const SITE_VIEWS = new Set(['site', 'sites', 'mysite', 'work', 'registers', 'farmers', 'sign', 'carbon', 'map', 'muster']);
-const PEOPLE_VIEWS = new Set(['hr', 'hub', 'people', 'person', 'personedit', 'assign', 'attsum', 'monthend', 'hrreg', 'changes', 'notices', 'notice', 'noticenew', 'surveys', 'survey', 'surveynew', 'poshdesk', 'hrsettings', 'messages', 'approvals', 'team', 'hrdesk', 'admin', 'manage', 'reports', 'dashboard', 'me', 'updates', 'leaves', 'feedback', 'privacy', 'security']);
+const PEOPLE_VIEWS = new Set(['hr', 'hub', 'people', 'person', 'personedit', 'assign', 'attsum', 'monthend', 'hrreg', 'changes', 'notices', 'notice', 'noticenew', 'surveys', 'survey', 'surveynew', 'poshdesk', 'cases', 'case', 'committees', 'committee', 'hrsettings', 'messages', 'approvals', 'team', 'hrdesk', 'admin', 'manage', 'reports', 'dashboard', 'me', 'updates', 'leaves', 'feedback', 'privacy', 'security']);
 const FIELD_TAB = { home: 'home', tasks: 'home', inbox: 'home', attendance: 'home', updates: 'home', task: 'home', notice: 'me', notices: 'me', survey: 'me', surveys: 'me',
   mysite: 'mysite', site: 'mysite', muster: 'mysite', registers: 'mysite', farmers: 'mysite', sign: 'mysite', map: 'mysite', carbon: 'mysite',
-  requests: 'requests', leaves: 'requests', trips: 'requests', me: 'me', person: 'me', attsum: 'me', feedback: 'me', settings: 'me', privacy: 'me', security: 'me', changes: 'me', poshdesk: 'me', hr: 'me', hub: 'me' };
+  requests: 'requests', leaves: 'requests', trips: 'requests', me: 'me', person: 'me', attsum: 'me', feedback: 'me', settings: 'me', privacy: 'me', security: 'me', changes: 'me', poshdesk: 'me', cases: 'me', case: 'me', committees: 'me', committee: 'me', hr: 'me', hub: 'me' };
 function tabOf(view) {
   if (KL.user && KL.user.role === 'field') {
     if (view === 'rec') { const k = kindDef(route().arg.split('/')[0]); return k && ['expense', 'advance', 'regularisation'].includes(k.key) ? 'requests' : k && ['hr', 'money'].includes(k.group) ? 'me' : 'mysite'; }
@@ -360,7 +360,7 @@ function bindEvents() {
     else if (id === 'tc-item') { e.preventDefault(); Actions.taskCheckAdd(); }
     else if (e.target.matches?.('[role="button"][data-action]')) { e.preventDefault(); e.target.click(); }
   });
-  window.addEventListener('hashchange', () => { if (route().name !== 'sign') KL.sig = null; if (route().name !== 'task' && KL.ui.sheetTask) { KL.ui.sheetTask = null; KL.ui.completing = null; } render(); });
+  window.addEventListener('hashchange', () => { if (route().name !== 'sign') KL.sig = null; if (route().name !== 'case') KL.ui.caseOpen = null; if (route().name !== 'task' && KL.ui.sheetTask) { KL.ui.sheetTask = null; KL.ui.completing = null; } render(); });
   window.addEventListener('online', () => { Outbox.flush(); render(); });
   window.addEventListener('offline', () => render());
   document.addEventListener('visibilitychange', async () => { if (document.visibilityState === 'visible' && KL.token) { await Outbox.flush(); await refreshMe(); render(); } });

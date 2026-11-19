@@ -19,7 +19,7 @@ from datetime import UTC, datetime, timedelta
 from PIL import Image, ImageDraw, ImageFont
 
 import planner
-from db import DB_PATH, Db, init_db, now_iso
+from db import DB_PATH, Db, ensure_refs, init_db, now_iso
 from pdfgen import render_document
 from storage import FILES_DIR, store
 
@@ -525,6 +525,7 @@ def reset() -> None:
         planner.init(db)
         modules.init(db)
         hrops.init(db)
+        ensure_refs(db)
         seed_activity(db)
         demo_modules.seed(db)
         hrops.seed(db)

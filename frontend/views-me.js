@@ -27,8 +27,9 @@ Views.me = () => {
     ${group('My requests', `<div class="card flush">
       ${lrow({ href: '#updates', icon: 'note', title: 'Daily work update', sub: 'Today and the last two weeks' })}
       ${lrow({ href: '#leaves', icon: 'sun', tone: 'blue', title: 'Leave', sub: pendingLeaves ? `${pendingLeaves} request${pendingLeaves === 1 ? '' : 's'} pending` : 'Apply and see past leave' })}
-      ${lrow({ href: '#feedback', icon: 'chat', tone: 'amber', title: 'Complaints & suggestions', sub: 'To HR or the POSH committee, named or anonymous with a tracking code' })}
-      ${KL.cache['hr:posh']?.onCommittee ? lrow({ href: '#poshdesk', icon: 'shield', tone: 'violet', title: 'Internal Committee (POSH)', sub: 'Confidential complaints for the committee' }) : ''}
+      ${lrow({ href: '#committees', icon: 'shield', tone: 'violet', title: 'Committees', sub: 'Who looks after complaints and ideas' })}
+      ${lrow({ href: '#feedback', icon: 'chat', tone: 'amber', title: 'Complaints & suggestions', sub: 'To a committee, with your name or without, with a tracking code' })}
+      ${(KL.cache.committees?.rows || []).some((c) => c.openCases !== undefined) ? lrow({ href: '#cases', icon: 'inbox', tone: 'red', title: 'Committee cases', sub: 'Confidential complaints for the committee' }) : ''}
       ${lrow({ href: '#changes/me', icon: 'clock', title: 'Changes to my records', sub: 'Attendance, leave and balance changes, with who and why' })}
       ${lrow({ href: '#attendance', icon: 'pin', tone: 'green', title: 'My attendance', sub: 'Check-ins of the last 31 days' })}
       ${lrow({ href: '#trips', icon: 'bike', title: 'My travel claims', sub: 'Approved, pending and rejected' })}
@@ -109,10 +110,10 @@ Views.updates = () => {
       ${field('What did you do today?', textarea('upd-summary', F('upd-summary', today?.summary || ''), 'e.g. Visited 6 farmers in Vanthali, 4 agreements signed, 2 KMLs uploaded. Tomorrow: Mendarda cluster.'))}
       <div class="grid2">${field('Hours worked', input('upd-hours', F('upd-hours', today?.hours ?? ''), { type: 'number', inputmode: 'decimal', step: '0.5', min: 0 }))}
       ${field('Site', select('upd-site', F('upd-site', today?.site_id || KL.me?.openAttendance?.site_id || ''), sites.map((s) => [s.id, s.name]), { blank: 'None / office' }))}</div>
-      ${field('Blockers or help needed (optional)', input('upd-blockers', F('upd-blockers', today?.blockers || ''), { placeholder: 'e.g. Need more saplings at Junagadh' }))}
+      ${field('Need any help? (optional)', input('upd-blockers', F('upd-blockers', today?.blockers || ''), { placeholder: 'e.g. Need more saplings at Junagadh' }))}
       <button type="button" class="btn primary wide" data-action="updateSave">${today ? 'Update' : 'Send update'}</button>
     </div>
-    ${group('Last two weeks', list === null ? spinner() : list.error ? errorBox(list.error) : list.rows.length ? `<div class="card flush">${timeline(list.rows.map((r) => ({ title: `${fmtDate(r.date, false)}${r.hours ? ` · ${r.hours} h` : ''}${r.site_name ? ` · ${r.site_name}` : ''}`, sub: `${esc(r.summary)}${r.blockers ? `<br><b class="bad-text">Blocker:</b> ${esc(r.blockers)}` : ''}`, tone: r.blockers ? 'warn' : '' })))}</div>` : emptyState('note', 'No updates yet', 'Write a few lines at the end of each day.'))}`;
+    ${group('Last two weeks', list === null ? spinner() : list.error ? errorBox(list.error) : list.rows.length ? `<div class="card flush">${timeline(list.rows.map((r) => ({ title: `${r.ref ? `${r.ref} · ` : ''}${fmtDate(r.date, false)}${r.hours ? ` · ${r.hours} h` : ''}${r.site_name ? ` · ${r.site_name}` : ''}`, sub: `${esc(r.summary)}${r.blockers ? `<br><b class="bad-text">Blocker:</b> ${esc(r.blockers)}` : ''}`, tone: r.blockers ? 'warn' : '' })))}</div>` : emptyState('note', 'No updates yet', 'Write a few lines at the end of each day.'))}`;
 };
 Actions.updateSave = async () => {
   try {
@@ -135,18 +136,19 @@ Views.leaves = () => {
   return `${topbar('Leave', '#me')}
     ${bal && !bal.error ? `<div class="tiles four" style="margin-bottom:14px">${bal.rows.map((b) => `<div class="tile ${b.available === null ? '' : b.available <= 1 ? 'warn' : 'ok'}"><b>${b.available === null ? '∞' : fmtNum(b.available, 1)}</b><span>${esc(b.type)} left${b.available === null ? ' (unpaid)' : ` · ${fmtNum(b.accrued + b.opening, 1)} credited, ${fmtNum(b.used, 1)} used${b.pending ? `, ${fmtNum(b.pending, 1)} pending` : ''}`}</span></div>`).join('')}</div>` : ''}
     ${group('Apply for leave', `<div class="card stack">
-      <div class="grid2">${field('Length', select('lv-half', half, [['', 'Full day or days'], ['first', 'Half day · first half'], ['second', 'Half day · second half']]))}${field('Type', select('lv-type', F('lv-type', types[0]), types), { required: true })}</div>
+      ${pills('Length', 'lv-half', half, [['', 'Full day or days'], ['first', 'Half · first half'], ['second', 'Half · second half']])}
+      ${pills('Type', 'lv-type', F('lv-type', types[0]), types.map((t) => [t, t]))}
       <div class="grid2">${field(half ? 'Date' : 'From', input('lv-from', F('lv-from', todayISO()), { type: 'date' }), { required: true })}${half ? '' : field('To', input('lv-to', F('lv-to', todayISO()), { type: 'date' }), { required: true })}</div>
       ${field('Reason', input('lv-reason', F('lv-reason'), { placeholder: 'Optional' }), { help: 'Your manager sees this.' })}
       <button type="button" class="btn primary wide" data-action="leaveApply">Apply</button>
     </div>`)}
     ${group('My leave', list === null ? spinner() : list.error ? errorBox(list.error) : list.rows.length ? dataTable({ id: 'my-leave', rows: list.rows, pageSize: 10,
       filters: [{ key: 'st', label: 'Status', options: [['pending', 'Pending'], ['approved', 'Approved'], ['rejected', 'Rejected'], ['withdrawn', 'Withdrawn']], match: (l, v) => l.status === v }],
-      columns: [{ key: 'from_date', label: 'Dates', render: (l) => dates(l) },
+      columns: [{ key: 'from_date', label: 'Dates', render: (l) => `${dates(l)}${refLine(l)}` },
         { key: 'type', label: 'Type' }, { key: 'days', label: 'Days', align: 'right', value: (l) => l.days || 0, render: (l) => fmtNum(l.days || 0, 1) },
         { key: 'reason', label: 'Note', phone: false, render: (l) => esc([l.reason, l.decision_note, l.status === 'pending' && l.waiting ? `with ${l.waiting}` : ''].filter(Boolean).join(' · ') || '–') },
         { key: 'status', label: 'Status', render: (l) => `${statusTag(l.status)} ${withdrawBtn(l)}` }],
-      phoneRow: (l) => `<div class="lrow-static row"><span class="tx" style="flex:1"><b>${esc(l.type)} · ${dates(l)}</b><span class="muted" style="font-size:14px;display:block">${l.half ? 'Half day' : `${fmtNum(l.days || 0, 1)} working day${l.days === 1 ? '' : 's'}`}${l.reason ? ` · ${esc(l.reason)}` : ''}${l.decision_note ? ` · ${esc(l.decision_note)}` : ''}${l.status === 'pending' && l.waiting ? ` · with ${esc(l.waiting)}` : ''}</span></span><span class="right">${statusTag(l.status)}${l.canWithdraw ? `<br/>${withdrawBtn(l)}` : ''}</span></div>` })
+      phoneRow: (l) => `<div class="lrow-static row"><span class="tx" style="flex:1"><b>${esc(l.type)} · ${dates(l)}</b>${refLine(l)}<span class="muted" style="font-size:14px;display:block">${l.half ? 'Half day' : `${fmtNum(l.days || 0, 1)} working day${l.days === 1 ? '' : 's'}`}${l.reason ? ` · ${esc(l.reason)}` : ''}${l.decision_note ? ` · ${esc(l.decision_note)}` : ''}${l.status === 'pending' && l.waiting ? ` · with ${esc(l.waiting)}` : ''}</span></span><span class="right">${statusTag(l.status)}${l.canWithdraw ? `<br/>${withdrawBtn(l)}` : ''}</span></div>` })
       : emptyState('sun', 'No leave requests yet', 'Apply above; your manager is told at once.'))}`;
 };
 Actions.leaveApply = async () => {

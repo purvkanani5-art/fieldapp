@@ -313,7 +313,7 @@ function poshCard(p, open = false) {
       <p>Sexual harassment at work is not allowed. Under the Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act, 2013, the company has an <b>Internal Committee (IC)</b>.</p>
       <ul class="posh-list">
         <li><b>Where it applies:</b> the office, every site, company vehicles, farm visits and work trips.</li>
-        <li><b>How to complain:</b> in writing to the IC within 3 months of the incident (the IC can allow 3 more months). Choose "Sexual harassment (POSH)" above, or contact a member directly${p.email ? ` or write to <b>${esc(p.email)}</b>` : ''}.</li>
+        <li><b>How to complain:</b> in writing to the IC within 3 months of the incident (the IC can allow 3 more months). In Complaints &amp; suggestions turn on "This is a POSH complaint", or contact a member directly${p.email ? ` or write to <b>${esc(p.email)}</b>` : ''}.</li>
         <li><b>What happens:</b> conciliation only if you ask for it; otherwise the IC inquires and finishes within 90 days. You can ask for relief while it inquires, such as a transfer or leave.</li>
         <li><b>Confidential:</b> your name and the details stay with the IC. Nobody may be punished for complaining or for being a witness.</li>
         <li><b>Against the employer:</b> ${esc(p.local_committee || 'the Local Committee of the district')}.</li>
@@ -321,96 +321,6 @@ function poshCard(p, open = false) {
       <b style="font-size:14px">Internal Committee</b>${ic_ || '<p class="hint">HR has not named the committee yet.</p>'}
     </div></details>`;
 }
-function fbThread(rows) {
-  return rows && rows.length ? `<div class="thread">${rows.map((m) => `<div class="msg ${m.from_hr ? 'hr' : 'me'}"><small>${m.from_hr ? esc(m.by_name || 'HR') : 'Sender'} · ${esc(timeAgo(m.at))}</small><p>${esc(m.text)}</p></div>`).join('')}</div>` : '';
-}
-Views.feedback = () => {
-  const list = data('feedback:mine', () => api('/api/feedback'));
-  const posh = data('hr:posh', () => api('/api/hr/posh'));
-  const type = F('fb-type', 'suggestion');
-  const cat = F('fb-cat', '');
-  const cats = posh && !posh.error ? Object.entries(posh.categories) : [];
-  const anon = Boolean(F('fb-anon'));
-  const tr = KL.ui.track;
-  const mine = list && !list.error ? list.rows.filter((r) => !r.category || r.category !== 'posh' || r.user_id === KL.user.id) : [];
-  return `${topbar('Complaints & suggestions', '#me')}
-    <div class="card stack">
-      <div class="seg"><button type="button" data-action="fbType" data-type="suggestion" aria-pressed="${type === 'suggestion'}">Suggestion</button><button type="button" data-action="fbType" data-type="complaint" aria-pressed="${type === 'complaint'}">Complaint</button></div>
-      ${type === 'complaint' ? field('What is it about', select('fb-cat', cat, cats, { blank: 'Choose' })) : ''}
-      ${type === 'complaint' && cat === 'posh' ? `<div class="banner violet">${ic('shield')}<div><b>Goes only to the Internal Committee</b><p>HR staff outside the committee and your manager do not see it.${anon ? ' The committee can act on an anonymous message as information, but a formal inquiry under the Act needs a named, written complaint.' : ''}</p></div></div>` : ''}
-      ${textarea('fb-text', F('fb-text'), type === 'complaint' ? 'What happened, when and where. HR reads every complaint.' : 'What would make work better?')}
-      <label class="check"><input type="checkbox" id="fb-anon" ${anon ? 'checked' : ''} data-change="fbAnon" /> <span>Send anonymously. Nobody sees your name; you get a tracking code to read the reply and write back.</span></label>
-      <button type="button" class="btn primary wide" data-action="fbSend">${cat === 'posh' && type === 'complaint' ? 'Send to the Internal Committee' : 'Send to HR'}</button>
-    </div>
-    ${type === 'complaint' && cat === 'posh' ? poshCard(posh, true) : ''}
-    ${group('Track an anonymous complaint', `<div class="card stack">
-      <div class="row" style="gap:8px">${input('fb-code', F('fb-code'), { placeholder: 'KL-XXXX-XXXX' })}<button type="button" class="btn" data-action="fbTrack">Open</button></div>
-      ${KL.boot?.demo ? `<div class="demo-ribbon">${ic('sparkle')}<span>Prototype: try <b class="mono">KL-DEMO-2026</b></span></div>` : ''}
-      ${tr ? `<div class="stack"><div class="row between"><b>${esc(tr.type === 'complaint' ? 'Complaint' : 'Suggestion')} · ${esc(fmtDate(tr.created_at, false))}</b>${statusTag(tr.status)}</div><p class="hint" style="white-space:pre-wrap">${esc(tr.text)}</p>${fbThread(tr.thread) || '<p class="hint">No reply yet.</p>'}
-        ${textarea('fb-reply', F('fb-reply'), 'Write back (still anonymous)')}<button type="button" class="btn small primary" data-action="fbTrackReply">${ic('send')} Send</button></div>` : ''}
-    </div>`)}
-    ${group('Sent by me', list === null ? spinner() : list.error ? errorBox(list.error) : mine.length ? `<div class="card flush">${mine.map((r) => `<div class="lrow-static"><div class="row between"><b>${esc(r.type === 'complaint' ? 'Complaint' : 'Suggestion')} · ${esc(fmtDate(r.created_at, false))}</b>${statusTag(r.status)}</div><p class="hint" style="white-space:pre-wrap;margin-top:2px">${esc(r.text)}</p>${fbThread(r.thread) || (r.response ? `<div class="banner info" style="margin-top:6px"><b>HR replied</b><p>${esc(r.response)}</p></div>` : '')}</div>`).join('')}</div>` : '<div class="card"><p class="empty">Nothing yet. Anonymous items are not listed here; use the tracking code.</p></div>')}
-    ${type === 'complaint' && cat === 'posh' ? '' : group('Sexual harassment at work', poshCard(posh))}`;
-};
-Actions.fbType = (el) => { setF('fb-type', el.dataset.type); render(); };
-Changes.fbAnon = (el) => { setF('fb-anon', el.checked); render(); };
-Actions.fbSend = async () => {
-  try {
-    const r = await api('/api/feedback', { json: { type: F('fb-type', 'suggestion'), category: F('fb-cat', ''), text: F('fb-text', ''), anonymous: Boolean(F('fb-anon')) } });
-    clearF('fb-text', 'fb-anon', 'fb-cat'); invalidate('feedback');
-    if (r.code) {
-      await modal({ title: 'Keep this tracking code', html: `<div class="code-big mono">${esc(r.code)}</div><p class="hint">Write it down or take a screenshot. It is the only way to read the reply and write back; it is not stored with your name, so it cannot be sent again.</p>`, confirmText: 'I have saved it', cancelText: 'Close' });
-      setF('fb-code', r.code);
-    } else toast('Sent');
-    render();
-  } catch (e) { toast(e.message, 'error'); }
-};
-Actions.fbTrack = async () => {
-  try { KL.ui.track = await api(`/api/feedback/track?code=${encodeURIComponent(F('fb-code', ''))}`); KL.ui.trackCode = F('fb-code', ''); render(); } catch (e) { KL.ui.track = null; toast(e.message, 'error'); render(); }
-};
-Actions.fbTrackReply = async () => {
-  try { await api('/api/feedback/track', { json: { code: KL.ui.trackCode, text: F('fb-reply', '') } }); clearF('fb-reply'); await Actions.fbTrack(); toast('Sent, still anonymous'); } catch (e) { toast(e.message, 'error'); }
-};
-/** HR desk / Internal Committee desk: complaints with their conversation. */
-function complaintsDesk(fb, onlyPosh = false) {
-  if (fb === null) return spinner();
-  if (fb.error) return errorBox(fb.error);
-  const cats = KL.cache['hr:posh']?.categories || {};
-  const rows = fb.rows.filter((r) => (onlyPosh ? r.category === 'posh' : r.category !== 'posh'));
-  if (!rows.length) return `<div class="card"><p class="empty">${onlyPosh ? 'No POSH complaints.' : 'Nothing yet.'}</p></div>`;
-  const ageDays = (r) => Math.floor((Date.now() - new Date(r.created_at).getTime()) / 86400000);
-  return dataTable({ id: onlyPosh ? 'posh' : 'tickets', rows, pageSize: 15, placeholder: 'Search tickets', search: (r) => `${r.text} ${r.user_name || ''} ${cats[r.category] || ''}`,
-    filters: [{ key: 'st', label: 'Status', options: [['open', 'Open'], ['in_progress', 'In progress'], ['closed', 'Closed']], match: (r, v) => r.status === v },
-      ...(onlyPosh ? [] : [{ key: 'ty', label: 'Type', options: [['complaint', 'Complaints'], ['suggestion', 'Suggestions']], match: (r, v) => r.type === v }])],
-    columns: [{ key: 'text', label: 'Ticket', render: (r) => `<b>${esc(r.type === 'complaint' ? 'Complaint' : 'Suggestion')}</b> <span class="muted">${esc(String(r.text).slice(0, 80))}${String(r.text).length > 80 ? '…' : ''}</span>` },
-      { key: 'user_name', label: 'From', render: (r) => esc(r.user_name || 'Anonymous') },
-      { key: 'category', label: 'Category', phone: false, render: (r) => esc(cats[r.category] || '–') },
-      { key: 'age', label: 'Age', align: 'right', value: (r) => ageDays(r), render: (r) => `${ageDays(r)} d` },
-      { key: 'status', label: 'Status', render: (r) => statusTag(r.status) }],
-    actions: (r) => `<button type="button" class="btn small" data-action="fbOpen" data-id="${esc(r.id)}">Open</button>`,
-    phoneRow: (r) => `<div class="lrow-static"><div class="row between"><b>${esc(r.type === 'complaint' ? 'Complaint' : 'Suggestion')} · ${esc(r.user_name || 'Anonymous')}</b>${statusTag(r.status)}</div><p class="hint" style="margin:4px 0 8px">${esc(String(r.text).slice(0, 140))}</p><button type="button" class="btn small" data-action="fbOpen" data-id="${esc(r.id)}">Open</button></div>` });
-}
-/** A ticket: the full text, the conversation, then reply. */
-Actions.fbOpen = async (el) => {
-  const all = KL.cache['feedback:all'];
-  const r = all && !all.error ? all.rows.find((x) => x.id === el.dataset.id) : null;
-  if (!r) return;
-  const cats = KL.cache['hr:posh']?.categories || {};
-  const ok = await modal({ title: `${r.type === 'complaint' ? 'Complaint' : 'Suggestion'} · ${r.user_name || 'Anonymous'}`, wide: true, confirmText: r.thread.length ? 'Reply again' : 'Reply', cancelText: 'Close',
-    html: `<p class="hint">${esc(cats[r.category] || '')}${r.category ? ' · ' : ''}${esc(fmtDate(r.created_at))}${r.tracked ? ' · the sender has a tracking code' : ''} · ${statusTag(r.status)}</p><p style="white-space:pre-wrap">${esc(r.text)}</p>${fbThread(r.thread) || '<p class="hint">No reply yet.</p>'}` });
-  if (ok) Actions.fbRespond(el);
-};
-Actions.fbRespond = async (el) => {
-  const v = await modal({ title: 'Reply', fields: [{ key: 'response', label: 'Your reply (the sender sees it, also when anonymous through the tracking code)', type: 'textarea' }, { key: 'status', label: 'Status', type: 'select', options: ['in_progress', 'closed'], value: 'in_progress' }], confirmText: 'Send' });
-  if (!v) return;
-  try { await api(`/api/feedback/${el.dataset.id}/respond`, { json: v }); invalidate('feedback'); toast('Replied'); render(); } catch (e) { toast(e.message, 'error'); }
-};
-Views.poshdesk = () => {
-  const fb = data('feedback:all', () => api('/api/feedback'));
-  data('hr:posh', () => api('/api/hr/posh'));
-  return `${topbar('Internal Committee', isStaff() ? '#hr' : '#me')}<p class="sub">Confidential. Only members of the Internal Committee (POSH) see these complaints.</p>${complaintsDesk(fb, true)}`;
-};
-
 /* ---------------------------------------------------------------- employee flags (HR): uses the app, crew supervisor */
 function personFlags(u) {
   if (!hrRoleNow()) return u.app_access ? '' : `<div class="card"><p class="hint">${ic('users')} No phone: attendance is marked by the site supervisor.</p></div>`;

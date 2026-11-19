@@ -126,6 +126,38 @@ CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications (user_id, read);
 
 NO_ID_TABLES = {"user_sites", "user_projects"}
 
+# ------------------------------------------------------------------ reference numbers (2026-11-19)
+# Everything people send or log gets a reference like LV-2026-27-0001: a type code, the financial year (April to
+# March, as in Zoho and the accounts) and a number that restarts at 0001 each year, separately for each type.
+# Numbers are never reused, even when a request is withdrawn or deleted. Db.insert gives the number; ensure_refs()
+# adds the column and numbers older rows once, oldest first.
+REF_RECORD_CODES = {"expense": "EX", "advance": "AD", "regularisation": "AC", "purchase_request": "PR", "farmer_payment": "FP", "incident": "IN",
+                    "checklist_run": "SC", "application": "FA", "asset_issue": "AI", "dispatch": "DN", "transfer": "TF", "gas_run": "GR",
+                    "lab_result": "LR", "labour": "LB", "maintenance": "MT", "nursery": "NE", "sapling": "SA", "survival": "SV",
+                    "onboarding": "OB", "exit": "XT", "review": "RV", "training": "TN"}
+REF_TABLES = {"work_updates": "created_at", "leaves": "created_at", "trips": "start_at", "tasks": "created_at", "feedback": "created_at",
+              "attendance": "checkin_at", "records": "created_at"}
+
+
+def ref_code(table: str, row: dict) -> str | None:
+    if table == "records":
+        return REF_RECORD_CODES.get(row.get("kind", ""))
+    if table == "feedback":
+        return "SG" if row.get("type") == "suggestion" else "CP"  # POSH complaints are CP too: the number does not tell
+    if table == "attendance":
+        return "CE" if row.get("status") == "pending" else None  # only check-in / check-out exceptions
+    return {"work_updates": "DU", "leaves": "LV", "trips": "TR", "tasks": "TK"}.get(table)
+
+
+def fin_year(iso: str | None) -> str:
+    s = iso or now_iso()
+    y, m = int(s[:4]), int(s[5:7])
+    start = y if m >= 4 else y - 1
+    return f"{start}-{(start + 1) % 100:02d}"
+
+
+_REF_COLS: set[str] = set()
+
 
 def now_iso() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -175,10 +207,21 @@ class Db:
         self.con.commit()
         return n
 
+    def next_ref(self, code: str, at: str | None = None) -> str:
+        """The next number for this type in the financial year of `at` (inside the caller's transaction)."""
+        fy = fin_year(at)
+        self.con.execute("INSERT INTO ref_counters (code, fy, n) VALUES (?, ?, 0) ON CONFLICT(code, fy) DO NOTHING", (code, fy))
+        n = self.con.execute("UPDATE ref_counters SET n = n + 1 WHERE code = ? AND fy = ? RETURNING n", (code, fy)).fetchone()[0]
+        return f"{code}-{fy}-{n:04d}"
+
     def insert(self, table: str, row: dict) -> str:
         row = dict(row)
         if table not in NO_ID_TABLES:
             row.setdefault("id", new_id())
+        if table in _REF_COLS and not row.get("ref"):
+            code = ref_code(table, row)
+            if code:
+                row["ref"] = self.next_ref(code, row.get(REF_TABLES[table]))
         cols = ", ".join(row)
         marks = ", ".join("?" for _ in row)
         self.con.execute(f"INSERT INTO {table} ({cols}) VALUES ({marks})", tuple(row.values()))  # noqa: S608
@@ -221,3 +264,21 @@ class Db:
                 if has_any and not ok:
                     continue  # assigned elsewhere
             self.notify(u["id"], title, body, link)
+
+
+def ensure_refs(db: Db) -> None:
+    """Add the ref column where missing and number older rows once (call after every module has made its tables)."""
+    db.con.execute("CREATE TABLE IF NOT EXISTS ref_counters (code TEXT NOT NULL, fy TEXT NOT NULL, n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (code, fy))")
+    for table, at in REF_TABLES.items():
+        cols = {r[1] for r in db.con.execute(f"PRAGMA table_info({table})")}
+        if not cols:
+            continue
+        if "ref" not in cols:
+            db.con.execute(f"ALTER TABLE {table} ADD COLUMN ref TEXT")
+            db.con.execute(f"CREATE INDEX IF NOT EXISTS idx_{table}_ref ON {table} (ref)")
+        _REF_COLS.add(table)
+        for r in db.all(f"SELECT * FROM {table} WHERE ref IS NULL ORDER BY {at}, id"):  # noqa: S608
+            code = ref_code(table, r)
+            if code:
+                db.con.execute(f"UPDATE {table} SET ref = ? WHERE id = ?", (db.next_ref(code, r.get(at)), r["id"]))  # noqa: S608
+    db.con.commit()

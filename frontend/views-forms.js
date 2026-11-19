@@ -390,14 +390,3 @@ Actions.siteSave = async (el) => {
     if (another) render();
   } catch (e) { toast(e.message, 'error'); } finally { el.disabled = false; }
 };
-
-/* ---------------------------------------------------------------- quick actions on the office home screens */
-function quickAdd() {
-  const items = [
-    can('users.add') && ['#empnew', 'user', 'Add employee'],
-    can('sites.edit') && ['#sitenew', 'pin', 'Add site'],
-    ['#planner', 'kanban', 'New task'],
-    can('hr.notices') && ['#noticenew', 'bell', 'Post notice'],
-  ].filter(Boolean);
-  return `<div class="quick-add">${items.map(([h, i, l]) => `<a class="btn" href="${h}">${ic(i)}<span>${esc(l)}</span></a>`).join('')}<button type="button" class="btn ghost" data-action="newOpen">${ic('plus')}<span>More</span></button></div>`;
-}

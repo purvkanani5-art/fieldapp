@@ -30,6 +30,7 @@ Views.site = (arg) => {
   const s = (KL.boot?.mySites || []).find((x) => x.id === id);
   const back = mySites().length > 1 || isStaff() ? '#sites' : '#home';
   if (!s) return `${topbar('Site', back)}${emptyState('pin', 'Site not found or not yours')}`;
+  if (!tab0) return isField() ? fieldSite(s) : siteHub(s, { back }); // the site's front door: what you can do here; records are one tap away
   const tabs = (SITE_TABS[s.project_type] || SITE_TABS.general)(s);
   const tab = tabs.some(([k]) => k === tab0) ? tab0 : 'overview';
   KL.ui.siteBack = `#site/${id}/${tab}`;
@@ -42,7 +43,7 @@ Views.site = (arg) => {
   if (sum === null) body = spinner();
   else if (sum.error) body = errorBox(sum.error);
   else body = (SITE_BODY[tab] || SITE_BODY.overview)(s, sum);
-  return `${topbar(s.name, back, isStaff() && can('sites.edit') ? `<a class="btn small" href="#siteedit/${esc(s.id)}">${ic('pen')} Edit</a>` : '')}${head}${bar}<div class="site-body">${body}</div>`;
+  return `${topbar(s.name, `#site/${s.id}`, isStaff() && can('sites.edit') ? `<a class="btn small" href="#siteedit/${esc(s.id)}">${ic('pen')} Edit</a>` : '')}${head}${bar}<div class="site-body">${body}</div>`;
 };
 
 /* compact list of one register's records at this site, with a New button */

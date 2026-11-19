@@ -70,7 +70,7 @@ Views.hr = () => {
     ${group('Today', `<div class="card flush">${row('#approvals', 'check', pend ? 'amber' : '', 'Approvals', 'Leave, claims, purchases, trips, check-in exceptions', pend ? tag(String(pend), 'warn') : '')}${row('#team', 'clock', 'green', 'Team activity', 'Attendance, trips and daily updates')}${row('#attsum', 'calendar', 'green', 'Attendance summary', 'Month grid: present, late, absent, overtime')}</div>`)}
     ${group('Month end', `<div class="card flush">${row('#monthend', 'lock', 'violet', 'Approve, lock and export', 'Managers confirm, HR locks; file for Zoho Payroll (paid days, LOP, OT, leave)')}${row('#hrreg', 'list', '', 'Registers', 'Muster roll and leave register, PDF or Excel')}${row('#changes', 'clock', '', 'Change log', 'Who changed attendance, leave or balances: old and new value')}</div>`)}
     ${group('Employees', `<div class="card flush">${row('#people', 'users', 'blue', 'Employee directory', hrRole ? 'Records, sites and projects, reporting lines' : 'Your team')}${row('#rec/expense', 'receipt', 'amber', 'Expense claims', 'With receipt photos')}${row('#rec/advance', 'receipt', '', 'Advances & loans', 'Recovery sent to Zoho Payroll')}${row('#rec/asset_issue', 'box', '', 'Assets issued', 'Phones, tools, safety kit')}${row('#rec/training', 'shield', 'green', 'Training & certificates', 'With expiry')}${row('#rec/goal', 'target', '', 'Goals', 'Targets and progress')}${row('#rec/review', 'chart', '', 'Reviews', 'Half-yearly ratings')}${row('#rec/regularisation', 'clock', '', 'Attendance corrections', 'Approved by managers')}</div>`)}
-    ${group('Company', `<div class="card flush">${row('#notices', 'bell', 'amber', 'Notice board', 'Announcements with read receipts')}${row('#surveys', 'chart', 'blue', 'Surveys & eNPS', 'Anonymous pulse surveys')}${row('#rec/policy', 'doc', '', 'Policies', 'Everyone reads and accepts')}${row('#rec/holiday', 'calendar', 'violet', 'Holidays & shifts', 'Calendar used for leave and attendance')}${hrRole ? row('#rec/onboarding', 'users', 'blue', 'Onboarding & exits', 'Joining and leaving checklists') : ''}${hrRole ? row('#hrdesk', 'folder', 'amber', 'HR desk', 'Complaints, suggestions, employee documents') : ''}${KL.cache['hr:posh']?.onCommittee ? row('#poshdesk', 'shield', 'violet', 'Internal Committee (POSH)', 'Confidential complaints') : ''}${row('#reports', 'chart', 'earth', 'Reports', 'Month summary and CSV downloads')}${row('#admin', 'cog', '', 'Administration', 'Users and PINs, sites, registers, templates')}${hrRole ? row('#hrsettings', 'cog', '', 'HR settings & integrations', 'Approval chains, leave policy, WhatsApp, Zoho Payroll') : ''}</div>`)}`;
+    ${group('Company', `<div class="card flush">${row('#notices', 'bell', 'amber', 'Notice board', 'Announcements with read receipts')}${row('#surveys', 'chart', 'blue', 'Surveys & eNPS', 'Anonymous pulse surveys')}${row('#rec/policy', 'doc', '', 'Policies', 'Everyone reads and accepts')}${row('#rec/holiday', 'calendar', 'violet', 'Holidays & shifts', 'Calendar used for leave and attendance')}${hrRole ? row('#rec/onboarding', 'users', 'blue', 'Onboarding & exits', 'Joining and leaving checklists') : ''}${hrRole ? row('#hrdesk', 'folder', 'amber', 'HR desk', 'Complaints, suggestions, employee documents') : ''}${row('#committees', 'shield', 'violet', 'Committees', 'POSH, safety, grievance, suggestions')}${row('#cases', 'inbox', 'red', 'Committee cases', 'Complaints and suggestions you handle')}${row('#reports', 'chart', 'earth', 'Reports', 'Month summary and CSV downloads')}${row('#admin', 'cog', '', 'Administration', 'Users and PINs, sites, registers, templates')}${hrRole ? row('#hrsettings', 'cog', '', 'HR settings & integrations', 'Approval chains, leave policy, WhatsApp, Zoho Payroll') : ''}</div>`)}`;
 };
 Views.hub = (group) => {
   const kd = kinds();
@@ -134,8 +134,8 @@ function recList(k) {
   const filter = statuses.length ? `<div class="chips" style="margin-bottom:12px"><button type="button" data-action="recFilter" data-kind="${esc(k.key)}" data-status="" aria-pressed="${!st}">All</button>${statuses.map((s) => `<button type="button" data-action="recFilter" data-kind="${esc(k.key)}" data-status="${esc(s)}" aria-pressed="${st === s}">${esc(s === 'pending' ? 'awaiting approval' : s)}</button>`).join('')}</div>` : '';
   const hasStatus = k.approval || (k.statuses || []).length || ['batch', 'survival', 'policy', 'equipment', 'training'].includes(k.key);
   const body = list === null ? spinner() : list.error ? errorBox(list.error) : rows.length ? dataTable({ id: `rec-${k.key}`, rows, rowHref: (r) => `#rec/${k.key}/${r.id}`, pageSize: 25,
-    placeholder: `Search ${k.label.toLowerCase()}`, search: (r) => `${r.title} ${r.user_name || ''} ${Object.values(r.data || {}).join(' ')}`,
-    columns: [{ key: 'title', label: k.one, render: (r) => `<span class="dt-cell-main">${r.file_id ? authImg(r.file_id, 'thumb sm') : ''}<span>${esc(r.title || k.one)}</span></span>` },
+    placeholder: `Search ${k.label.toLowerCase()}`, search: (r) => `${r.ref || ''} ${r.title} ${r.user_name || ''} ${Object.values(r.data || {}).join(' ')}`,
+    columns: [{ key: 'title', label: k.one, render: (r) => `<span class="dt-cell-main">${r.file_id ? authImg(r.file_id, 'thumb sm') : ''}<span>${esc(r.title || k.one)}${refLine(r)}</span></span>` },
       { key: 'sub', label: 'Details', sort: false, render: (r) => recSub(k, r) || '–' },
       { key: 'user_name', label: 'Person', phone: false, render: (r) => esc(r.user_name || r.created_name || '–') },
       { key: 'created_at', label: 'Added', align: 'right', value: (r) => r.created_at, render: (r) => esc(fmtDate(r.created_at, false)) },
@@ -194,7 +194,7 @@ function recDetail(k, id) {
   const prBtns = k.key === 'purchase_request' && isStaff() && ['approved', 'ordered'].includes(r.status) ? `<div class="btns" style="margin-top:12px">${r.status === 'approved' ? `<button type="button" class="btn primary" data-action="recStatus" data-kind="purchase_request" data-id="${esc(id)}" data-status="ordered">${ic('send')} Place order</button>` : `<button type="button" class="btn primary" data-action="recStatus" data-kind="purchase_request" data-id="${esc(id)}" data-status="received">${ic('box')} Mark received (adds to stock)</button>`}</div>` : '';
   return `${topbar(r.title || k.one, back, right)}
     <div class="card stack">
-      <div class="row between"><div class="row" style="gap:12px">${avatar(r.user_name || r.created_name)}<div><b>${esc(k.one)}</b><p class="hint">${esc(r.created_name)} · ${esc(fmtDate(r.created_at))}${r.data.po_number ? ` · ${esc(r.data.po_number)}` : ''}</p></div></div>${stag(r.status)}</div>
+      <div class="row between"><div class="row" style="gap:12px">${avatar(r.user_name || r.created_name)}<div><b>${esc(k.one)}</b><p class="hint">${r.ref ? `<b class="mono">${esc(r.ref)}</b> · ` : ''}${esc(r.created_name || (r.data.anonymous ? 'Anonymous' : ''))} · ${esc(fmtDate(r.created_at))}${r.data.po_number ? ` · ${esc(r.data.po_number)}` : ''}</p></div></div>${stag(r.status)}</div>
       ${r.file_id ? authImg(r.file_id, 'thumb lg') : ''}
       <div class="kv">${kv}${k.key === 'survival' && r.survival !== null ? `<span>Survival</span><span>${r.survival}%</span>` : ''}${r.service_due ? `<span>Next service</span><span style="${r.service_overdue ? 'color:var(--danger)' : ''}">${esc(fmtDate(r.service_due, false))}</span>` : ''}${r.lat ? `<span>GPS</span><span>${r.lat.toFixed(5)}, ${r.lng.toFixed(5)}</span>` : ''}</div>
       ${long}
@@ -324,16 +324,20 @@ function recForm(k, id) {
   const fields = k.fields.filter((f) => f.type !== 'answers').map((f) => field(f.label + (f.required ? '' : ' (optional)'), ctl(f))).join('');
   const answers = k.key === 'checklist_run' ? checklistAnswers(k) : '';
   KL.ui.previewFn = () => recPreview(k);
-  const stampLines = [`${KL.user.name} · ${k.one}`];
+  const anonOk = k.key === 'incident' && !editing;
+  const anon = anonOk && Boolean(F('rec-anon'));
+  const stampLines = anon ? [`Anonymous report · ${k.one}`] : [`${KL.user.name} · ${k.one}`];
   return `${topbar(editing ? `Edit ${k.one}` : `New ${k.one.toLowerCase()}`, back)}
     ${k.approval && !editing ? `<div class="banner info" style="margin-bottom:12px">${ic('users')}<div><b>Goes for approval</b><p>${esc(chainText(k.approval))}</p></div></div>` : ''}
     <div class="card stack">
       ${fields}${answers}
       <div id="preview">${KL.ui.previewFn()}</div>
+      ${anonOk ? switchRow('rec-anon', anon, 'Report without my name', 'Your name is not saved with the report or the photo. Nobody can find out who sent it.', 'recAnon') : ''}
       ${k.photo ? `${needGps ? `${demoRibbon()}${gpsLine()}` : ''}${photoBox(`rec-${k.key}`, editing ? `Replace the ${k.photo.toLowerCase()} (optional)` : `${k.photo}${k.key === 'expense' ? ' (needed over ₹500)' : ''}`, 'environment', stampLines)}` : ''}
       <button type="button" class="btn primary wide" data-action="recSave" data-kind="${esc(k.key)}" data-id="${esc(id || '')}">${editing ? 'Save changes' : k.approval ? 'Submit for approval' : 'Save'}</button>
     </div>`;
 }
+Changes.recAnon = (el) => { setF('rec-anon', el.checked); if (el.checked) delete KL.ui.photos['rec-incident']; render(); }; // a photo stamped with the name is dropped
 function chainText(key) {
   const kd = KL.cache['m:kinds'];
   const chain = kd && !kd.error ? kd.chains[key] || [] : [];
@@ -408,7 +412,7 @@ Actions.recSave = async (el) => {
   const g = KL.ui.gps;
   el.classList.add('busy');
   try {
-    const r = await submitEvidence(`/api/m/${k.key}`, { data: JSON.stringify(d), id: id || '', lat: g ? g.lat : '', lng: g ? g.lng : '' }, photoFile(`rec-${k.key}`, `${k.one}.jpg`), k.one);
+    const r = await submitEvidence(`/api/m/${k.key}`, { data: JSON.stringify(d), id: id || '', lat: g ? g.lat : '', lng: g ? g.lng : '', anonymous: k.key === 'incident' && !id && F('rec-anon') ? '1' : '' }, photoFile(`rec-${k.key}`, `${k.one}.jpg`), k.one);
     clearRecForm(k.key); KL.ui.recInit = null;
     invalidate(`m:${k.key}`, 'm:batch', 'registers', 'dashboard', 'm-approvals', 'planner', 'site'); await refreshMe();
     if (r.queued) { location.hash = KL.ui.siteBack || `#rec/${k.key}`; return; }

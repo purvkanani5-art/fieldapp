@@ -269,6 +269,48 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
    restart loop when location is blocked, a finished weak reading stays usable, skipped repaints happen on
    focusout; site map is removed before redrawing and its tooltip escaped; captions of chip / radio groups are
    not <label>s (fieldGroup). Tests: kl_sweep_probe.py, kl-sweep-ui.mjs (38).
+31. **Redesign + committees (2026-11-19)**: owner approved the prototype (claude.ai/artifact/FPnhQbPP7SRumKQacV9yF7)
+   and "build this into the real app". One app, two faces. Look: Plus Jakarta Sans (frontend/fonts, OFL), pastel
+   round icons, soft shadows, pill tabs, 50 px buttons, a CSS layer at the end of styles.css over the old tokens.
+   Office Home: hello header (bell + photo), "needs you" card (#approvals), Today tiles (on site / late / on leave /
+   travel, from dashboard() late, onLeave, travelPending) and a Sites list (sitesToday). Field app: no app header
+   (body.field-ui .apphead hidden), fieldBar(title, sub) is the hello header; Today = check-in card (GPS line) + 4
+   tiles (Travel, Leave, Expense, Daily update) + to-do; "+" holds personal things only plus "Site work"; Requests
+   has six new-request buttons and lists travel claims too; leave length and type are pills (core.js pills()).
+   Inside a site (views-hub.js siteHub): "What do you want to do here?" tiles by project (stock, safety check from
+   /api/sites/{id}/summary .safety, batch / run / nursery / saplings / survival, farmers, report a problem, team,
+   crew attendance); office staff also get "Site records" (the old tabbed #site/<id>/<tab>). #site/<id> with no tab
+   and #mysite/<id> both show the hub. People > Daily updates (#dailyupd, admin / hr / manager): sent / not sent,
+   "Need any help?" (work_updates.blockers), Remind (/api/updates/remind), Message (/api/updates/reply), Make it a
+   task (planner); Activity keeps attendance and trips only. Approvals are compact cards with Details folded.
+   Committees (backend/committees.py; tables committees, committee_members; feedback gains committee_id, policy,
+   against, excluded, outcome, closed_at, mail_status, named_at): POSH Internal Committee posh@, Workplace Health &
+   Safety safety@, Grievance grievance@, Suggestions ideas@ (sajeevan.co.in; each its own mailbox). Created without
+   members (HR adds them at #committee/<id>); the old "posh" setting's committee is imported once. Routing: POSH
+   switch -> POSH; suggestion -> Suggestions; else the committee whose policies list the chosen policy ("Not sure"
+   -> Grievance). Visible: members + HR + director, except POSH (members only; HR / director only while it has no
+   members). Names in "Against whom" are matched to employees (first + last name, or employee ID) and stored in
+   feedback.excluded: they never see the case, are not notified, cannot act. A case is closed only with an outcome.
+   Old feedback rows are routed once (route_old_cases). Anonymous: user_id NULL + hashed tracking code (as before);
+   the phone keeps the codes in localStorage kl-anon:<user id> so "Sent by you" lists them on that phone only;
+   "Add my name" (/api/feedback/track/name). Anonymous "Report a problem" (incident): records.user_id / created_by,
+   files.uploaded_by and the audit line are NULL, photo stamp says "Anonymous report", a photo taken before the
+   switch is dropped. Email: committees.mail_case() sends with Graph /users/{mailbox}/sendMail from the mailbox to
+   itself, in a thread, only when KL_MAIL=on (needs the app registration's Mail.Send APPLICATION permission with
+   admin consent; result in feedback.mail_status). Screens: #feedback (branched form), #committees (everyone),
+   #cases (inbox), #case/<id> or #case/<KL-code>, #committee/<id|new>; #poshdesk opens #cases on POSH.
+   Tests: kl_cases_check.py, kl-cases-ui.mjs.
+   Reference numbers (owner, same day: "a tracking id by year to everything"): TYPE-FY-NNNN, e.g. LV-2026-27-0014;
+   financial year April-March; one counter per type (table ref_counters, code + fy, UPDATE ... RETURNING so two
+   phones never share a number); numbers are never reused (withdrawn / deleted keep theirs). Db.insert numbers rows
+   of work_updates DU, leaves LV, trips TR, tasks TK, feedback CP / SG (POSH is CP too), attendance CE (only
+   exceptions; a check-out exception numbers it then), records by kind (db.REF_RECORD_CODES; lists such as
+   suppliers, holidays, policies get none; batches keep their B- code). db.ensure_refs() adds the column and numbers
+   old rows oldest first; it runs after every init (app start, demo reset). Shown as refLine() on approval cards,
+   Requests, record lists (searchable) and details, leave, trips, check-ins, daily updates, tasks, cases, the
+   committee email and the record CSV ("reference" column). Tests: kl_refs_check.py.
+   Email status 2026-11-19: Mail.Send is NOT yet granted (adding it needs the owner in Azure); KL_MAIL is not set.
+
 
 ## Testing
 - `D:\PersonalBooks\.cache\kl-e2e.mjs` (2026-11-14): resets the demo, then manager assigns a photo-proof task →

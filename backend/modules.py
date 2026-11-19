@@ -880,6 +880,8 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
                 raise HTTPException(409, "This moved stock; record a correction in the register instead of changing it")
         elif not can_create(user, k):
             raise HTTPException(403, f"Only {'HR' if k.get('create') == 'hr' else 'managers'} can add {k['label'].lower()}")
+        anon = kind == "incident" and not old and str(form.get("anonymous") or "") in ("1", "true")
+        actor = {**user, "id": None, "name": "Anonymous"} if anon else user
         if not is_staff(user) and data.get("person") not in (None, "", user["id"]):
             data.pop("person")  # field staff file only for themselves (a hand-made request could otherwise name someone else)
         for f in k["fields"]:
@@ -913,7 +915,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
             site_id = site_id or (fr["site_id"] if fr else None)
         if site_id and not is_staff(user) and not site_allowed(user, site_id) and k.get("create") == "all":
             raise HTTPException(403, "Not your site")
-        subject = data.get("person") or (old["user_id"] if old else user["id"])
+        subject = None if anon else data.get("person") or (old["user_id"] if old else user["id"])
         if kind == "batch" and not old:
             n = db.one("SELECT COUNT(*) AS n FROM records WHERE kind = 'batch'")["n"] + 1
             data["code"] = f"B-{local_today():%y%m%d}-{n:03d}"
@@ -923,7 +925,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
             site_id = site_id or (t["site_id"] if t else None)
         fid = old["file_id"] if old else None
         if isinstance(photo, FormFile) and photo.filename:
-            fid = await save_upload(db, photo, f"Records/{k['label']}", f"record_{kind}", user, lat=num(lat, None) if lat else None, lng=num(lng, None) if lng else None,
+            fid = await save_upload(db, photo, f"Records/{k['label']}", f"record_{kind}", actor, lat=num(lat, None) if lat else None, lng=num(lng, None) if lng else None,
                                     name=f"{datetime.now():%Y-%m-%d %H-%M-%S} {k['one']}.jpg")
         elif k.get("photo") == "Receipt" and kind == "expense" and num(data.get("amount")) > 500 and not fid:
             raise HTTPException(422, "A receipt photo is needed for claims over ₹500")
@@ -938,8 +940,11 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
             rec_id = old["id"]
         else:
             status = "pending" if k.get("approval") else (k.get("statuses") or ["open"])[0]
-            rec_id = db.insert("records", {**row, "kind": kind, "status": status, "created_by": user["id"], "created_at": now_iso()})
-            after_create(db, kind, k, rec_id, data, user, fid, site_id, subject, num(lat, None) if lat else None, num(lng, None) if lng else None)
+            if anon:
+                data["anonymous"] = True
+                row["data"] = json.dumps(data)
+            rec_id = db.insert("records", {**row, "kind": kind, "status": status, "created_by": actor["id"], "created_at": now_iso()})
+            after_create(db, kind, k, rec_id, data, actor, fid, site_id, subject, num(lat, None) if lat else None, num(lng, None) if lng else None)
         if kind == "maintenance" and data.get("equipment"):
             eq = db.one("SELECT * FROM records WHERE id = ?", data["equipment"])
             if eq:
@@ -947,7 +952,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
                 if data.get("type") == "Preventive service":
                     ed["last_service"] = data.get("date") or local_today().isoformat()
                 db.update("records", eq["id"], {"data": json.dumps(ed), "status": data.get("result") or eq["status"], "updated_at": now_iso()})
-        db.audit(user["id"], f"{kind}_saved", kind, rec_id, title)
+        db.audit(actor["id"], f"{kind}_saved", kind, rec_id, title)
         return {"id": rec_id}
 
     def after_create(db: Db, kind: str, k: dict, rid: str, data: dict, user: dict, fid, site_id, subject, lat, lng) -> None:
@@ -1062,7 +1067,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
                 db.insert("buckets", {"plan_id": pid, "name": b, "sort": i})
             plan = {"id": pid}
         bucket = db.one("SELECT id FROM buckets WHERE plan_id = ? ORDER BY sort LIMIT 1", plan["id"])
-        mgr = resolve_approver(db, "manager", user["id"])
+        mgr = resolve_approver(db, "manager", user["id"]) if user["id"] else None
         tid = db.insert("tasks", {"plan_id": plan["id"], "bucket_id": bucket["id"], "title": title[:160], "notes": f"Raised from record {rid}.",
                                   "priority": {"Critical": "urgent", "High": "urgent", "Medium": "important"}.get(sev, "medium"),
                                   "due_date": (local_today() + timedelta(days=2 if sev in ("High", "Critical") else 7)).isoformat(),
@@ -1162,9 +1167,9 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
         buf = io.StringIO()
         w = csv.writer(buf)
         keys = [f["key"] for f in k["fields"] if f["type"] not in ("answers",)]
-        w.writerow(["id", "title", "status", "person", "created_by", "created_at", *[f["label"] for f in k["fields"] if f["type"] not in ("answers",)]])
+        w.writerow(["reference", "id", "title", "status", "person", "created_by", "created_at", *[f["label"] for f in k["fields"] if f["type"] not in ("answers",)]])
         for x in rows:
-            w.writerow([x["id"], x["title"], x["status"], x["user_name"], x["created_name"], x["created_at"], *[x["data"].get(kk, "") for kk in keys]])
+            w.writerow([x.get("ref") or "", x["id"], x["title"], x["status"], x["user_name"], x["created_name"], x["created_at"], *[x["data"].get(kk, "") for kk in keys]])
         return Response(buf.getvalue(), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="{kind}.csv"'})
 
     # -------------------------------------------------------------- approvals (records and leave)
@@ -1447,7 +1452,15 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
                 break
             if x["kind"] in KINDS and visible(user, KINDS[x["kind"]], x):  # not colleagues' expense claims or corrections
                 recent.append({**x, "user_name": user_name(db, x["user_id"]), "label": KINDS[x["kind"]]["one"], "icon": KINDS[x["kind"]]["icon"]})
-        return {"site": s, "project": PROJECTS.get(s["project_type"]), "members": members, "onSite": on_site, "items": items, "stats": stats, "tasks": tasks, "recent": recent}
+        # the site's daily safety check: its checklist (this site's, else a company-wide one) and whether it is done today
+        tpl = db.one("SELECT id, title FROM records WHERE kind = 'checklist_template' AND site_id = ? ORDER BY created_at DESC LIMIT 1", sid) or \
+            db.one("SELECT id, title FROM records WHERE kind = 'checklist_template' AND COALESCE(site_id, '') = '' ORDER BY created_at DESC LIMIT 1")
+        today = local_today().isoformat()
+        run = next((x for x in db.all("SELECT user_id, created_at, data FROM records WHERE kind = 'checklist_run' AND site_id = ? ORDER BY created_at DESC LIMIT 20", sid)
+                    if to_local(x["created_at"]).date().isoformat() == today), None)
+        safety = {"template": tpl["id"] if tpl else None, "title": tpl["title"] if tpl else "", "doneToday": bool(run),
+                  "by": user_name(db, run["user_id"]) if run else "", "problems": sum(1 for a in json.loads(run["data"]).get("answers", []) if a.get("ok") is False) if run else 0}
+        return {"site": s, "project": PROJECTS.get(s["project_type"]), "members": members, "onSite": on_site, "items": items, "stats": stats, "tasks": tasks, "recent": recent, "safety": safety}
 
     @r.post("/hr/settings")
     def hr_settings(payload: dict, user: user_dep, db: db_dep):

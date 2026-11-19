@@ -7,14 +7,13 @@ const sd = (iso) => { const d = new Date(`${String(iso).slice(0, 10)}T00:00:00`)
 const fieldSites = () => (KL.boot?.mySites || []).filter((s) => s.project_type !== 'office');
 
 /* ---------------------------------------------------------------- app bar (top of each field tab) */
-function fieldBar() {
+function fieldBar(title = '', sub = '') {
   const unread = KL.me?.unread || 0;
   const waiting = KL.outboxCount || 0;
   const status = !navigator.onLine ? `<div class="fa-status bad" role="status">${ic('alert')}<span>Offline${waiting ? ` · ${waiting} saved on this phone, sent when the signal is back` : ''}</span></div>`
     : waiting ? `<button type="button" class="fa-status warn" data-action="flushOutbox" role="status">${ic('upload')}<span>${waiting} saved on this phone · tap to send now</span></button>` : '';
-  return `<header class="fa-bar"><a class="fa-logo" href="#home" aria-label="Today"><img src="./icon.svg" alt="" /></a><b class="fa-title">Kshetralekha</b>
-    <a class="fa-icon" href="#inbox" aria-label="Messages${unread ? `, ${unread} new` : ''}">${ic('bell')}${unread ? `<span class="fa-badge">${unread > 99 ? '99+' : unread}</span>` : ''}</a>
-    <a class="fa-icon" href="#me" aria-label="Me">${avatar(KL.user.name)}</a></header>${status}`;
+  return `<header class="dash-head hello fa-hello"><div class="hello-tx">${sub ? `<p class="meta">${esc(sub)}</p>` : ''}<h1>${esc(title || 'Kshetralekha')}</h1></div>
+    <div class="hello-btns"><a class="round-btn" href="#inbox" aria-label="Messages${unread ? `, ${unread} new` : ''}">${ic('bell')}${unread ? `<span class="badge">${unread > 99 ? '99+' : unread}</span>` : ''}</a><a href="#me" aria-label="Me" class="hello-me">${avatar(KL.user.name, 'lg')}</a></div></header>${status}`;
 }
 
 /* ---------------------------------------------------------------- Today */
@@ -27,20 +26,27 @@ function fieldToday() {
   const site = att ? { name: att.site_name } : sites[0];
   const g = KL.ui.gps;
   const near = !att && site && g && site.lat ? `· ${insideSite(site) ? 'you are inside' : 'you are away'}, ${fmtNum(distanceM(g.lat, g.lng, site.lat, site.lng))} m from the centre` : '';
+  const kd = kinds();
+  const starts = kd && !kd.error ? kd.workHours?.start : '';
+  const gpsLine = g && site && site.lat ? `<div class="ci-gps ${insideSite(site) ? 'ok' : 'bad'}">${ic(insideSite(site) ? 'check' : 'alert')}<span>${insideSite(site) ? 'Inside the site' : `${fmtNum(distanceM(g.lat, g.lng, site.lat, site.lng))} m from the site`} · GPS ±${Math.round(g.accuracy)} m</span></div>` : '';
   const hero = att
-    ? `<section class="fa-hero today" aria-label="Attendance"><div class="fa-where">${ic('pin')}<span>Checked in at ${esc(att.site_name)} · ${esc((fmtDate(att.checkin_at).split(', ')[1]) || '')}${att.status === 'pending' ? ' · exception pending' : ''}</span></div>
-        <div class="fa-timer" data-since="${esc(att.checkin_at)}">${esc(duration(att.checkin_at))}</div>
-        <a class="fa-big" href="#attendance">${ic('pin')}<span>Check out</span></a></section>`
-    : `<section class="fa-hero today" aria-label="Attendance">${site ? `<div class="fa-where">${ic('pin')}<span>${esc(site.name)} ${esc(near)}</span></div>` : ''}
-        <div class="fa-state">You have not checked in</div>
-        <a class="fa-big" href="#attendance">${ic('pin')}<span>Check in</span></a>
-        <p class="fa-meta">A selfie is taken when you check in. Time and place are recorded.</p></section>`;
+    ? `<section class="ci-card" aria-label="Attendance"><div class="row"><span class="icon green">${ic('pin')}</span><div class="tx"><b>Checked in · ${esc((fmtDate(att.checkin_at).split(', ')[1]) || '')}</b><span>${esc(att.site_name)} · on site <span data-since="${esc(att.checkin_at)}">${esc(duration(att.checkin_at))}</span>${att.status === 'pending' ? ' · exception pending' : ''}</span></div></div>
+        ${gpsLine}<a class="btn wide xl redline" href="#attendance">Check out</a></section>`
+    : `<section class="ci-card" aria-label="Attendance"><div class="row"><span class="icon amber">${ic('pin')}</span><div class="tx"><b>Not checked in yet</b><span>${site ? esc(site.name) : 'No site yet'}${starts ? ` · work starts ${esc(starts)}` : ''}</span></div></div>
+        ${gpsLine}<a class="btn wide xl primary" href="#attendance">${ic('camera')}<span>Check in with selfie</span></a></section>`;
+  const trip = KL.me?.openTrip;
+  const tiles = [
+    { href: '#trips', icon: 'bike', tone: 'blue', label: 'Travel', sub: trip ? 'End the trip' : 'Start a trip' },
+    { href: '#leaves', icon: 'sun', tone: 'violet', label: 'Leave', sub: 'Full or half day' },
+    { href: '#rec/expense/new', icon: 'receipt', tone: 'amber', label: 'Expense', sub: 'Photo of the bill' },
+    { href: '#updates', icon: 'note', tone: 'teal', label: 'Daily update', sub: 'What you did' },
+  ];
   const todo = fieldTodo();
   const tasksAll = todo.tasksOpen;
-  return `${fieldBar()}
-    <h1 class="fa-h1">${esc(greet)}, ${esc(firstName(KL.user.name))}</h1>
-    <p class="fa-date">${esc(now.toLocaleDateString(appLocale(), { weekday: 'long', day: 'numeric', month: 'long' }))}</p>
+  return `${fieldBar(`${greet}, ${firstName(KL.user.name)}`, now.toLocaleDateString(appLocale(), { weekday: 'long', day: 'numeric', month: 'long' }))}
     ${hero}
+    ${trip ? `<a class="banner info" href="#trips" style="margin-top:12px;text-decoration:none;color:inherit">${ic('bike')}<div><b>On a trip by ${esc(trip.vehicle)}</b><p>Tap to end it and send the claim</p></div></a>` : ''}
+    <div class="hub-tiles" style="margin-top:14px">${tiles.map(hubTile).join('')}</div>
     <div class="fa-h2"><h2>To do</h2>${todo.loading ? '' : `<span>${todo.items.length} ${todo.items.length === 1 ? 'thing' : 'things'}</span>`}</div>
     ${todo.loading && !todo.items.length ? spinner() : todo.items.length ? `<div class="fa-list">${todo.items.slice(0, 4).map(faRow).join('')}</div>` : `<div class="fa-list"><p class="fa-empty">All done for now.</p></div>`}
     ${todo.items.length > 4 || tasksAll ? `<a class="fa-more" href="#tasks">${tasksAll ? `See all ${tasksAll} task${tasksAll === 1 ? '' : 's'}` : 'See everything'}</a>` : ''}`;
@@ -79,7 +85,7 @@ function fieldTodo() {
   return { items, tasksOpen: open.length, loading: my === null || w === null };
 }
 function faRow(x) {
-  return `<a class="fa-row" href="${esc(x.href)}"><span class="fa-ic ${x.tone || ''}">${ic(x.icon)}</span><span class="fa-tx"><b>${esc(x.title)}</b>${x.sub ? `<span>${esc(x.sub)}</span>` : ''}</span>${x.chip ? `<span class="tag status ${x.chip[1]}">${esc(x.chip[0])}</span>` : x.right || `<span class="chev">${ic('chevron')}</span>`}</a>`;
+  return `<a class="fa-row" href="${esc(x.href)}"><span class="fa-ic ${x.tone || ''}">${ic(x.icon)}</span><span class="fa-tx"><b>${esc(x.title)}</b>${x.sub ? `<span>${esc(x.sub)}</span>` : ''}${refLine(x)}</span>${x.chip ? `<span class="tag status ${x.chip[1]}">${esc(x.chip[0])}</span>` : x.right || `<span class="chev">${ic('chevron')}</span>`}</a>`;
 }
 
 /* ---------------------------------------------------------------- the big "+" and the site "Add entry" sheet */
@@ -104,11 +110,10 @@ function tileBtn(x) {
 Actions.plusOpen = () => {
   const att = KL.me?.openAttendance;
   const s = fieldSites().find((x) => x.id === att?.site_id) || fieldSites()[0];
-  const common = [{ icon: 'pin', label: att ? 'Check out' : 'Check in', href: '#attendance' }, { icon: 'note', label: 'Daily update', href: '#updates' }, { icon: 'sun', label: 'Leave', href: '#leaves' },
-    { icon: 'receipt', label: 'Expense', kind: 'expense', site: s?.id || '' }];
-  const site = s ? siteAddTiles(s).filter((x) => x.label !== 'Farmer or signing' && x.label !== 'Equipment service' && x.label !== 'Survival check').slice(0, 3) : [];
-  const tail = [{ icon: 'chat', label: 'Complaint or idea', href: '#feedback' }];
-  const tiles = [...common, ...site, ...tail].slice(0, 8);
+  // personal things only: everything done at a site is inside the site ("Site work" opens it)
+  const tiles = [{ icon: 'pin', label: att ? 'Check out' : 'Check in', href: '#attendance' }, { icon: 'bike', label: KL.me?.openTrip ? 'End trip' : 'Travel', href: '#trips' }, { icon: 'sun', label: 'Leave', href: '#leaves' },
+    { icon: 'receipt', label: 'Expense', kind: 'expense', site: s?.id || '' }, { icon: 'receipt', label: 'Advance', kind: 'advance', site: '' }, { icon: 'note', label: 'Daily update', href: '#updates' },
+    { icon: 'chat', label: 'Complaint or suggestion', href: '#feedback' }, ...(s ? [{ icon: 'flame', label: 'Site work', href: `#mysite/${s.id}` }] : [])];
   data('m:checklist_template', () => api('/api/m/checklist_template')); // so "Daily safety check" opens the checklist itself
   modal({ title: 'Add new', html: `<div class="fa-tiles">${tiles.map(tileBtn).join('')}</div>`, noButtons: true });
 };
@@ -140,39 +145,9 @@ Actions.faGo = (el) => {
 
 /* ---------------------------------------------------------------- Site (simple; full records one tap away) */
 function fieldSiteList(sites) {
-  return `${fieldBar()}<h1 class="fa-h1">Your sites</h1><p class="fa-date">Choose a site</p>${projectGroups(sites, (s) => `#mysite/${s.id}`)}`;
+  return `${fieldBar('Your sites', 'Choose a site')}${projectGroups(sites, (s) => `#mysite/${s.id}`)}`;
 }
-function fieldSite(s) {
-  const sum = data(`site:${s.id}`, () => api(`/api/sites/${s.id}/summary`));
-  const p = projectsMeta()[s.project_type] || {};
-  data('m:checklist_template', () => api('/api/m/checklist_template'));
-  const back = fieldSites().length > 1 ? `<a class="fa-back" href="#mysite">${ic('back')}<span>All my sites</span></a>` : '';
-  if (sum === null) return `${fieldBar()}${back}${spinner()}`;
-  if (sum.error) return `${fieldBar()}${back}${errorBox(sum.error)}`;
-  const st = sum.stats || {};
-  const bal = (re) => sum.items.find((i) => re.test(i.name));
-  const item = (i, label) => (i ? { v: fmtNum(i.balance), l: `${i.unit} ${label}`, low: i.kind === 'input' && i.low_stock && i.balance < i.low_stock } : null);
-  let stats = [];
-  if (s.project_type === 'biochar') stats = [item(bal(/biochar|char/i), 'biochar'), item(bal(/biomass|feed/i), 'biomass'), item(bal(/diesel/i), 'diesel')];
-  else if (s.project_type === 'gasifier') stats = [{ v: fmtNum(st.kwh), l: 'kWh this month' }, { v: fmtNum(st.hours, 1), l: 'run hours' }, item(bal(/feed|biomass|wood/i), 'feedstock')];
-  else if (s.project_type === 'agroforestry') stats = [{ v: fmtNum(st.inNursery), l: 'in nursery' }, { v: fmtNum(st.planted), l: 'planted' }, { v: fmtNum(st.farmers), l: 'farmers' }];
-  else stats = sum.items.filter((i) => i.kind === 'input' || i.kind === 'product').slice(0, 3).map((i) => item(i, i.name.toLowerCase()));
-  stats = stats.filter(Boolean);
-  const today = [];
-  const t = KL.cache['m:checklist_template'];
-  const tpl = t && !t.error ? t.rows.find((x) => x.site_id === s.id) : null;
-  if (KL.user.supervisor) today.push({ href: `#muster/${s.id}`, icon: 'users', tone: 'green', title: 'Crew attendance', sub: 'People without phones' });
-  if (tpl) today.push({ href: '#rec/checklist_run/new', icon: 'checklist', tone: 'amber', title: tpl.title, sub: `${tpl.data.frequency || 'Daily'} check`, start: tpl.id });
-  const last = (sum.recent || []).find((r) => ['batch', 'gas_run', 'nursery', 'sapling'].includes(r.kind));
-  if (last) today.push({ href: `#rec/${last.kind}/${last.id}`, icon: last.icon || 'doc', tone: '', title: `Last ${last.label.toLowerCase()}`, sub: `${last.title || ''} · ${timeAgo(last.created_at)}` });
-  if ((sum.tasks || []).length) today.push({ href: '#tasks', icon: 'kanban', tone: '', title: `${sum.tasks.length} open task${sum.tasks.length === 1 ? '' : 's'} here`, sub: sum.tasks.slice(0, 2).map((x) => x.title).join(' · ') });
-  return `${fieldBar()}${back}
-    <div class="fa-site-head"><span class="fa-ic big">${ic(p.icon || 'pin')}</span><div><h1 class="fa-h1" style="margin:0">${esc(s.name)}</h1><span>${esc(p.name || '')}${subtypeText(s) ? ` · ${esc(subtypeText(s))}` : ''}</span></div></div>
-    ${stats.length ? `<div class="fa-stats">${stats.map((x) => `<div class="fa-stat ${x.low ? 'low' : ''}"><b>${esc(x.v)}</b><span>${esc(x.l)}${x.low ? ' · low' : ''}</span></div>`).join('')}</div>` : ''}
-    <button type="button" class="fa-primary" data-action="siteAdd" data-site="${esc(s.id)}">${ic('plus')}<span>Add entry</span></button>
-    ${today.length ? `<div class="fa-h2"><h2>Today at the site</h2></div><div class="fa-list">${today.map((x) => (x.start ? `<button type="button" class="fa-row" data-action="startChecklist" data-id="${esc(x.start)}"><span class="fa-ic ${x.tone}">${ic(x.icon)}</span><span class="fa-tx"><b>${esc(x.title)}</b><span>${esc(x.sub)}</span></span><span class="chev">${ic('chevron')}</span></button>` : faRow(x))).join('')}</div>` : ''}
-    <a class="fa-more" href="#site/${esc(s.id)}/overview">All site records: stock, ${s.project_type === 'agroforestry' ? 'nursery, plantation, farmers' : s.project_type === 'gasifier' ? 'generation, equipment, safety' : 'batches, farmers, safety'}</a>`;
-}
+function fieldSite(s) { return siteHub(s, { field: true, back: fieldSites().length > 1 ? '#mysite' : '' }); }
 /** Projects as panels with their sites listed inside (used by everyone's Sites page and the field site picker). */
 function projectGroups(sites, hrefFor = (s) => `#site/${s.id}`) {
   const groups = Object.entries(projectsMeta()).map(([key, p]) => [key, p, sites.filter((s) => s.project_type === key)]).filter(([, , list]) => list.length);
@@ -188,28 +163,34 @@ Views.requests = () => {
   const kinds_ = ['expense', 'advance', 'regularisation'];
   const recs = kinds_.map((k) => data(`m:${k}`, () => api(`/api/m/${k}`)));
   const bal = data('hr:balances', () => api('/api/hr/leave-balances'));
+  const tr = data('trips:mine', () => api('/api/trips'));
   kinds();
   const tab = F('rq-tab', 'open');
   const rows = [];
-  if (lv && !lv.error) for (const l of lv.rows) rows.push({ open: l.status === 'pending', href: '#leaves', icon: 'sun', tone: l.status === 'pending' ? 'amber' : l.status === 'approved' ? 'green' : 'red', title: `${l.type} leave, ${sd(l.from_date)}${l.to_date !== l.from_date ? ` to ${sd(l.to_date)}` : ''}`, sub: l.status === 'pending' ? (l.waiting ? `With ${l.waiting}` : `${fmtNum(l.days || 0, 1)} day${l.days === 1 ? '' : 's'}`) : l.decision_note || (l.status === 'approved' ? 'Approved' : 'Rejected'), status: l.status, at: l.created_at });
+  if (tr && !tr.error) for (const t of tr.rows.filter((x) => x.status !== 'open')) rows.push({ ref: t.ref, open: t.status === 'submitted', href: '#trips', icon: 'bike', tone: t.status === 'submitted' ? 'blue' : t.status === 'approved' ? 'green' : 'red', title: `Travel, ${fmtNum(t.km_claimed, 1)} km · ${rupees(t.amount)}`, sub: t.status === 'submitted' ? (t.waiting ? `With ${t.waiting}` : sd(t.end_at)) : t.status === 'approved' ? 'Approved' : t.status === 'withdrawn' ? 'Withdrawn' : 'Rejected', status: t.status === 'submitted' ? 'pending' : t.status, at: t.end_at });
+  if (lv && !lv.error) for (const l of lv.rows) rows.push({ ref: l.ref, open: l.status === 'pending', href: '#leaves', icon: 'sun', tone: l.status === 'pending' ? 'amber' : l.status === 'approved' ? 'green' : 'red', title: `${l.type} leave, ${sd(l.from_date)}${l.to_date !== l.from_date ? ` to ${sd(l.to_date)}` : ''}`, sub: l.status === 'pending' ? (l.waiting ? `With ${l.waiting}` : `${fmtNum(l.days || 0, 1)} day${l.days === 1 ? '' : 's'}`) : l.decision_note || (l.status === 'approved' ? 'Approved' : 'Rejected'), status: l.status, at: l.created_at });
   recs.forEach((r, i) => {
     if (!r || r.error) return;
     const k = kindDef(kinds_[i]);
     for (const x of r.rows.filter((y) => y.user_id === KL.user.id || y.created_by === KL.user.id)) {
       const amt = k?.amount && x.data[k.amount] ? `, ${rupees(x.data[k.amount])}` : '';
-      rows.push({ open: x.status === 'pending', href: `#rec/${kinds_[i]}/${x.id}`, icon: kinds_[i] === 'expense' ? 'receipt' : kinds_[i] === 'advance' ? 'receipt' : 'clock', tone: x.status === 'pending' ? 'amber' : x.status === 'approved' ? 'green' : 'red',
+      rows.push({ ref: x.ref, open: x.status === 'pending', href: `#rec/${kinds_[i]}/${x.id}`, icon: kinds_[i] === 'expense' ? 'receipt' : kinds_[i] === 'advance' ? 'receipt' : 'clock', tone: x.status === 'pending' ? 'amber' : x.status === 'approved' ? 'green' : 'red',
         title: `${k?.one || 'Request'}${amt}${kinds_[i] === 'regularisation' && x.data.date ? `, ${sd(x.data.date)}` : ''}`, sub: x.status === 'pending' ? (x.waiting ? `With ${x.waiting}` : sd(x.created_at)) : x.status === 'approved' ? 'Approved' : 'Rejected', status: x.status, at: x.created_at });
     }
   });
   rows.sort((a, b) => String(b.at).localeCompare(String(a.at)));
   const open = rows.filter((r) => r.open), done = rows.filter((r) => !r.open);
   const list = tab === 'open' ? open : done;
-  const loading = lv === null || recs.some((r) => r === null);
-  return `${fieldBar()}<h1 class="fa-h1">Requests</h1><p class="fa-date">Leave, expenses, advances and attendance corrections</p>
-    ${bal && !bal.error ? `<div class="fa-bal">${bal.rows.filter((b) => b.available !== null).slice(0, 3).map((b) => `<div><b>${fmtNum(b.available, 1)}</b><span>${esc(b.type)} left</span></div>`).join('')}</div>` : ''}
+  const loading = lv === null || tr === null || recs.some((r) => r === null);
+  const s0 = fieldSites()[0];
+  const newBtns = [{ href: '#leaves', icon: 'sun', tone: 'violet', label: 'Leave' }, { href: '#trips', icon: 'bike', tone: 'blue', label: KL.me?.openTrip ? 'End trip' : 'Travel' },
+    { href: '#rec/expense/new', icon: 'receipt', tone: 'amber', label: 'Expense', kind: 'expense', site: s0?.id || '' }, { href: '#rec/advance/new', icon: 'receipt', tone: 'teal', label: 'Advance', kind: 'advance', site: '' },
+    { href: '#rec/regularisation/new', icon: 'clock', tone: 'green', label: 'Correction', kind: 'regularisation', site: s0?.id || '' }, { href: '#feedback', icon: 'chat', tone: 'red', label: 'Complaint or idea' }];
+  return `${fieldBar('Requests')}
+    ${bal && !bal.error ? `<div class="fa-bal">${bal.rows.filter((b) => b.available !== null).slice(0, 3).map((b, i) => `<div><b class="bal-${i}">${fmtNum(b.available, 1)}</b><span>${esc(b.type)} left</span></div>`).join('')}</div>` : ''}
+    <div class="req-btns">${newBtns.map((b) => (b.kind ? `<a class="btn req-btn" href="${b.href}" data-action="siteNew" data-kind="${b.kind}" data-key="site" data-site="${esc(b.site)}"><span class="icon ${b.tone}">${ic(b.icon)}</span><span>${esc(b.label)}</span></a>` : `<a class="btn req-btn" href="${b.href}"><span class="icon ${b.tone}">${ic(b.icon)}</span><span>${esc(b.label)}</span></a>`)).join('')}</div>
     <div class="seg fa-seg" role="group" aria-label="Show"><button type="button" data-action="rqTab" data-tab="open" aria-pressed="${tab === 'open'}">Waiting (${open.length})</button><button type="button" data-action="rqTab" data-tab="done" aria-pressed="${tab === 'done'}">Decided (${done.length})</button></div>
-    ${loading && !rows.length ? spinner() : list.length ? `<div class="fa-list">${list.map((r) => faRow({ ...r, right: statusTag(r.status) })).join('')}</div>` : `<div class="fa-list"><p class="fa-empty">${tab === 'open' ? 'Nothing waiting.' : 'No decided requests yet.'}</p></div>`}
-    <button type="button" class="fa-primary" data-action="rqNew">${ic('plus')}<span>New request</span></button>`;
+    ${loading && !rows.length ? spinner() : list.length ? `<div class="fa-list">${list.map((r) => faRow({ ...r, right: statusTag(r.status) })).join('')}</div>` : `<div class="fa-list"><p class="fa-empty">${tab === 'open' ? 'Nothing waiting.' : 'No decided requests yet.'}</p></div>`}`;
 };
 Actions.rqTab = (el) => { setF('rq-tab', el.dataset.tab); render(); };
 Actions.rqNew = () => {
@@ -219,22 +200,25 @@ Actions.rqNew = () => {
 };
 
 /* ---------------------------------------------------------------- Me and Settings */
+const ME_TONE = { inbox: 'red', user: 'blue', calendar: 'green', doc: 'blue', bell: 'amber', chat: 'red', shield: 'violet', cog: '' };
 function fieldMe() {
+  const cmt = data('committees', () => api('/api/committees'));
   const u = KL.user;
   const w = data('hr:waiting', () => api('/api/hr/waiting'));
   const posh = data('hr:posh', () => api('/api/hr/posh'));
   const att = data(`hr:attsum:me:${todayISO().slice(0, 7)}`, () => api(`/api/hr/attendance-summary?month=${todayISO().slice(0, 7)}`));
   const newN = w && !w.error ? (w.unreadNotices || 0) + w.surveys.length : 0;
-  const row = (href, icon, title, sub = '', right = '', action = '') => `<${action ? 'button type="button"' : 'a'} class="fa-row" ${action ? `data-action="${action}"` : `href="${href}"`}><span class="fa-ic">${ic(icon)}</span><span class="fa-tx"><b>${esc(title)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</span>${right || `<span class="chev">${ic('chevron')}</span>`}</${action ? 'button' : 'a'}>`;
-  return `${fieldBar()}
-    <div class="fa-me-head">${avatar(u.name, 'xl')}<div><b>${esc(u.name)}</b><span>${esc(u.designation || 'Field staff')} · ${esc(u.employee_id)}</span>${u.manager_id ? `<span>Reports to ${esc(personName(u.manager_id))}</span>` : ''}</div></div>
+  const row = (href, icon, title, sub = '', right = '', action = '') => `<${action ? 'button type="button"' : 'a'} class="fa-row" ${action ? `data-action="${action}"` : `href="${href}"`}><span class="fa-ic ${ME_TONE[icon] || ''}">${ic(icon)}</span><span class="fa-tx"><b>${esc(title)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</span>${right || `<span class="chev">${ic('chevron')}</span>`}</${action ? 'button' : 'a'}>`;
+  return `${fieldBar('Me')}
+    <div class="fa-me-head card">${avatar(u.name, 'xl')}<div><b>${esc(u.name)}</b><span>${esc(u.designation || 'Field staff')} · ${esc(u.employee_id)}</span>${u.manager_id ? `<span>Reports to ${esc(personName(u.manager_id))}</span>` : ''}</div></div>
     <div class="fa-list">
       ${row('#person/me', 'user', 'My details')}
       ${row('#attsum', 'calendar', 'My attendance', att && !att.error && att.totals ? `${att.totals.P} present this month` : '')}
       ${row('', 'doc', 'Payslips and documents', '', '', 'meDocs')}
       ${row('#notices', 'bell', 'Notices and surveys', '', newN ? `<span class="fa-new">${newN} new</span>` : '')}
-      ${row('#feedback', 'chat', 'Help and complaints')}
-      ${posh && !posh.error && posh.onCommittee ? row('#poshdesk', 'shield', 'Internal Committee (POSH)', 'Confidential complaints') : ''}
+      ${row('#feedback', 'chat', 'Complaints & suggestions', 'With your name or without')}
+      ${row('#committees', 'shield', 'Committees', 'Who looks after complaints and ideas')}
+      ${cmt && !cmt.error && cmt.rows.some((c) => c.openCases !== undefined) ? row('#cases', 'inbox', 'Committee cases', 'Confidential, for your committees') : ''}
       ${row('#settings', 'cog', 'Settings', 'Language, PIN, privacy')}
     </div>`;
 }
@@ -270,7 +254,7 @@ Views.settings = () => {
   Views.mysite = (arg) => {
     if (!isField()) { const s = mySites(); if (s.length === 1) { setTimeout(() => location.replace(`#site/${s[0].id}`), 0); return spinner(); } return Views.sites(); }
     const sites = fieldSites();
-    if (!sites.length) return `${fieldBar()}${emptyState('pin', 'No site assigned to you', 'You can use Today, Requests and Me. HR adds you to a site when you work at one.')}`;
+    if (!sites.length) return `${fieldBar('Site')}${emptyState('pin', 'No site assigned to you', 'You can use Today, Requests and Me. HR adds you to a site when you work at one.')}`;
     const one = arg ? sites.find((s) => s.id === arg) : sites.length === 1 ? sites[0] : null;
     return one ? fieldSite(one) : fieldSiteList(sites);
   };

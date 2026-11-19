@@ -388,6 +388,7 @@ function taskSheetBody(t) {
   const title = staff
     ? `<input id="te-title" class="input tt-input" value="${esc(t.title)}" data-change="taskField" data-field="title" aria-label="Task title" />`
     : `<div class="tt">${esc(t.title)}</div>`;
+  const refRow = t.ref ? `<p class="hint" style="margin:4px 0 0"><span class="mono">${esc(t.ref)}</span></p>` : '';
   const labelRow = staff
     ? `<div class="chips" style="margin-top:10px">${labels.map((lb) => `<button type="button" data-action="taskLabel" data-color="${esc(lb.color)}" aria-pressed="${t.labels.includes(lb.color)}"><span class="lbl ${esc(lb.color)}">${esc(lb.name)}</span></button>`).join('')}</div>`
     : t.labels.length ? `<div class="chips" style="margin-top:8px">${t.labels.map((c) => labelChip(t.plan_id, c)).join('')}</div>` : '';
@@ -428,7 +429,7 @@ function taskSheetBody(t) {
   const comments = `${(t.comment_list || []).map((c) => `<div class="comment">${avatar(c.user_name, 'sm')}<div class="bubble"><small>${esc(c.user_name)} · ${esc(timeAgo(c.created_at))}</small><div style="white-space:pre-wrap">${esc(c.text)}</div></div></div>`).join('') || '<p class="hint">No comments yet.</p>'}
     <div class="row" style="margin-top:8px"><input id="tc-text" class="input" placeholder="Write a comment" value="${esc(F('tc-text'))}" data-input="form" data-key="tc-text" /><button type="button" class="btn primary icon-only" data-action="taskComment" aria-label="Send comment">${ic('send')}</button></div>`;
 
-  return `${head}${title}${labelRow}${progress}${complete}${doneBox}${props}
+  return `${head}${title}${refRow}${labelRow}${progress}${complete}${doneBox}${props}
     ${staff ? `<label class="check" style="margin-top:4px"><input type="checkbox" ${t.photo_required ? 'checked' : ''} data-change="taskPhotoReq" /> <span>${ic('camera')} Ask for a photo as proof when completed</span></label>` : t.photo_required && t.progress !== 'completed' ? `<div class="banner info" style="margin-top:4px">${ic('camera')}<div><b>Photo proof needed</b><p>Take a photo when you complete this task.</p></div></div>` : ''}
     <div class="sec"><h3>${ic('users')} Assigned to</h3>${assigned}</div>
     <div class="sec"><h3>${ic('note')} Notes</h3>${notes}</div>

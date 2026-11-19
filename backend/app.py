@@ -20,7 +20,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 
 import auth  # noqa: E402
-from db import Db, init_db, new_id, now_iso  # noqa: E402
+from db import Db, ensure_refs, init_db, new_id, now_iso  # noqa: E402
 from geo import haversine_m, kml_summary, within_fence  # noqa: E402
 from pdfgen import render_document  # noqa: E402
 from seed import migrate_admin_code, seed_if_empty  # noqa: E402
@@ -28,13 +28,14 @@ from storage import FILES_DIR, store  # noqa: E402
 
 import demo  # noqa: E402
 import demo_modules  # noqa: E402
+import committees  # noqa: E402
 import hrops  # noqa: E402
 import modules  # noqa: E402
 import lists  # noqa: E402
 import perms  # noqa: E402
 import planner  # noqa: E402
 
-APP_VERSION = "0.5.0"
+APP_VERSION = "0.6.0"
 DEMO = os.environ.get("KL_DEMO", "1") == "1"  # prototype: demo accounts, person switch, reset
 FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
 
@@ -51,6 +52,7 @@ _db0 = Db()
 planner.init(_db0)
 modules.init(_db0)
 hrops.init(_db0)
+ensure_refs(_db0)
 if DEMO:
     demo.seed_activity(_db0)
     demo_modules.seed(_db0)
@@ -243,6 +245,7 @@ def taken_time(taken_at: str | None, queued: str | None, not_before: str | None 
 app.include_router(lists.router(UserDep, DbDep))
 app.include_router(perms.router(UserDep, DbDep))
 app.include_router(planner.make_router(UserDep, DbDep, save_upload=save_upload, is_staff=is_staff))
+app.include_router(committees.make_router(UserDep, DbDep))
 app.include_router(hrops.make_router(UserDep, DbDep, save_upload=save_upload, is_staff=is_staff, site_allowed=site_allowed, demo=DEMO))
 app.include_router(modules.make_router(UserDep, DbDep, save_upload=save_upload, save_bytes=save_bytes, is_staff=is_staff, site_allowed=site_allowed, demo=DEMO))
 
@@ -476,6 +479,8 @@ async def checkout(user: UserDep, db: DbDep, lat: Annotated[str, Form()], lng: A
     if not inside:
         patch["status"] = "pending"
         patch["override_reason"] = ((att["override_reason"] + " | ") if att["override_reason"] else "") + f"Check-out: {override.strip()}"
+        if not att.get("ref"):
+            patch["ref"] = db.next_ref("CE", att["checkin_at"])
         db.notify_role(("manager", "admin"), f"Check-out exception: {user['name']}", f"{dist:,.0f} m from {site['name']}: {override}", "#approvals", att["site_id"])
     db.update("attendance", att["id"], patch)
     db.audit(user["id"], "checkout", "attendance", att["id"], f"{dist:.0f} m")
@@ -868,6 +873,36 @@ def updates(user: UserDep, db: DbDep, scope: str = "mine", days: int = 14):
     return {"rows": [r for r in rows if team is None or r["user_id"] in team]}
 
 
+def _team_member(db: Db, user: dict, uid: str) -> dict:
+    """Someone in the signed-in manager's team (anyone for HR and the director)."""
+    if user["role"] not in ("admin", "hr", "manager"):
+        raise HTTPException(403, "Managers, HR and the director only")
+    team = modules.team_ids(db, user)
+    target = db.one("SELECT id, name FROM users WHERE id = ? AND active = 1", uid)
+    if not target or (team is not None and uid not in team):
+        raise HTTPException(404, "Not in your team")
+    return target
+
+
+@app.post("/api/updates/remind")
+def remind_update(payload: dict, user: UserDep, db: DbDep):
+    """Ask someone who has not sent today's daily update to send it."""
+    t = _team_member(db, user, str(payload.get("userId", "")))
+    db.notify(t["id"], "Please send your daily update", f"From {user['name']}", "#updates")
+    return {"ok": True}
+
+
+@app.post("/api/updates/reply")
+def reply_update(payload: dict, user: UserDep, db: DbDep):
+    """A short note back to the person about their update."""
+    t = _team_member(db, user, str(payload.get("userId", "")))
+    text = str(payload.get("text", "")).strip()[:500]
+    if len(text) < 2:
+        raise HTTPException(422, "Write a message")
+    db.notify(t["id"], f"{user['name']} read your update", text, "#updates")
+    return {"ok": True}
+
+
 @app.post("/api/updates")
 def add_update(payload: dict, user: UserDep, db: DbDep):
     summary = str(payload.get("summary", "")).strip()
@@ -1043,7 +1078,7 @@ def dashboard(user: UserDep, db: DbDep):
     today = datetime.now().strftime("%Y-%m-%d")
     day0 = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
     start_utc = day0.astimezone(UTC).isoformat().replace("+00:00", "Z")  # check-in times are UTC: compare instants
-    on_site = db.all("SELECT a.id, a.user_id, a.checkin_at, a.checkin_dist, a.status, u.name AS user_name, s.name AS site_name FROM attendance a JOIN users u ON u.id = a.user_id JOIN sites s ON s.id = a.site_id WHERE a.checkout_at IS NULL ORDER BY a.checkin_at")
+    on_site = db.all("SELECT a.id, a.user_id, a.site_id, a.checkin_at, a.checkin_dist, a.status, u.name AS user_name, s.name AS site_name FROM attendance a JOIN users u ON u.id = a.user_id JOIN sites s ON s.id = a.site_id WHERE a.checkout_at IS NULL ORDER BY a.checkin_at")
     team = modules.team_ids(db, user)
     in_team = (lambda uid: True) if team is None else (lambda uid: uid in team)
     on_site = [a for a in on_site if team is None or a["user_id"] in team]
@@ -1058,7 +1093,8 @@ def dashboard(user: UserDep, db: DbDep):
     farmers_n = sum(1 for f in db.all("SELECT site_id FROM farmers") if site_allowed(user, f["site_id"]))
     docs_week = db.one("SELECT COUNT(*) AS n FROM documents WHERE created_at >= ?", datetime.fromtimestamp(datetime.now(UTC).timestamp() - 7 * 86400, UTC).isoformat())["n"]
     updates_today = db.one("SELECT COUNT(*) AS n FROM work_updates WHERE date = ?", today)["n"]
-    open_fb = db.one("SELECT COUNT(*) AS n FROM feedback WHERE status = 'open'")["n"]
+    cache: dict = {}
+    open_fb = sum(1 for x in db.all("SELECT * FROM feedback WHERE status = 'open'") if committees.can_handle(db, user, x, cache))  # only cases this person may see
     days = []
     for k in range(13, -1, -1):
         d0 = day0 - __import__("datetime").timedelta(days=k)
@@ -1078,9 +1114,35 @@ def dashboard(user: UserDep, db: DbDep):
         "appliedMonth": sum(float(json.loads(r["data"]).get("qty_kg") or 0) for r in db.all("SELECT data FROM records WHERE kind = 'application' AND substr(created_at, 1, 7) = ?", today[:7])),
         "expensesPending": db.one("SELECT COUNT(*) AS n FROM records WHERE kind = 'expense' AND status = 'pending'")["n"],
     }
+    # the home screen's "Today": who is late, who is on leave, travel waiting, and each site's state (2026-11-19 redesign)
+    wh = modules.setting(db, "work_hours")
+    sh, sm = (int(x) for x in str(wh.get("start", "09:00")).split(":")[:2])
+    late_after = sh * 60 + sm + int(wh.get("grace_min", 15))
+    first_in: dict[str, dict] = {}
+    for a in db.all("SELECT a.user_id, a.checkin_at, u.name FROM attendance a JOIN users u ON u.id = a.user_id WHERE a.checkin_at >= ? ORDER BY a.checkin_at", start_utc):
+        if in_team(a["user_id"]) and a["user_id"] not in first_in:
+            first_in[a["user_id"]] = a
+    late = []
+    for a in first_in.values():
+        t = modules.to_local(a["checkin_at"])
+        if t.hour * 60 + t.minute > late_after:
+            late.append({"name": a["name"], "at": t.strftime("%H:%M")})
+    on_leave = [{"name": r["name"], "type": r["type"], "half": r["half"] or ""} for r in db.all(
+        "SELECT u.name, l.type, l.half, l.user_id FROM leaves l JOIN users u ON u.id = l.user_id WHERE l.status = 'approved' AND l.from_date <= ? AND l.to_date >= ?", today, today) if in_team(r["user_id"])]
+    travel_pending = sum(float(t["amount"] or 0) for t in db.all("SELECT user_id, amount FROM trips WHERE status = 'submitted'") if in_team(t["user_id"]))
+    open_inc: dict[str, int] = {}
+    for r in db.all("SELECT site_id FROM records WHERE kind = 'incident' AND status NOT IN ('closed', 'done')"):
+        open_inc[r["site_id"]] = open_inc.get(r["site_id"], 0) + 1
+    sites_today = []
+    for s in db.all("SELECT id, name, project_type FROM sites WHERE active = 1 AND project_type <> 'office' ORDER BY name"):
+        if not site_allowed(user, s["id"]):
+            continue
+        sites_today.append({"id": s["id"], "name": s["name"], "project": s["project_type"], "onSite": sum(1 for a in on_site if a.get("site_id") == s["id"]),
+                            "incidents": open_inc.get(s["id"], 0), "low": [x["item"] for x in stock if x["low"] and x["site"] == s["name"]]})
     return {"ops": ops, "days": days, "tasks": {"total": tasks["total"] or 0, "done": tasks["done"] or 0, "doing": tasks["doing"] or 0, "late": tasks["late"] or 0, "doneWeek": done_week},
             "onSite": on_site, "todayAttendance": today_att, "fieldTotal": field_total, "stock": stock, "travelMonth": travel, "farmers": farmers_n, "docsWeek": docs_week,
-            "updatesToday": updates_today, "openFeedback": open_fb}
+            "updatesToday": updates_today, "openFeedback": open_fb,
+            "late": late, "onLeave": on_leave, "travelPending": travel_pending, "sitesToday": sites_today}
 
 
 @app.get("/api/export/site/{site_id}")
