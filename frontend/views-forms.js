@@ -54,6 +54,10 @@ const EMP_SECTIONS = [
 ];
 const DOC_KINDS = [['Aadhaar card (masked)', 'ID proof'], ['PAN card', 'ID proof'], ['Photo', 'Photo'], ['Offer letter', 'Offer letter'], ['Bank passbook or cheque', 'Bank'], ['Other document', 'Other']];
 const ef = (k) => `ef-${k}`;
+/** A captioned block for chips, radio buttons or several controls (a <label> would click the first one). */
+function fieldGroup(label, control, { help = '' } = {}) {
+  return `<div class="field" role="group" aria-label="${esc(label)}"><span>${esc(label)}</span>${control}${help ? `<small class="help">${esc(help)}</small>` : ''}</div>`;
+}
 function empField(f) {
   const id = ef(f.key);
   const hint = { aadhaar_last4: 'Only the last 4 digits. Never the full number.', pan: 'e.g. ABCDE1234F', bank_ifsc: 'e.g. SBIN0001234', opening_casual: 'Days already earned before the app' }[f.key] || '';
@@ -108,8 +112,10 @@ function empForm(uid) {
   const back = editing ? `#person/${uid}` : '#people';
   const title = editing ? 'Edit employee' : 'New employee';
   if (!(editing ? can('users.edit') : can('users.add'))) return `${topbar(title, back)}<div class="card"><p class="empty">Your designation may not ${editing ? 'edit' : 'add'} employees.</p></div>`;
+  if (kd?.error) return `${topbar(title, back)}${errorBox(kd.error)}`;
   if (!kd || (editing && !p)) return `${topbar(title, back)}${spinner()}`;
   if (p?.error) return `${topbar(title, back)}${errorBox(p.error)}`;
+  if (editing && p.user.role === 'admin' && !isAdmin()) return `${topbar(title, back)}<div class="card"><p class="empty">Only the director edits a director.</p></div>`;
   const initKey = uid || 'new';
   if (KL.ui.efInit !== initKey) {
     KL.ui.efInit = initKey; KL.ui.empDocs = [];
@@ -130,6 +136,7 @@ function empForm(uid) {
   const office = F(ef('office'), offices[0]?.code || '');
   const code = editing ? F(ef('code')) : empCodePreview(proj, office);
   const roles = (KL.boot.roles || []).filter((r) => r.level !== 'admin' || isAdmin());
+  if (F(ef('designation'), '') && !roles.some((r) => r.name === F(ef('designation')))) roles.push({ name: F(ef('designation')), level: '' }); // an old title not in the list
   const levelName = (k) => (KL.boot.levels || []).find((l) => l.key === k)?.name || k;
   const desig = F(ef('designation'), '');
   const desigLevel = roles.find((r) => r.name === desig)?.level;
@@ -150,7 +157,7 @@ function empForm(uid) {
     </div>
     ${field('Reports to', select(ef('manager'), F(ef('manager'), ''), people.map((x) => [x.id, `${x.name} · ${x.designation || ''}`]), { blank: 'Nobody (top of the company)' }), { help: 'Their leave, travel and requests go to this person first.' })}
     <div class="grid2">${field('Mobile', input(ef('phone'), F(ef('phone')), { type: 'tel', inputmode: 'tel', placeholder: '10-digit mobile' }))}${field('Email (if any)', input(ef('email'), F(ef('email')), { type: 'email' }))}</div>
-    ${canSites ? field('Sites they work at', sitePicker('ef')) : ''}
+    ${canSites ? fieldGroup('Sites they work at', sitePicker('ef')) : ''}
     ${editing ? (can('users.deactivate') ? field('Status', select(ef('active'), F(ef('active'), 'active'), [['active', 'Active'], ['inactive', 'Left / inactive']])) : '')
       : field('Starting PIN', input(ef('pin'), F(ef('pin')), { inputmode: 'numeric' }), { help: '4 to 6 digits. They choose their own at the first sign-in.' })}
   </div>`;
@@ -188,6 +195,7 @@ Actions.efNewRole = async () => {
 Actions.empSave = async (el) => {
   const uid = el.dataset.id || null;
   const kd = KL.cache['m:kinds'];
+  if (!kd || kd.error) return toast('Still loading the form. Try again in a moment.', 'error');
   const v = (k) => String(F(ef(k), '')).trim();
   if (v('name').length < 2) return toast('Type the full name', 'error');
   if (!v('designation')) return toast('Choose the designation', 'error');
@@ -222,7 +230,7 @@ Actions.empSave = async (el) => {
   }
   el.disabled = false;
   KL.ui.efInit = null; KL.ui.empDocs = [];
-  invalidate('admin:users', 'hr', 'people'); await reloadBoot();
+  invalidate('admin:users', 'hr', 'people', 'empcode'); await reloadBoot();
   if (id === KL.user.id) await refreshMe();
   if (problems.length) toast(`Saved, but: ${problems.join('; ')}`, 'error');
   if (uid) { if (!problems.length) toast('Saved'); location.hash = `#person/${id}`; return; }
@@ -241,7 +249,9 @@ Actions.copyText = async (el) => { try { await navigator.clipboard.writeText(el.
 const SITE_RULES = [['0', 'Allow exceptions', 'Outside the circle, people give a reason and the manager decides'], ['1', 'Enforce at check-in', 'Check-in only inside the circle; check-out may be an exception'], ['2', 'Enforce at check-in and check-out', 'Both only inside the circle']];
 const sf = (k) => `sf-${k}`;
 function siteForm(id) {
-  const s = id ? KL.boot.sites.find((x) => x.id === id) : null;
+  const all = id && !KL.boot.sites.some((x) => x.id === id) ? data('admin:sites', () => api('/api/admin/sites')) : null; // closed sites are not in boot
+  if (id && all === null && !KL.boot.sites.some((x) => x.id === id)) return `${topbar('Site', '#admin/sites')}${spinner()}`;
+  const s = id ? KL.boot.sites.find((x) => x.id === id) || (all && !all.error ? all.rows.find((x) => x.id === id) : null) : null;
   const title = s ? `Edit ${s.name}` : 'New site';
   const back = s ? `#site/${s.id}` : '#sites';
   if (!can('sites.edit')) return `${topbar(title, back)}<div class="card"><p class="empty">Your designation may not add or edit sites.</p></div>`;
@@ -252,6 +262,7 @@ function siteForm(id) {
     for (const k of Object.keys(KL.ui.forms)) if (k.startsWith('sf-')) delete KL.ui.forms[k];
     if (s) { setF(sf('name'), s.name); setF(sf('project'), s.project_type); setF(sf('subtype'), s.subtype || 'kiln'); setF(sf('address'), s.address || ''); setF(sf('lat'), String(s.lat)); setF(sf('lng'), String(s.lng)); setF(sf('radius'), String(s.radius_m)); setF(sf('rule'), String(s.strict || 0)); setF(sf('active'), s.active === 0 ? 'inactive' : 'active'); }
     else { setF(sf('project'), KL.ui.sfProject || (KL.boot.projectList || [])[0]?.key || 'biochar'); setF(sf('radius'), '200'); setF(sf('rule'), '0'); }
+    KL.ui.sfTeam0 = s ? null : ''; // null: the team is still loading (nothing about it is sent until it has)
     if (s && can('users.assign')) loadSiteTeam(s.id);
   }
   const projs = (KL.boot.projectList || []).filter((p) => p.key !== 'management');
@@ -272,10 +283,10 @@ function siteForm(id) {
       <div class="btns" style="flex-wrap:wrap"><button type="button" class="btn" data-action="sfHere">${ic('compass')} Use where I am standing</button></div>
       <div id="sf-map" class="map-box" style="height:300px"></div>
       <div class="grid2">${field('Latitude', `<input id="sf-lat" class="input notr" inputmode="decimal" value="${esc(F(sf('lat')))}" data-input="sfCoord" data-key="sf-lat" placeholder="e.g. 24.25810" />`)}${field('Longitude', `<input id="sf-lng" class="input notr" inputmode="decimal" value="${esc(F(sf('lng')))}" data-input="sfCoord" data-key="sf-lng" placeholder="e.g. 72.19230" />`)}</div>
-      ${field('Allowed radius', `<div class="row" style="gap:10px;align-items:center"><input type="range" id="sf-radius-range" min="25" max="2000" step="25" value="${esc(F(sf('radius'), '200'))}" data-input="sfRadius" style="flex:1" aria-label="Radius" /><input id="sf-radius" class="input lc-short notr" inputmode="numeric" value="${esc(F(sf('radius'), '200'))}" data-input="sfRadius" aria-label="Radius in metres" style="width:90px" /><span>m</span></div>`, { help: '150–300 m suits most sites; more for big plantations.' })}
-      ${field('Check-in rule', `<div class="stack" style="gap:6px">${SITE_RULES.map(([v, l, h]) => `<label class="radio-row"><input type="radio" name="sf-rule" value="${v}" ${rule === v ? 'checked' : ''} data-change="sfRule" /><span><b>${esc(l)}</b><small class="muted" style="display:block">${esc(h)}</small></span></label>`).join('')}</div>`)}
+      ${fieldGroup('Allowed radius', `<div class="row" style="gap:10px;align-items:center"><input type="range" id="sf-radius-range" min="25" max="2000" step="25" value="${esc(F(sf('radius'), '200'))}" data-input="sfRadius" style="flex:1" aria-label="Radius" /><input id="sf-radius" class="input lc-short notr" inputmode="numeric" value="${esc(F(sf('radius'), '200'))}" data-input="sfRadius" aria-label="Radius in metres" style="width:90px" /><span>m</span></div>`, { help: '150–300 m suits most sites; more for big plantations.' })}
+      ${fieldGroup('Check-in rule', `<div class="stack" style="gap:6px" role="radiogroup">${SITE_RULES.map(([v, l, h]) => `<label class="radio-row"><input type="radio" name="sf-rule" value="${v}" ${rule === v ? 'checked' : ''} data-change="sfRule" /><span><b>${esc(l)}</b><small class="muted" style="display:block">${esc(h)}</small></span></label>`).join('')}</div>`)}
     </div>`)}
-    ${can('users.assign') ? group('Team', `<div class="card stack"><p class="hint">People who work at this site. They can check in here and see its records.</p><div class="chips">${people.filter((p) => p.role !== 'admin').map((p) => `<button type="button" data-action="sfTeam" data-id="${esc(p.id)}" aria-pressed="${team.has(p.id)}">${esc(p.name)}</button>`).join('')}</div></div>`) : ''}
+    ${can('users.assign') ? group('Team', `<div class="card stack"><p class="hint">People who work at this site. They can check in here and see its records.</p>${KL.ui.sfTeam0 === null ? (KL.ui.sfTeamError ? '<p class="hint">Could not load the team. The rest of the site can still be saved; change the team from each person\'s record.</p>' : spinner('Loading the team…')) : `<div class="chips">${people.filter((p) => p.role !== 'admin').map((p) => `<button type="button" data-action="sfTeam" data-id="${esc(p.id)}" aria-pressed="${team.has(p.id)}">${esc(p.name)}</button>`).join('')}</div>`}</div>`) : ''}
     ${s ? field('Status', select(sf('active'), F(sf('active'), 'active'), [['active', 'Active'], ['inactive', 'Closed / inactive']])) : ''}
     <div class="btns" style="margin:16px 0 30px"><a class="btn" href="${back}">Cancel</a><button type="button" class="btn primary" data-action="siteSave" data-id="${esc(id || '')}">${s ? 'Save changes' : 'Create site'}</button></div>`;
 }
@@ -284,8 +295,8 @@ async function loadSiteTeam(sid) {
   try {
     const u = await api('/api/admin/users');
     const ids = u.rows.filter((x) => (x.sites || []).includes(sid)).map((x) => x.id);
-    if (KL.ui.sfInit === sid) { setF(sf('team'), ids.join(',')); render(); }
-  } catch { /* the team section still works, starting empty */ }
+    if (KL.ui.sfInit === sid) { setF(sf('team'), ids.join(',')); KL.ui.sfTeam0 = ids.join(','); render(); }
+  } catch { if (KL.ui.sfInit === sid) { KL.ui.sfTeamError = true; render(); } }
 }
 Views.sitenew = () => siteForm(null);
 /** "+" on a project panel: a new site with that project already chosen. */
@@ -299,20 +310,22 @@ async function drawSiteMap() {
   box.dataset.drawn = '1';
   try { await loadLeaflet(); } catch (e) { box.innerHTML = `<p class="hint" style="padding:12px">${esc(e.message)}. Type the latitude and longitude below instead.</p>`; return; }
   if (!document.body.contains(box)) return;
+  const kept = siteMap && siteMap.key === KL.ui.sfInit ? { c: siteMap.map.getCenter(), z: siteMap.map.getZoom() } : null;
+  if (siteMap) { try { siteMap.map.remove(); } catch { /* already gone with the old page */ } siteMap = null; }
   const lat = Number(F(sf('lat'))), lng = Number(F(sf('lng')));
   const has = Number.isFinite(lat) && Number.isFinite(lng) && (lat || lng);
   const map = L.map(box, { zoomControl: true });
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
   const others = KL.boot.sites.filter((x) => x.id !== KL.ui.sfInit);
-  for (const o of others) L.circle([o.lat, o.lng], { radius: o.radius_m, color: '#888', weight: 1, fillOpacity: 0.05 }).addTo(map).bindTooltip(o.name);
+  for (const o of others) L.circle([o.lat, o.lng], { radius: o.radius_m, color: '#888', weight: 1, fillOpacity: 0.05 }).addTo(map).bindTooltip(esc(o.name));
   const centre = has ? [lat, lng] : others.length ? [others[0].lat, others[0].lng] : [23.0, 72.0];
   const marker = L.marker(centre, { draggable: true, opacity: has ? 1 : 0.4 }).addTo(map);
   const circle = L.circle(centre, { radius: Number(F(sf('radius'), '200')) || 200, color: '#1e7a4c', weight: 2, fillOpacity: 0.15 }).addTo(map);
-  map.setView(centre, has ? 16 : 8);
+  if (kept) map.setView(kept.c, kept.z); else map.setView(centre, has ? 16 : 8);
   const place = (ll) => { marker.setLatLng(ll); marker.setOpacity(1); circle.setLatLng(ll); setSiteCentre(ll.lat, ll.lng, false); };
   map.on('click', (e) => place(e.latlng));
   marker.on('dragend', () => place(marker.getLatLng()));
-  siteMap = { map, marker, circle };
+  siteMap = { map, marker, circle, key: KL.ui.sfInit };
 }
 function setSiteCentre(lat, lng, move = true) {
   setF(sf('lat'), lat.toFixed(6)); setF(sf('lng'), lng.toFixed(6));
@@ -359,16 +372,21 @@ Actions.siteSave = async (el) => {
   const radius = Number(v('radius'));
   if (!(radius >= 10 && radius <= 20000)) return toast('Radius must be between 10 m and 20 km', 'error');
   const body = { id, name: v('name'), project_type: v('project'), subtype: v('project') === 'biochar' ? v('subtype') || 'kiln' : '', address: v('address'), lat, lng, radius_m: Math.round(radius), strict: Number(v('rule') || 0), active: id ? v('active') !== 'inactive' : true };
-  if (can('users.assign')) body.team = String(F(sf('team'), '')).split(',').filter(Boolean);
+  if (can('users.assign') && KL.ui.sfTeam0 !== null) {
+    const was = new Set(String(KL.ui.sfTeam0 || '').split(',').filter(Boolean)), now = new Set(String(F(sf('team'), '')).split(',').filter(Boolean));
+    body.teamAdd = [...now].filter((x) => !was.has(x)); body.teamRemove = [...was].filter((x) => !now.has(x));
+  }
   el.disabled = true;
   try {
     const r = await api('/api/admin/sites', { json: body });
-    await reloadBoot(); invalidate('admin:users', 'map', 'site');
+    await reloadBoot(); invalidate('admin:users', 'admin:sites', 'map', 'site');
     KL.ui.sfInit = null; siteMap = null;
     for (const k of Object.keys(KL.ui.forms)) if (k.startsWith('sf-')) delete KL.ui.forms[k];
-    if (id) { toast('Site saved'); location.hash = `#site/${id}`; return; }
-    const another = await modal({ title: `${body.name} is added`, message: body.team?.length ? `${body.team.length} people can check in here now.` : 'Add people to it here or from each person\'s record.', confirmText: 'Add another site', cancelText: 'Open the site' });
-    location.hash = another ? '#sitenew' : `#site/${r.id}`;
+    if (id) { toast('Site saved'); location.hash = (KL.boot.mySites || []).some((x) => x.id === id) ? `#site/${id}` : '#admin/sites'; return; }
+    const n = body.teamAdd?.length || 0;
+    const another = await modal({ title: `${body.name} is added`, message: n ? `${n} people can check in here now.` : 'Add people to it here or from each person\'s record.', confirmText: 'Add another site', cancelText: 'Open the site' });
+    const mine = (KL.boot.mySites || []).some((x) => x.id === r.id); // a manager who is not on the new site sees it in Administration
+    location.hash = another ? '#sitenew' : mine ? `#site/${r.id}` : '#admin/sites';
     if (another) render();
   } catch (e) { toast(e.message, 'error'); } finally { el.disabled = false; }
 };

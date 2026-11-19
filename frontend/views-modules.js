@@ -579,12 +579,13 @@ function loadLeaflet() {
   if (window.L) return Promise.resolve();
   if (leafletLoading) return leafletLoading;
   leafletLoading = new Promise((resolve, reject) => {
+    const fail = () => { leafletLoading = null; reject(new Error('Map library did not load (needs internet)')); };
     const css = document.createElement('link');
     css.rel = 'stylesheet'; css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
     document.head.appendChild(css);
     const s = document.createElement('script');
     s.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
-    s.onload = resolve; s.onerror = () => reject(new Error('Map library did not load (needs internet)'));
+    s.onload = () => (window.L ? resolve() : fail()); s.onerror = fail; // a captive page or proxy can answer with HTML instead of the script
     document.head.appendChild(s);
   });
   return leafletLoading;

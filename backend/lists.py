@@ -334,13 +334,17 @@ def router(user_dep, db_dep) -> APIRouter:
             db.set_setting("offices", [{**o, "name": new} if o["code"] == value else o for o in offs])
         elif key == "roles":
             rs = roles(db)
+            if item.get("level") == "admin" and user["role"] != "admin":
+                raise HTTPException(403, "Only the director renames a director-level designation")
             if any(x["name"].lower() == new.lower() for x in rs if x["name"] != value):
                 raise HTTPException(409, f"{new} already exists")
             db.set_setting("roles", [{**x, "name": new} if x["name"] == value else x for x in rs])
             db.run("UPDATE users SET designation = ? WHERE designation = ?", new, value)
             rp = db.setting("role_perms", {}) or {}
+            rp.pop(new, None)  # a leftover entry under the new name must not win
             if value in rp:
-                db.set_setting("role_perms", {(new if k == value else k): v for k, v in rp.items()})
+                rp[new] = rp.pop(value)
+            db.set_setting("role_perms", rp)
             rules = modules.setting(db, "approval_chains")
             db.set_setting("approval_chains", {k: [{**s, "role": f"role:{new}"} if s.get("role") == f"role:{value}" else s for s in steps] for k, steps in rules.items()})
             db.run("UPDATE approval_steps SET role = ? WHERE role = ?", f"role:{new}", f"role:{value}")

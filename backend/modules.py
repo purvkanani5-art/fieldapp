@@ -330,7 +330,7 @@ def resolve_approver(db: Db, role: str, subject_id: str) -> str | None:
         u = db.one("SELECT manager_id FROM users WHERE id = ?", subject_id)
         if u and u["manager_id"] and u["manager_id"] != subject_id:
             return u["manager_id"]
-        m = db.one("SELECT id FROM users WHERE role = 'manager' AND active = 1 AND id != ? ORDER BY created_at LIMIT 1", subject_id)
+        m = db.one("SELECT id FROM users WHERE role = 'manager' AND COALESCE(level, '') = '' AND active = 1 AND id != ? ORDER BY created_at LIMIT 1", subject_id)
         return m["id"] if m else None
     r = db.one("SELECT id FROM users WHERE role = ? AND active = 1 AND id != ? ORDER BY created_at LIMIT 1", role, subject_id)
     return r["id"] if r else None
@@ -387,7 +387,9 @@ def may_decide(db: Db, user: dict, step: dict) -> bool:
         import perms
 
         return perms.is_member(db, user, step["role"])
-    return user["role"] == step["role"] or (step["role"] == "manager" and user["role"] in ("manager",))
+    if step["role"] == "manager" and user.get("level"):
+        return False  # a custom access level is not a line manager
+    return user["role"] == step["role"]
 
 
 def decide_chain(db: Db, kind: str, ref_id: str, user: dict, decision: str, note: str, subject_id: str, title: str, link: str) -> str:
@@ -404,7 +406,9 @@ def decide_chain(db: Db, kind: str, ref_id: str, user: dict, decision: str, note
         raise HTTPException(403, "Someone else approves your own request")
     if not may_decide(db, user, cur):
         raise HTTPException(403, f"Waiting for {cur['approver_name'] or cur['role_label']}")
-    db.update("approval_steps", cur["id"], {"status": decision, "decided_by": user["id"], "decided_at": now_iso(), "note": note[:300]})
+    if not db.change("UPDATE approval_steps SET status = ?, decided_by = ?, decided_at = ?, note = ? WHERE id = ? AND status = 'waiting'",
+                     decision, user["id"], now_iso(), note[:300], cur["id"]):
+        raise HTTPException(409, "Already decided")  # a second tap, or someone else was quicker
     if decision == "rejected":
         for s in steps:
             if s["status"] == "queued":
@@ -544,11 +548,11 @@ def attendance_month(db: Db, user_id: str, month: str) -> dict:
         att.setdefault(d, []).append(a)
     lv: dict[str, str] = {}
     hlv: dict[str, str] = {}  # half-day leave: date -> leave type
-    for x in db.all("SELECT * FROM leaves WHERE user_id = ? AND status = 'approved' AND to_date >= ? AND from_date <= ?", user_id, first.isoformat(), last.isoformat()):
+    both: dict[str, list[str]] = {}  # both halves of one day on leave: date -> [type, type]
+    for x in db.all("SELECT * FROM leaves WHERE user_id = ? AND status = 'approved' AND to_date >= ? AND from_date <= ? ORDER BY half", user_id, first.isoformat(), last.isoformat()):
         if x.get("half") and x["from_date"] == x["to_date"]:
-            if x["from_date"] in hlv:  # first and second half both on leave: a full day
-                hlv.pop(x["from_date"])
-                lv[x["from_date"]] = x["type"]
+            if x["from_date"] in hlv:  # first and second half both on leave: a full day, each half its own type
+                both[x["from_date"]] = [hlv.pop(x["from_date"]), x["type"]]
             else:
                 hlv[x["from_date"]] = x["type"]
             continue
@@ -568,8 +572,8 @@ def attendance_month(db: Db, user_id: str, month: str) -> dict:
     d = first
     while d <= last:
         key = d.isoformat()
-        rec = {"date": key, "code": "", "in": "", "out": "", "hours": 0.0, "late": False, "ot": 0.0, "note": "", "leave_days": 0.0, "leave_type": ""}
-        if d > today or (d == today and key not in att and key not in lv and key not in hlv and key not in reg and key not in mus):
+        rec = {"date": key, "code": "", "in": "", "out": "", "hours": 0.0, "late": False, "ot": 0.0, "note": "", "leave_days": 0.0, "leave_type": "", "leave_parts": []}
+        if d > today or (d == today and key not in att and key not in lv and key not in both and key not in reg and key not in mus):
             rec["code"] = "--"  # the future, or today before the person has checked in
         elif key in reg:
             r = reg[key]
@@ -598,9 +602,14 @@ def attendance_month(db: Db, user_id: str, month: str) -> dict:
             rec.update(code=m_["code"], ot=num(m_["ot_hours"]), note=f"crew muster by {m_['by_name'] or 'supervisor'}")
         elif key in lv:
             rec["code"], rec["note"] = "L", lv[key]
-            rec["leave_days"], rec["leave_type"] = 1.0, lv[key]
+            rec["leave_days"], rec["leave_type"], rec["leave_parts"] = 1.0, lv[key], [(lv[key], 1.0)]
             if lv[key] == "Unpaid":
                 totals["unpaid"] += 1
+        elif key in both:
+            a_, b_ = both[key]
+            rec["code"], rec["note"] = "L", a_ if a_ == b_ else f"½ {a_} + ½ {b_}"
+            rec["leave_days"], rec["leave_type"], rec["leave_parts"] = 1.0, a_, [(a_, 0.5), (b_, 0.5)]
+            totals["unpaid"] += 0.5 * [a_, b_].count("Unpaid")
         elif key in hlv and working_day(db, d, hol):
             # half-day leave and no work recorded: the other half is absent (loss of pay)
             rec["code"] = "A" if hlv[key] == "Unpaid" else "H"
@@ -613,13 +622,13 @@ def attendance_month(db: Db, user_id: str, month: str) -> dict:
             rec["code"] = "A"
             if key in mus:
                 rec["note"] = f"marked absent by {mus[key]['by_name'] or 'supervisor'}"
-        if key in hlv and rec["code"] != "--":
+        if key in hlv and rec["code"] not in ("--", "WO", "HO"):
             typ = hlv[key]
             worked = key in reg or key in att or (key in mus and mus[key]["code"] in ("P", "H"))
             if worked and rec["code"] in ("P", "H"):  # worked the other half: a paid half-day leave makes it a full day, an unpaid one a half day
                 rec["code"] = "H" if typ == "Unpaid" else "P"
                 rec["note"] = (rec["note"] + f" · ½ day {typ} leave").strip(" ·")
-            rec["leave_days"], rec["leave_type"] = 0.5, typ
+            rec["leave_days"], rec["leave_type"], rec["leave_parts"] = 0.5, typ, [(typ, 0.5)]
         if rec["code"] in totals:
             totals[rec["code"]] += 1
         totals["late"] += 1 if rec["late"] else 0
@@ -1083,6 +1092,8 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
         st = payload.get("status")
         if st not in (k.get("statuses") or []):
             raise HTTPException(422, "Unknown status")
+        if rec["status"] == "withdrawn":
+            raise HTTPException(409, "This request was withdrawn; make a new one")
         if not is_staff(user) and not (rec["created_by"] == user["id"] and kind in SELF_STATUS_KINDS):
             raise HTTPException(403, "Your manager updates the status")  # e.g. the reporter cannot close their own incident
         if k.get("approval") and st in ("approved", "rejected"):
@@ -1185,7 +1196,8 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
         res = decide_chain(db, k["approval"], rid, user, payload.get("decision"), str(payload.get("note", "")), rec["user_id"],
                            f"{k['one']} · {rec['title']}", f"#rec/{kind}/{rid}")
         if res != "pending":
-            db.update("records", rid, {"status": res, "updated_at": now_iso()})
+            if not db.change("UPDATE records SET status = ?, updated_at = ? WHERE id = ? AND status = 'pending'", res, now_iso(), rid):
+                raise HTTPException(409, "This request was withdrawn or decided meanwhile")
             if kind in ("regularisation", "advance", "expense"):
                 hrops.log_change(db, user["id"], kind, rid, rec["user_id"], f"{k['one']} {rec['title']}", "pending", res, str(payload.get("note", "")))
             if day and res == "approved":
@@ -1206,8 +1218,9 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
         day = json.loads(rec["data"]).get("date", "") if kind == "regularisation" else ""
         if day:
             hrops.assert_open(db, day)
+        if not db.change("UPDATE records SET status = 'withdrawn', updated_at = ? WHERE id = ? AND status = 'pending'", now_iso(), rid):
+            raise HTTPException(409, "Already withdrawn or decided")
         withdraw_chain(db, k["approval"], rid, user, f"{k['one']} · {rec['title']}", f"#rec/{kind}/{rid}")
-        db.update("records", rid, {"status": "withdrawn", "updated_at": now_iso()})
         if kind in ("regularisation", "advance", "expense"):
             hrops.log_change(db, user["id"], kind, rid, rec["user_id"], f"{k['one']} {rec['title']}", "pending", "withdrawn", "withdrawn by the employee")
         db.audit(user["id"], f"{kind}_withdrawn", kind, rid, rec["title"])
@@ -1253,7 +1266,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
 
         u["canAssign"] = perms.can(user, "users.assign")
         y = local_today().year
-        return {"user": u, "profile": p, "canEdit": perms.can(user, "users.edit"), "balances": leave_balances(db, uid, y),
+        return {"user": u, "profile": p, "canEdit": perms.can(user, "users.edit") and (u["role"] != "admin" or user["role"] == "admin"), "balances": leave_balances(db, uid, y),
                 "assets": [enrich(db, "asset_issue", x) for x in db.all("SELECT * FROM records WHERE kind = 'asset_issue' AND user_id = ?", uid)],
                 "trainings": [enrich(db, "training", x) for x in db.all("SELECT * FROM records WHERE kind = 'training' AND user_id = ?", uid)],
                 "goals": [enrich(db, "goal", x) for x in db.all("SELECT * FROM records WHERE kind = 'goal' AND user_id = ?", uid)]}
@@ -1264,11 +1277,20 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
 
         if not db.one("SELECT 1 FROM users WHERE id = ?", uid):
             raise HTTPException(404, "Not found")
-        if not (perms.can(user, "users.edit") or (perms.can(user, "users.add") and not db.one("SELECT 1 FROM records WHERE kind = 'profile' AND user_id = ?", uid))):
-            perms.need(user, "users.edit")  # adding an employee includes their first profile
+        target = db.one("SELECT role, created_at FROM users WHERE id = ?", uid)
+        just_added = (perms.can(user, "users.add") and uid != user["id"] and target["role"] != "admin"
+                      and not db.one("SELECT 1 FROM records WHERE kind = 'profile' AND user_id = ?", uid)
+                      and db.one("SELECT 1 FROM audit WHERE user_id = ? AND action = 'user_save' AND entity_id = ? AND at >= ?", user["id"], uid,
+                                 (datetime.now(UTC) - timedelta(hours=2)).replace(microsecond=0).isoformat().replace("+00:00", "Z")))
+        if not (perms.can(user, "users.edit") or just_added):
+            perms.need(user, "users.edit")  # adding an employee includes their first profile, nothing more
+        if target["role"] == "admin" and user["role"] != "admin":
+            raise HTTPException(403, "Only the director edits a director")
         keys = {f["key"] for f in PROFILE_FIELDS}
         # a masked value shown to someone without HR access ("•••• 42") is never saved back over the real one
         data = {k: str(v)[:300] for k, v in (payload.get("profile") or {}).items() if k in keys and not (k in SENSITIVE and str(v).startswith("•••• "))}
+        if not (user["role"] in ("admin", "hr") or just_added):  # ID and bank numbers: HR, or whoever is adding the person
+            data = {k: v for k, v in data.items() if k not in SENSITIVE and k != "bank_ifsc"}
         old = db.one("SELECT id, data FROM records WHERE kind = 'profile' AND user_id = ?", uid)
         import hrops
 

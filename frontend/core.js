@@ -120,6 +120,7 @@ async function api(path, { method, json, form, clientId, timeout } = {}) {
 }
 function logout() {
   KL.token = ''; KL.user = null; KL.me = null; KL.boot = null; KL.cache = {}; KL.stale = {}; KL.ui.sheetTask = null;
+  KL.ui.forms = {}; KL.ui.efInit = null; KL.ui.sfInit = null; KL.ui.empDocs = []; KL.ui.sfProject = ''; // nothing typed carries to the next person
   KL.ui.track = null; KL.ui.trackCode = null; // a shared phone: the next person must not see an anonymous complaint thread
   localStorage.removeItem('kl.token'); localStorage.removeItem('kl.user'); localStorage.removeItem('kl.me');
   location.hash = '#home';
@@ -299,7 +300,8 @@ const gpsFresh = () => Boolean(KL.ui.gps && Date.now() - new Date(KL.ui.gps.at).
 function locate(force = false) {
   if (KL.ui.locating) return;
   if (!force && KL.ui.gps && Date.now() - new Date(KL.ui.gps.at).getTime() < 20000) return;
-  if (!force && KL.ui.gps && Date.now() - (KL.ui.gpsEndedAt || 0) < 20000) return; // just finished a wait: no new one on every redraw
+  if (!force && (KL.ui.gps || KL.ui.gpsError) && Date.now() - (KL.ui.gpsEndedAt || 0) < 20000) return; // just finished a wait (or failed): no new one on every redraw
+  if (!force && KL.ui.gps?.final && gpsFresh()) return; // a finished reading under 2 minutes old is kept; Retry asks again
   KL.ui.locating = true; KL.ui.gpsError = ''; KL.ui.gpsSince = Date.now();
   if (force) KL.ui.gps = null; // a fresh reading, never an old one
   const prev = KL.ui.gps; // a background refresh keeps showing the last reading until the new one is as good
@@ -316,13 +318,14 @@ function locate(force = false) {
     getFix().then((fix) => { best = fix; finish(); }).catch((e) => finish(e.message));
     return;
   }
-  if (!navigator.geolocation) { finish('This phone has no location service'); return; }
+  if (!navigator.geolocation) { setTimeout(() => finish('This phone has no location service'), 0); return; }
   const stop = (err = '') => { clearTimeout(timer); if (id !== null) navigator.geolocation.clearWatch(id); if (KL.ui.locating) finish(err); };
   id = navigator.geolocation.watchPosition((p) => {
     n += 1;
     const fix = { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy, at: new Date().toISOString(), samples: n };
     if (!best || fix.accuracy <= best.accuracy + 2) best = fix; // as good or better: take the newer reading
-    KL.ui.gps = !prev || best.accuracy <= Math.max(prev.accuracy, gpsNeed()) ? best : prev;
+    // keep showing the last reading until the new one is as good; a reading after a finished wait stays usable
+    KL.ui.gps = !prev || best.accuracy <= Math.max(prev.accuracy, gpsNeed()) ? { ...best, final: Boolean(prev?.final) } : prev;
     if (best.accuracy <= GPS_GREAT_M && n >= 2) stop();
     else gpsPaint();
   }, (err) => {
@@ -334,7 +337,8 @@ function locate(force = false) {
 /** Redraw the screen for a GPS change, but not while someone is typing (only the GPS parts change then). */
 function gpsRender() {
   const a = document.activeElement;
-  if (a && a.matches && a.matches('input:not([type=checkbox]):not([type=radio]), textarea')) { gpsPaint(true); return; }
+  if (a && a.matches && a.matches('input:not([type=checkbox]):not([type=radio]), textarea')) { gpsPaint(true); KL.ui.gpsDirty = true; return; }
+  KL.ui.gpsDirty = false;
   render();
   KL.ui.gpsShape = gpsShapeNow();
 }

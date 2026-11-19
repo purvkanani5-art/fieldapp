@@ -18,12 +18,13 @@ self.addEventListener('fetch', (e) => {
     e.respondWith(caches.open(PYODIDE_CACHE).then((c) => c.match(e.request).then((hit) => hit || fetch(e.request).then((res) => { if (res.ok) c.put(e.request, res.clone()); return res; }))));
     return;
   }
+  if (url.origin !== self.location.origin) return; // map library and tiles: the browser handles them (a failed script must fail, not become the app page)
   // Network first for fresh app files, but: only good replies are cached (a 502 during a deploy must not replace
   // core.js), and on weak "connected but stalled" signal the cached copy is used after 4 s instead of a long wait.
   e.respondWith(new Promise((resolve) => {
     let done = false;
     const give = (r) => { if (!done && r) { done = true; resolve(r); } };
-    const cached = () => caches.match(e.request).then((hit) => hit || caches.match('./index.html'));
+    const cached = () => caches.match(e.request).then((hit) => hit || (e.request.mode === 'navigate' ? caches.match('./index.html') : undefined)); // only a page falls back to the app
     const slow = setTimeout(() => caches.match(e.request).then(give), 4000);
     fetch(e.request)
       .then((res) => {

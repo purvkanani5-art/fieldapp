@@ -24,6 +24,8 @@ A month can be locked only after it is over,મહિનો પૂરો થા�
 A photo is required,ફોટો જરૂરી છે,फ़ोटो ज़रूरी है
 A PNG of the director's signature with a transparent or white background. It is placed in the company's box on every farmer document.,પારદર્શક અથવા સફેદ પૃષ્ઠભૂમિ સાથે ડિરેક્ટરની સહીની PNG. તે દરેક ખેડૂત દસ્તાવેજમાં કંપનીના ખાનામાં મુકાય છે.,पारदर्शी या सफ़ेद पृष्ठभूमि के साथ डायरेक्टर के हस्ताक्षर की PNG। यह हर किसान दस्तावेज़ में कंपनी वाले खाने में लगती है।
 A receipt photo is needed for claims over ₹{n},₹{n} થી વધુના દાવા માટે રસીદનો ફોટો જોઈએ,₹{n} से ज़्यादा के दावे के लिए रसीद की फ़ोटो चाहिए
+A reporting manager decides this trip,આ મુસાફરી રિપોર્ટિંગ મેનેજર નક્કી કરે છે,यह यात्रा रिपोर्टिंग मैनेजर तय करते हैं
+A reporting manager or HR decides this leave,આ રજા રિપોર્ટિંગ મેનેજર કે HR નક્કી કરે છે,यह छुट्टी रिपोर्टिंग मैनेजर या HR तय करते हैं
 A selfie is taken when you check in. Time and place are recorded.,ચેક-ઇન વખતે સેલ્ફી લેવાય છે. સમય અને જગ્યા નોંધાય છે.,चेक-इन करते समय सेल्फ़ी ली जाती है. समय और जगह दर्ज होते हैं.
 A trip is already open. End it first.,એક મુસાફરી પહેલેથી ચાલુ છે. પહેલાં તેને પૂરી કરો.,एक यात्रा पहले से चालू है। पहले उसे ख़त्म करें।
 Aadhaar (last 4),આધાર (છેલ્લા 4),आधार (आखिरी 4)
@@ -123,6 +125,7 @@ Allowed:,મંજૂર મર્યાદા:,अनुमत सीमा:
 Already decided,નિર્ણય થઈ ગયો છે,फ़ैसला हो चुका है
 Already decided; it can no longer be changed,નિર્ણય થઈ ગયો છે; હવે બદલી શકાય નહીં,फ़ैसला हो चुका है; अब बदला नहीं जा सकता
 Already locked,પહેલેથી લૉક છે,पहले से लॉक है
+Already withdrawn or decided,પહેલેથી પાછી ખેંચી કે નક્કી થઈ ગઈ છે,पहले ही वापस लिया या तय हो चुका है
 Also,આ પણ,यह भी
 always,હંમેશા,हमेशा
 Amount,રકમ,रकम
@@ -420,6 +423,7 @@ Cotton stalk,કપાસની સાંઠી,कपास का डंठल
 Cotton stalk {n} → {n} kg,કપાસની સાંઠી {n} → {n} kg,कपास का डंठल {n} → {n} kg
 Could not copy on this browser,આ બ્રાઉઝરમાં કૉપિ ન થયું,इस ब्राउज़र में कॉपी नहीं हुआ
 Could not get a location. Allow location for this app and try again in the open.,સ્થાન ન મળ્યું. આ એપને સ્થાનની મંજૂરી આપો અને ખુલ્લામાં ફરી પ્રયાસ કરો.,लोकेशन नहीं मिली। इस ऐप को लोकेशन की अनुमति दें और खुले में फिर कोशिश करें।
+Could not load the team. The rest of the site can still be saved; change the team from each person's record.,ટીમ લોડ ન થઈ. સાઇટની બાકીની વિગત સાચવી શકાય; ટીમ દરેક વ્યક્તિના રેકોર્ડમાંથી બદલો.,टीम लोड नहीं हुई. साइट की बाकी जानकारी सेव हो सकती है; टीम हर व्यक्ति के रिकॉर्ड से बदलें.
 Could not load this,આ લોડ થઈ શક્યું નહીં,यह लोड नहीं हो सका
 Could not read the KML file: {x},KML ફાઇલ વાંચી શકાઈ નહીં: {x},KML फ़ाइल पढ़ी नहीं जा सकी: {x}
 Could not read the photo:,ફોટો વાંચી શકાયો નહીં:,फ़ोटो पढ़ नहीं सके:
@@ -996,6 +1000,7 @@ Light,આછું,हल्का
 Lists,યાદીઓ,सूचियाँ
 Loaded vehicle,ભરેલું વાહન,लदा हुआ वाहन
 Loader,લોડર,लोडर
+Loading the team…,ટીમ લોડ થાય છે…,टीम लोड हो रही है…
 Loan,લોન,लोन
 Location and a photo are needed,લોકેશન અને ફોટો જોઈએ,लोकेशन और फ़ोटो चाहिए
 "Location, allowed radius","લોકેશન, માન્ય ત્રિજ્યા","लोकेशन, अनुमत दायरा"
@@ -1050,6 +1055,8 @@ manages Biochar,બાયોચાર સંભાળે છે,बायोच�
 manages Gasifier,ગેસિફાયર સંભાળે છે,गैसीफायर संभालता है
 Mango,આંબો,आम
 Map,નકશો,नक्शा
+Map library did not load (needs internet),નકશો લોડ ન થયો (ઇન્ટરનેટ જોઈએ),नक्शा लोड नहीं हुआ (इंटरनेट चाहिए)
+Map library did not load (needs internet). Type the latitude and longitude below instead.,નકશો લોડ ન થયો (ઇન્ટરનેટ જોઈએ). તેના બદલે નીચે અક્ષાંશ અને રેખાંશ લખો.,नक्शा लोड नहीं हुआ (इंटरनेट चाहिए). इसके बदले नीचे अक्षांश और देशांतर लिखें.
 Mark complete,પૂરું થયું,पूरा हुआ
 Mark crew attendance,ટુકડીની હાજરી પૂરો,टोली की हाजिरी लगाएँ
 Mark everyone not yet marked present,બાકી રહેલા બધાને હાજર ગણો,बाकी सभी को हाज़िर लगाएँ
@@ -1322,6 +1329,9 @@ Only the director (admin) can unlock a month,ફક્ત ડિરેક્ટ�
 Only the director can add a director-level role,ડિરેક્ટર-લેવલની ભૂમિકા ફક્ત ડિરેક્ટર ઉમેરી શકે,डायरेक्टर-लेवल की भूमिका केवल डायरेक्टर जोड़ सकते हैं
 Only the director can change this list,આ યાદી ફક્ત ડિરેક્ટર બદલી શકે,यह सूची केवल डायरेक्टर बदल सकते हैं
 Only the director changes roles and permissions,ભૂમિકાઓ અને પરવાનગીઓ ફક્ત ડિરેક્ટર બદલે છે,भूमिकाएँ और अनुमतियाँ सिर्फ़ डायरेक्टर बदलते हैं
+Only the director edits a director,ડિરેક્ટરની વિગત ફક્ત ડિરેક્ટર બદલે છે,डायरेक्टर की जानकारी सिर्फ़ डायरेक्टर बदलते हैं
+Only the director edits a director.,ડિરેક્ટરની વિગત ફક્ત ડિરેક્ટર બદલે છે.,डायरेक्टर की जानकारी सिर्फ़ डायरेक्टर बदलते हैं.
+Only the director renames a director-level designation,ડિરેક્ટર સ્તરના હોદ્દાનું નામ ફક્ત ડિરેક્ટર બદલે છે,डायरेक्टर स्तर के पद का नाम सिर्फ़ डायरेक्टर बदलते हैं
 Only the last 4 digits. Never the full number.,ફક્ત છેલ્લા 4 અંક. આખો નંબર ક્યારેય નહીં.,सिर्फ़ आख़िरी 4 अंक. पूरा नंबर कभी नहीं.
 Only the people on this task or a manager can change it,આ કામ પરના લોકો અથવા મેનેજર જ બદલી શકે,इस काम पर लगे लोग या मैनेजर ही बदल सकते हैं
 Only the person who made it or a manager can change it,જેણે બનાવ્યું તે અથવા મેનેજર જ બદલી શકે,जिसने बनाया वही या मैनेजर ही बदल सकते हैं
@@ -1799,10 +1809,12 @@ Site saved,સાઇટ સચવાઈ,साइट सेव हुई
 Sites,સાઇટ્સ,साइटें
 Sites & geofences,સાઇટ્સ અને સીમા,साइटें और सीमाएँ
 "Sites (comma-separated names, blank = all)","સાઇટ્સ (નામ અલ્પવિરામથી અલગ, ખાલી = બધી)","साइटें (नाम कॉमा से अलग, खाली = सभी)"
+Sites must be a list,સાઇટ યાદીમાં હોવી જોઈએ,साइटें सूची में होनी चाहिए
 sites on the map,નકશા પર સાઇટ્સ,नक्शे पर साइटें
 Sites they work at,તેઓ જે સાઇટ પર કામ કરે છે,वे जिन साइटों पर काम करते हैं
 "Sites, farm plots, applications, incidents, people on site","સાઇટ્સ, ખેતરના પ્લોટ, વપરાશ, ઘટનાઓ, સાઇટ પરના લોકો","साइटें, खेत के प्लॉट, प्रयोग, घटनाएँ, साइट पर लोग"
 "Sites, plots, incidents and people on site","સાઇટ્સ, પ્લોટ, ઘટનાઓ અને સાઇટ પરના લોકો","साइटें, प्लॉट, घटनाएँ और साइट पर लोग"
+Some people still have this level. Give them another designation first,કેટલાક લોકો પાસે હજી આ સ્તર છે. પહેલાં તેમને બીજો હોદ્દો આપો,कुछ लोगों के पास अभी यह स्तर है. पहले उन्हें दूसरा पद दें
 Someone cannot report to themselves,કોઈ પોતાને જ રિપોર્ટ ન કરી શકે,कोई खुद को ही रिपोर्ट नहीं कर सकता
 Someone else approves your own request,તમારી પોતાની અરજી બીજું કોઈ મંજૂર કરે છે,आपका अपना अनुरोध कोई और मंज़ूर करता है
 Someone else approves your own trip,તમારી પોતાની મુસાફરી બીજું કોઈ મંજૂર કરે છે,आपकी अपनी यात्रा कोई और मंज़ूर करता है
@@ -1824,6 +1836,7 @@ Start trip (weak GPS ±{n} m),મુસાફરી શરૂ કરો (નબ�
 Started,શરૂ થયું,शुरू हुआ
 Starting PIN,શરૂઆતનો PIN,शुरुआती PIN
 "Starting PIN ({n}–{n} digits, employee changes it)","શરૂઆતનો PIN ({n}–{n} અંક, કર્મચારી બદલશે)","शुरुआती PIN ({n}–{n} अंक, कर्मचारी बदलेगा)"
+Starting PIN must be 4 to 6 digits,શરૂઆતનો PIN 4 થી 6 અંકનો હોવો જોઈએ,शुरुआती PIN 4 से 6 अंक का होना चाहिए
 Starting PIN: 4 to 6 digits,શરૂઆતનો PIN: 4 થી 6 અંક,शुरुआती PIN: 4 से 6 अंक
 Starts,શરૂ,शुरू
 Status,સ્થિતિ,स्थिति
@@ -1838,6 +1851,7 @@ Step {n}: Manager,પગલું {n}: મેનેજર,चरण {n}: मै�
 Step {x} of {x} · approved by {x},{2} માંથી પગલું {1} · {3} એ મંજૂર કર્યું,{2} में से चरण {1} · {3} ने मंज़ूर किया
 Step:,પગલું:,चरण:
 Steps run in order. The first approver decides every request; a later step joins only when the request is more than its limit. Changes apply to new requests.,પગલાં ક્રમમાં ચાલે છે. પહેલા મંજૂર કરનાર દરેક અરજી નક્કી કરે; પછીનું પગલું ત્યારે જ જોડાય જ્યારે અરજી તેની મર્યાદાથી વધુ હોય. ફેરફાર નવી અરજીઓ પર લાગુ થાય છે.,चरण क्रम से चलते हैं। पहला मंज़ूर करने वाला हर अनुरोध तय करता है; बाद का चरण तभी जुड़ता है जब अनुरोध उसकी सीमा से ज़्यादा हो। बदलाव नए अनुरोधों पर लागू होते हैं।
+Still loading the form. Try again in a moment.,ફોર્મ હજી લોડ થાય છે. થોડી વારમાં ફરી પ્રયાસ કરો.,फ़ॉर्म अभी लोड हो रहा है. थोड़ी देर में फिर कोशिश करें.
 Stock,સ્ટોક,स्टॉक
 "Stock balances move with every batch, transfer and dispatch","દરેક બેચ, ટ્રાન્સફર અને રવાનગી સાથે સ્ટોક બદલાય છે","हर बैच, ट्रांसफ़र और डिस्पैच के साथ स्टॉक बदलता है"
 Stock by site,સાઇટ પ્રમાણે સ્ટોક,साइट के अनुसार स्टॉक
@@ -1925,6 +1939,7 @@ tasks your manager assigned to you,તમારા મેનેજરે તમ�
 Teak,સાગ,सागौन
 Team,ટીમ,टीम
 Team activity,ટીમ પ્રવૃત્તિ,टीम गतिविधि
+Team changes must be lists,ટીમના ફેરફાર યાદીમાં હોવા જોઈએ,टीम के बदलाव सूची में होने चाहिए
 Team today,આજે ટીમ,आज टीम
 Template not found,નમૂનો મળ્યો નથી,नमूना नहीं मिला
 Terminated,નોકરીમાંથી કાઢ્યા,नौकरी से निकाला
@@ -1969,16 +1984,19 @@ Their sites and team,તેમની સાઇટ અને ટીમ,उनक�
 They are kept without your name.,તે તમારા નામ વગર રાખવામાં આવે છે.,ये आपके नाम के बिना रखे जाते हैं।
 They see this site in their app at once. Managers of a whole project are set on their employee record.,તેમને આ સાઇટ તરત જ એપમાં દેખાશે. આખા પ્રોજેક્ટના મેનેજર તેમના કર્મચારી રેકોર્ડમાં નક્કી થાય છે.,उन्हें यह साइट तुरंत ऐप में दिखेगी। पूरे प्रोजेक्ट के मैनेजर उनके कर्मचारी रिकॉर्ड में तय होते हैं।
 This account is no longer active,આ એકાઉન્ટ હવે ચાલુ નથી,यह अकाउंट अब चालू नहीं है
+This claim was withdrawn or decided meanwhile,આ દરમિયાન દાવો પાછો ખેંચાયો કે નક્કી થઈ ગયો,इस बीच दावा वापस लिया गया या तय हो गया
 This demo runs inside your browser with sample data only; each phone has its own copy.,આ ડેમો ફક્ત નમૂના ડેટા સાથે તમારા બ્રાઉઝરમાં ચાલે છે; દરેક ફોનની પોતાની નકલ છે.,यह डेमो सिर्फ़ नमूना डेटा के साथ आपके ब्राउज़र में चलता है; हर फ़ोन की अपनी कॉपी है.
 "This device has no camera, or the browser was not allowed to use it. In the prototype you can use a sample photo to see the whole flow.","આ ડિવાઇસમાં કેમેરા નથી, અથવા બ્રાઉઝરને તે વાપરવાની મંજૂરી નથી. પ્રોટોટાઇપમાં આખી પ્રક્રિયા જોવા તમે નમૂનાનો ફોટો વાપરી શકો.","इस डिवाइस में कैमरा नहीं है, या ब्राउज़र को इसे इस्तेमाल करने की अनुमति नहीं है. प्रोटोटाइप में पूरी प्रक्रिया देखने के लिए आप सैंपल फ़ोटो इस्तेमाल कर सकते हैं."
 This employee does not use the app; the site supervisor marks their attendance. HR can turn the app on.,આ કર્મચારી એપ વાપરતા નથી; સાઇટ સુપરવાઇઝર તેમની હાજરી પૂરે છે. HR એપ ચાલુ કરી શકે છે.,यह कर्मचारी ऐप इस्तेमाल नहीं करता; साइट सुपरवाइज़र उसकी हाजिरी लगाता है। HR ऐप चालू कर सकता है।
 This is a working prototype in a web browser. These parts are left for the installed phone app or the live system:,આ વેબ બ્રાઉઝરમાં ચાલતો નમૂનો છે. આ ભાગો ફોન એપ કે ચાલુ સિસ્ટમ માટે બાકી રાખ્યા છે:,यह वेब ब्राउज़र में चलने वाला नमूना है. ये हिस्से फ़ोन ऐप या असली सिस्टम के लिए छोड़े गए हैं:
 This leave has started or is decided. Ask HR to change it.,આ રજા શરૂ થઈ ગઈ છે કે નક્કી થઈ ગઈ છે. બદલવા HRને કહો.,यह छुट्टी शुरू हो चुकी है या तय हो चुकी है। बदलने के लिए HR से कहें।
 This leave is already decided,આ રજા પહેલેથી નક્કી થઈ ગઈ છે,यह छुट्टी पहले से तय हो चुकी है
+This leave was withdrawn or decided meanwhile,આ દરમિયાન રજા પાછી ખેંચાઈ કે નક્કી થઈ ગઈ,इस बीच छुट्टी वापस ली गई या तय हो गई
 This list cannot be renamed; add a new item instead,આ યાદીમાં નામ બદલાતું નથી; નવું ઉમેરો,इस सूची में नाम नहीं बदलता; नया जोड़ें
 "This month: present, late, absent, overtime","આ મહિને: હાજર, મોડા, ગેરહાજર, ઓવરટાઇમ","इस महीने: हाज़िर, देर, ग़ैरहाज़िर, ओवरटाइम"
 This moved stock; record a correction in the register instead of changing it,આનાથી સ્ટોક બદલાયો છે; બદલવાને બદલે રજિસ્ટરમાં સુધારો નોંધો,इससे स्टॉक बदला है; बदलने के बजाय रजिस्टर में सुधार दर्ज करें
 This moved stock; record a correction in the register instead of deleting it,આનાથી સ્ટોક બદલાયો છે; કાઢી નાખવાને બદલે રજિસ્ટરમાં સુધારો નોંધો,इससे स्टॉक बदला है; हटाने के बजाय रजिस्टर में सुधार दर्ज करें
+This request was withdrawn or decided meanwhile,આ દરમિયાન અરજી પાછી ખેંચાઈ કે નક્કી થઈ ગઈ,इस बीच अनुरोध वापस लिया गया या तय हो गया
 This request was withdrawn; make a new one,આ અરજી પાછી ખેંચાઈ હતી; નવી અરજી કરો,यह अनुरोध वापस लिया गया था; नया अनुरोध करें
 This site has no feedstock or biochar register item; add them in Admin → Register items,આ સાઇટ પર કાચો માલ કે બાયોચારની રજિસ્ટર આઇટમ નથી; Admin → Register items માં ઉમેરો,इस साइट पर कच्चा माल या बायोचार का रजिस्टर आइटम नहीं है; Admin → Register items में जोड़ें
 This survey is closed,આ સર્વે બંધ છે,यह सर्वे बंद है

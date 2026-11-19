@@ -332,6 +332,8 @@ def router(user_dep, db_dep) -> APIRouter:
         used = [r["name"] for r in lists.roles(db) if r["level"] == key]
         if used:
             raise HTTPException(409, f"In use by {', '.join(used)}. Move those designations to another level first")
+        if db.one("SELECT 1 FROM users WHERE level = ?", key):
+            raise HTTPException(409, "Some people still have this level. Give them another designation first")
         db.set_setting("access_levels", [x for x in cur if x["key"] != key])
         db.audit(user["id"], "level_delete", "level", key, "")
         return {"ok": True}

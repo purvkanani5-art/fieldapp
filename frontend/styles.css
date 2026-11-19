@@ -187,10 +187,10 @@ body { padding-bottom: calc(var(--tab-h) + 16px + env(safe-area-inset-bottom)); 
 .fab svg.ic { width: 24px; height: 24px; }
 
 /* forms */
-label.field { display: block; margin: 0; }
-label.field > span { display: block; font-size: 14px; font-weight: 500; color: var(--text-2); margin: 0 0 6px; }
-label.field .req { color: var(--danger); font-style: normal; margin-left: 2px; }
-label.field .help { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; }
+:is(label, div).field { display: block; margin: 0; }
+:is(label, div).field > span { display: block; font-size: 14px; font-weight: 500; color: var(--text-2); margin: 0 0 6px; }
+:is(label, div).field .req { color: var(--danger); font-style: normal; margin-left: 2px; }
+:is(label, div).field .help { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; }
 .input, .select, textarea.input { width: 100%; min-height: 44px; border: 1px solid var(--border-control); border-radius: var(--r-sm); background: var(--surface); color: var(--text); padding: 10px 12px; font: 400 16px/1.4 var(--font); transition: border-color var(--t-fast), box-shadow var(--t-fast); }
 textarea.input { min-height: 104px; resize: vertical; }
 .input::placeholder { color: var(--muted); }

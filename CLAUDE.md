@@ -256,6 +256,19 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
    POST /api/admin/lists/{roles|offices|departments}/rename (designation rename moves users, role_perms, rules and
    open approval steps). Note: an employee with no site cannot check in anywhere (blank is NOT "all sites").
    Tests: kl_workflows_check.py, kl-workflows-ui.mjs (36).
+   Sweep (same day, owner: "flawless"): site team is saved as teamAdd / teamRemove (a team that never loaded can
+   no longer empty a site; permission checked before any write); GET /api/admin/sites lists closed sites so they
+   can be reopened; a custom office level is NOT a line manager (month-end list and confirm, manager approval steps
+   and fallback approver, legacy decisions, notify_role all require COALESCE(level,'')=''); users.add may write
+   only the first profile of someone they added in the last 2 hours; ID / bank numbers are written only by HR,
+   the director or that first profile; both halves of one day keep their own types (leave_parts per day, the
+   Zoho export counts parts); a half-day leave does not lock the muster; withdraw / approve / final status use
+   conditional UPDATEs (Db.change) so a second tap or a race does nothing; HR cannot rename a director-level
+   designation; employee save validates sites (must exist, list), name (80) and starting PIN (4–6 digits);
+   service worker no longer answers failed cross-origin files (Leaflet, tiles) with index.html; GPS: no
+   restart loop when location is blocked, a finished weak reading stays usable, skipped repaints happen on
+   focusout; site map is removed before redrawing and its tooltip escaped; captions of chip / radio groups are
+   not <label>s (fieldGroup). Tests: kl_sweep_probe.py, kl-sweep-ui.mjs (38).
 
 ## Testing
 - `D:\PersonalBooks\.cache\kl-e2e.mjs` (2026-11-14): resets the demo, then manager assigns a photo-proof task →

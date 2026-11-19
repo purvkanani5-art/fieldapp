@@ -168,6 +168,13 @@ class Db:
         self.con.execute(sql, args)
         self.con.commit()
 
+    def change(self, sql: str, *args) -> int:
+        """Run an UPDATE / DELETE and return how many rows it changed: a conditional UPDATE is how a request claims a
+        state change once, even when two taps arrive together."""
+        n = self.con.execute(sql, args).rowcount
+        self.con.commit()
+        return n
+
     def insert(self, table: str, row: dict) -> str:
         row = dict(row)
         if table not in NO_ID_TABLES:
@@ -201,7 +208,8 @@ class Db:
     def notify_role(self, roles: tuple[str, ...], title: str, body: str = "", link: str = "", site_id: str | None = None) -> None:
         """Tell every active user in the roles (optionally only those assigned to the site, admins always)."""
         marks = ", ".join("?" for _ in roles)
-        users = self.all(f"SELECT id, role FROM users WHERE active = 1 AND role IN ({marks})", *roles)  # noqa: S608
+        # a custom access level (Finance & Accounts…) works as "manager" for screens but is not a line manager
+        users = self.all(f"SELECT id, role FROM users WHERE active = 1 AND role IN ({marks}) AND (role <> 'manager' OR COALESCE(level, '') = '')", *roles)  # noqa: S608
         site = self.one("SELECT project_type FROM sites WHERE id = ?", site_id) if site_id else None
         for u in users:
             if site_id and u["role"] not in ("admin", "hr"):  # HR sees every site, like the director

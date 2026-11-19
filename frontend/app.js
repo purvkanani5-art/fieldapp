@@ -197,6 +197,7 @@ async function signIn(employeeId, pin) {
 /** After any sign-in (PIN, demo tap or person switch): fresh state, load lists, go Home. */
 async function signedIn(r) {
   closeCamera();
+  KL.ui.efInit = null; KL.ui.sfInit = null; KL.ui.empDocs = []; KL.ui.sfProject = '';
   KL.token = r.token; KL.user = r.user;
   KL.cache = {}; KL.stale = {}; KL.ui.photos = {}; KL.ui.forms = {}; KL.ui.gps = null; KL.ui.sheetTask = null; KL.ui.completing = null; KL.ui.signed = null;
   KL.ui.track = null; KL.ui.trackCode = null; // the previous person's anonymous complaint thread
@@ -289,6 +290,8 @@ function render() {
   if (NEEDS_GPS.has(view)) locate();
   const entering = KL.lastRoute !== location.hash;
   KL.lastRoute = location.hash;
+  if (entering && view === 'empedit') { KL.ui.efInit = null; invalidate(`hr:profile:${arg}`, `hr:docs:${arg}`); } // an edit page starts from what is saved now
+  if (entering && view === 'siteedit') KL.ui.sfInit = null;
   if (entering) { KL.seenCounts = new Set(); KL.ui.previewFn = null; }
   // keep the signature across re-renders (the canvas is rebuilt with the DOM)
   const sigKeep = KL.sig && $('#sig') && !KL.sig.isEmpty() ? KL.sig.dataUrl() : null;
@@ -340,6 +343,7 @@ function bindEvents() {
       }
     });
     root.addEventListener('change', (e) => { const el = e.target.closest('[data-change]'); const fn = el && Changes[el.dataset.change]; if (fn) fn(el, e); });
+    root.addEventListener('focusout', () => { if (KL.ui.gpsDirty) setTimeout(() => { const a = document.activeElement; if (KL.ui.gpsDirty && !(a && a.matches && a.matches('input, textarea, select'))) gpsRender(); }, 350); });
     root.addEventListener('input', (e) => { const el = e.target.closest('[data-input]'); const fn = el && Inputs[el.dataset.input]; if (fn) fn(el, e); });
   }
   document.addEventListener('keydown', (e) => {

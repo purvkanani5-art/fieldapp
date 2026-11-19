@@ -190,8 +190,10 @@ async function resetPinFlow(u) {
   try { await api(`/api/admin/users/${u.id}/reset-pin`, { json: { pin: p.pin } }); toast('PIN reset'); } catch (e) { toast(e.message, 'error'); }
 }
 function adminSites() {
+  const all = data('admin:sites', () => api('/api/admin/sites'));
+  const list = all && !all.error ? all.rows : KL.boot.sites;
   return `${topbar('Sites & geofences', '#admin', '<button type="button" class="btn small primary" data-action="siteEdit">+ Add</button>')}
-    <div class="card flush">${KL.boot.sites.map((s) => lrow({ action: 'siteEdit', data: { id: s.id }, icon: PROJECT_ICON[s.project_type] || 'pin', title: s.name, sub: `${esc(s.project_type)} · ${s.lat.toFixed(5)}, ${s.lng.toFixed(5)} · radius ${s.radius_m} m${s.address ? ` · ${esc(s.address)}` : ''}` })).join('')}</div>
+    <div class="card flush">${list.map((s) => lrow({ action: 'siteEdit', data: { id: s.id }, icon: PROJECT_ICON[s.project_type] || 'pin', title: s.name, sub: `${s.active === 0 ? 'closed · ' : ''}${esc(s.project_type)} · ${s.lat.toFixed(5)}, ${s.lng.toFixed(5)} · radius ${s.radius_m} m${s.address ? ` · ${esc(s.address)}` : ''}` })).join('')}</div>
     <p class="hint" style="margin-top:8px">Open a site to move its centre on the map, change the radius or the check-in rule, and choose its team. At the site, "Use where I am standing" takes a careful GPS reading.</p>`;
 }
 /** Sites open the one-page site form (map, geofence, check-in rule, team). */

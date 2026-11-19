@@ -587,9 +587,12 @@ def trip_decide(trip_id: str, payload: dict, user: UserDep, db: DbDep):
         res = modules.decide_chain(db, "travel", trip_id, user, decision, note, trip["user_id"], f"Trip {trip['km_claimed']:g} km on {trip['start_at'][:10]}", "#trips")
     else:  # a trip sent before travel had approval rules: one decision by a manager
         require(user, "admin", "manager")
+        if user.get("level"):
+            raise HTTPException(403, "A reporting manager decides this trip")
         res = decision
     if res != "pending":
-        db.update("trips", trip_id, {"status": res, "decided_by": user["id"], "decided_at": now_iso(), "decision_note": note})
+        if not db.change("UPDATE trips SET status = ?, decided_by = ?, decided_at = ?, decision_note = ? WHERE id = ? AND status = 'submitted'", res, user["id"], now_iso(), note, trip_id):
+            raise HTTPException(409, "This claim was withdrawn or decided meanwhile")
         if not chained:
             db.notify(trip["user_id"], f"Trip {decision}", f"{trip['km_claimed']} km on {trip['start_at'][:10]}" + (f": {note}" if note else ""), "#trips")
     db.audit(user["id"], f"trip_{decision}", "trip", trip_id)
@@ -603,8 +606,9 @@ def trip_withdraw(trip_id: str, user: UserDep, db: DbDep):
         raise HTTPException(404, "Trip not found")
     if trip["status"] != "submitted":
         raise HTTPException(409, "Only a claim waiting for approval can be withdrawn")
+    if not db.change("UPDATE trips SET status = 'withdrawn' WHERE id = ? AND status = 'submitted'", trip_id):
+        raise HTTPException(409, "Already withdrawn or decided")
     modules.withdraw_chain(db, "travel", trip_id, user, f"Trip {trip['km_claimed']:g} km on {trip['start_at'][:10]}", "#trips")
-    db.update("trips", trip_id, {"status": "withdrawn"})
     db.audit(user["id"], "trip_withdrawn", "trip", trip_id)
     return {"ok": True}
 
@@ -946,9 +950,10 @@ def leave_withdraw(leave_id: str, user: UserDep, db: DbDep):
     if not leave_withdrawable(lv):
         raise HTTPException(409, "This leave has started or is decided. Ask HR to change it." if lv["status"] == "approved" else "This leave is already decided")
     hrops.assert_range_open(db, lv["from_date"], lv["to_date"])
+    if not db.change("UPDATE leaves SET status = 'withdrawn' WHERE id = ? AND status = ?", leave_id, lv["status"]):
+        raise HTTPException(409, "Already withdrawn or decided")
     when = lv["from_date"] if lv["from_date"] == lv["to_date"] else f"{lv['from_date']} to {lv['to_date']}"
     modules.withdraw_chain(db, "leave", leave_id, user, f"Leave {when} ({lv['type']})", "#leaves")
-    db.update("leaves", leave_id, {"status": "withdrawn"})
     hrops.log_change(db, user["id"], "leave", leave_id, user["id"], f"{lv['type']} leave {when}", lv["status"], "withdrawn", "withdrawn by the employee")
     db.audit(user["id"], "leave_withdrawn", "leave", leave_id, lv["status"])
     return {"ok": True}
@@ -966,9 +971,12 @@ def leave_decide(leave_id: str, payload: dict, user: UserDep, db: DbDep):
     hrops.assert_range_open(db, lv["from_date"], lv["to_date"])
     if not modules.steps_for(db, "leave", leave_id):  # made before approval chains: one decision by office staff
         require(user, "admin", "manager", "hr")
+        if user.get("level"):
+            raise HTTPException(403, "A reporting manager or HR decides this leave")
     res = modules.decide_chain(db, "leave", leave_id, user, decision, note, lv["user_id"], f"Leave {lv['from_date']} to {lv['to_date']}", "#leaves")
     if res != "pending":
-        db.update("leaves", leave_id, {"status": res, "decided_by": user["id"], "decided_at": now_iso(), "decision_note": note})
+        if not db.change("UPDATE leaves SET status = ?, decided_by = ?, decided_at = ?, decision_note = ? WHERE id = ? AND status = 'pending'", res, user["id"], now_iso(), note, leave_id):
+            raise HTTPException(409, "This leave was withdrawn or decided meanwhile")
         hrops.log_change(db, user["id"], "leave", leave_id, lv["user_id"], f"{lv['type']} leave {lv['from_date']} to {lv['to_date']}", "pending", res, note)
         if not modules.steps_for(db, "leave", leave_id):
             db.notify(lv["user_id"], f"Leave {decision}", f"{lv['from_date']} to {lv['to_date']}", "#leaves")
@@ -1120,7 +1128,7 @@ def admin_next_employee_code(project: str, office: str, user: UserDep, db: DbDep
 
 @app.get("/api/admin/users")
 def admin_users(user: UserDep, db: DbDep):
-    if not any(perms.can(user, k) for k in ("users.add", "users.edit", "users.deactivate", "users.pin", "users.role")):
+    if not any(perms.can(user, k) for k in ("users.add", "users.edit", "users.deactivate", "users.pin", "users.role", "users.assign")):
         raise HTTPException(403, "Your designation may not manage employees")
     rows = db.all("SELECT id, employee_id, name, role, designation, phone, email, active, must_change_pin, created_at, COALESCE(department, '') AS department, COALESCE(level, '') AS level FROM users ORDER BY employee_id")
     sites = db.all("SELECT user_id, site_id FROM user_sites")
@@ -1138,7 +1146,7 @@ def admin_user_save(payload: dict, user: UserDep, db: DbDep):
         emp = str(payload.get("employee_id", "")).strip().upper()
     else:
         emp = next_employee_code(db, payload.get("project", ""), payload.get("office", ""))
-    name = str(payload.get("name", "")).strip()
+    name = re.sub(r"\s+", " ", str(payload.get("name", ""))).strip()[:80]
     role = payload.get("role", "field")
     designation = str(payload.get("designation", ""))[:80]
     level = ""
@@ -1159,6 +1167,11 @@ def admin_user_save(payload: dict, user: UserDep, db: DbDep):
         raise HTTPException(422, "Choose a department from the list")
     row = {"employee_id": emp, "name": name, "role": role, "designation": designation, "phone": str(payload.get("phone", ""))[:20],
            "email": str(payload.get("email", ""))[:120], "active": 1 if payload.get("active", True) else 0, "department": dept, "level": level}
+    raw_sites = payload.get("sites") or []
+    if not isinstance(raw_sites, list):
+        raise HTTPException(422, "Sites must be a list")
+    known_sites = {s["id"] for s in db.all("SELECT id FROM sites")}
+    payload["sites"] = [s for s in dict.fromkeys(str(x) for x in raw_sites) if s in known_sites]  # unknown ids dropped, no repeats
     uid = payload.get("id")
     if uid:
         prev = db.one("SELECT * FROM users WHERE id = ?", uid)
@@ -1166,8 +1179,9 @@ def admin_user_save(payload: dict, user: UserDep, db: DbDep):
             raise HTTPException(404, "User not found")
         if prev["role"] == "admin" and user["role"] != "admin":
             raise HTTPException(403, "Only the director edits a director")
-        if not payload.get("roleName"):  # designation not sent: keep its custom access level
-            level = row["level"] = prev.get("level") or ""
+        if not payload.get("roleName"):  # designation not from the list: keep the custom level only if nothing changed
+            same = (prev["role"], prev["designation"] or "") == (role, designation)
+            level = row["level"] = (prev.get("level") or "") if same else ""
         if (prev["role"], prev["designation"] or "", prev.get("level") or "") != (role, designation, level):
             perms.need(user, "users.role")
             if prev["id"] == user["id"] and prev["role"] == "admin" and role != "admin":
@@ -1184,6 +1198,8 @@ def admin_user_save(payload: dict, user: UserDep, db: DbDep):
         if db.one("SELECT 1 FROM users WHERE employee_id = ?", emp):
             raise HTTPException(409, f"{emp} already exists")
         pin = str(payload.get("pin") or "1234")
+        if not re.fullmatch(r"\d{4,6}", pin):
+            raise HTTPException(422, "Starting PIN must be 4 to 6 digits")
         h, s = auth.hash_pin(pin)
         uid = db.insert("users", {**row, "pin_hash": h, "pin_salt": s, "must_change_pin": 1, "created_at": now_iso()})
     db.run("DELETE FROM user_sites WHERE user_id = ?", uid)
@@ -1224,22 +1240,33 @@ def admin_site_save(payload: dict, user: UserDep, db: DbDep):
         raise HTTPException(422, "Latitude or longitude is out of range")
     if row["project_type"] != "office" and row["project_type"] not in lists.project_codes(db):
         raise HTTPException(422, "Choose the project")
+    add, remove = payload.get("teamAdd") or [], payload.get("teamRemove") or []
+    if not isinstance(add, list) or not isinstance(remove, list):
+        raise HTTPException(422, "Team changes must be lists")
+    if add or remove:  # checked before anything is written
+        perms.need(user, "users.assign")
     sid = payload.get("id")
     if sid:
+        if not db.one("SELECT 1 FROM sites WHERE id = ?", sid):
+            raise HTTPException(404, "Site not found")
         db.update("sites", sid, row)
     else:
         sid = db.insert("sites", row)
-    if isinstance(payload.get("team"), list):  # the people who work at the site, chosen on the site form
-        perms.need(user, "users.assign")
-        want = {str(x) for x in payload["team"]}
-        have = {r["user_id"] for r in db.all("SELECT user_id FROM user_sites WHERE site_id = ?", sid)}
-        for uid in want - have:
-            if db.one("SELECT 1 FROM users WHERE id = ?", uid):
-                db.insert("user_sites", {"user_id": uid, "site_id": sid})
-        for uid in have - want:
-            db.run("DELETE FROM user_sites WHERE user_id = ? AND site_id = ?", uid, sid)
-    db.audit(user["id"], "site_save", "site", sid, name)
+    # only the people the form added or took off change: a team that never loaded cannot empty the site
+    for uid in {str(x) for x in add}:
+        if db.one("SELECT 1 FROM users WHERE id = ?", uid) and not db.one("SELECT 1 FROM user_sites WHERE user_id = ? AND site_id = ?", uid, sid):
+            db.insert("user_sites", {"user_id": uid, "site_id": sid})
+    for uid in {str(x) for x in remove} - {str(x) for x in add}:
+        db.run("DELETE FROM user_sites WHERE user_id = ? AND site_id = ?", uid, sid)
+    db.audit(user["id"], "site_save", "site", sid, f"{name}" + (f" · team +{len(add)} -{len(remove)}" if add or remove else ""))
     return {"id": sid}
+
+
+@app.get("/api/admin/sites")
+def admin_sites(user: UserDep, db: DbDep):
+    """Every site, closed ones too, so a closed site can be opened again."""
+    perms.need(user, "sites.edit")
+    return {"rows": db.all("SELECT * FROM sites ORDER BY active DESC, name")}
 
 
 def site_rule(v) -> int:

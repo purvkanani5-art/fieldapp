@@ -197,8 +197,8 @@ def export_rows(db: Db, month: str) -> list[dict]:
         t = res["totals"]
         leave = dict.fromkeys(LEAVE_COLS, 0.0)
         for d in res["days"]:
-            if d.get("leave_days"):  # 1 for a leave day, 0.5 for a half-day leave
-                leave[d["leave_type"] if d["leave_type"] in leave else "Casual"] += d["leave_days"]
+            for typ, days in d.get("leave_parts") or []:  # (type, 1) for a leave day, (type, 0.5) for each half-day leave
+                leave[typ if typ in leave else "Casual"] += days
         lop = t["A"] + t["unpaid"] + 0.5 * t["H"]
         out.append({"user_id": u["id"], "employee_id": u["employee_id"], "name": u["name"], "designation": u["designation"], "days": days_in,
                     "paid_days": max(0.0, days_in - lop), "lop_days": lop, "present": t["P"], "half_days": t["H"], "absent": t["A"],
@@ -239,7 +239,7 @@ def month_checks(db: Db, month: str, rows: list[dict]) -> list[dict]:
 
 
 def managers_for_month(db: Db) -> list[dict]:
-    return db.all("SELECT id, name, designation FROM users WHERE role = 'manager' AND active = 1 ORDER BY name")
+    return db.all("SELECT id, name, designation FROM users WHERE role = 'manager' AND COALESCE(level, '') = '' AND active = 1 ORDER BY name")
 
 
 # ------------------------------------------------------------------ audiences (notices and surveys)
@@ -505,7 +505,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
 
     @r.post("/hr/month/{month}/review")
     def month_review(month: str, payload: dict, user: user_dep, db: db_dep):
-        if user["role"] != "manager":
+        if user["role"] != "manager" or user.get("level"):
             raise HTTPException(403, "Project managers confirm their team's month")
         check_month(month)
         if is_locked(db, month):
@@ -697,7 +697,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
             own = db.one("SELECT checkin_at, checkout_at FROM attendance WHERE user_id = ? AND substr(checkin_at, 1, 10) BETWEEN ? AND ? ORDER BY checkin_at LIMIT 1", u["id"],
                          (date.fromisoformat(day) - timedelta(days=1)).isoformat(), day)
             own_day = own and modules.to_local(own["checkin_at"]).date().isoformat() == day
-            lv = db.one("SELECT type FROM leaves WHERE user_id = ? AND status = 'approved' AND from_date <= ? AND to_date >= ?", u["id"], day, day)
+            lv = db.one("SELECT type FROM leaves WHERE user_id = ? AND status = 'approved' AND COALESCE(half, '') = '' AND from_date <= ? AND to_date >= ?", u["id"], day, day)
             ln = lines.get(u["id"])
             state = ("own", f"Checked in {modules.to_local(own['checkin_at']):%H:%M} on own phone") if own_day else ("leave", f"On {lv['type'].lower()} leave") if lv else                 ("phone", "Uses the app: checks in on own phone") if u["app_access"] else (None, "")
             people.append({**u, "locked": state[0], "lockText": state[1], "code": ln["code"] if ln else "", "ot": ln["ot_hours"] if ln else 0, "note": ln["note"] if ln else ""})
