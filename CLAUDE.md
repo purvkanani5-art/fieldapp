@@ -223,6 +223,20 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
    editable in Settings > Lists. Visibility (sites, people) still follows the access level. Demo adds EMP004
    Accounts Executive. Tests: .cache/kl_perms_check.py (48), kl-perms-ui.mjs (18).
 
+29. **Half-day leave, withdraw, GPS that waits (2026-11-18)**, for the field trial. Half day: leaves.half
+   ('' / first / second), one date only, 0.5 day in balances, approval amounts, register and Zoho export; two halves
+   of one day are allowed, overlaps refused. attendance_month: paid half leave + any work = P, unpaid half + work = H,
+   half leave and no work = H (paid half) or A (unpaid); each day carries leave_days / leave_type (export counts
+   them). Withdraw (status 'withdrawn', record kept, open steps closed, approvers and the manager told): own leave
+   while pending or approved before its first day; own travel claim while submitted; own approval records
+   (expense, advance, purchase, farmer payment, attendance correction) while pending. GPS: phones give a tower /
+   Wi-Fi guess first, so locate() keeps a watchPosition open up to 30 s, keeps the best reading, stops at ±15 m;
+   check-in, check-out and trips wait for ±work_hours.gps_accuracy_m (default 50, HR settings) and after 30 s allow
+   a weak reading (button and record say "weak GPS"); readings over 2 min old are refreshed before saving; ±1 km+
+   shows how to turn on precise location. Only the GPS parts repaint while the reading improves (data-gps), so
+   typing and taps are not lost. Site editor: "Set to where I am standing now" takes a careful 30 s reading.
+   Fake-GPS detection needs the native Android app (later). Tests: kl_halfday_check.py, kl-halfday-ui.mjs.
+
 ## Testing
 - `D:\PersonalBooks\.cache\kl-e2e.mjs` (2026-11-14): resets the demo, then manager assigns a photo-proof task →
   worker gets inbox item, ticks checklist, completes with sample photo → manager inbox "Task done" with note and

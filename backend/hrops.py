@@ -197,8 +197,8 @@ def export_rows(db: Db, month: str) -> list[dict]:
         t = res["totals"]
         leave = dict.fromkeys(LEAVE_COLS, 0.0)
         for d in res["days"]:
-            if d["code"] == "L":
-                leave[d["note"] if d["note"] in leave else "Casual"] += 1
+            if d.get("leave_days"):  # 1 for a leave day, 0.5 for a half-day leave
+                leave[d["leave_type"] if d["leave_type"] in leave else "Casual"] += d["leave_days"]
         lop = t["A"] + t["unpaid"] + 0.5 * t["H"]
         out.append({"user_id": u["id"], "employee_id": u["employee_id"], "name": u["name"], "designation": u["designation"], "days": days_in,
                     "paid_days": max(0.0, days_in - lop), "lop_days": lop, "present": t["P"], "half_days": t["H"], "absent": t["A"],
@@ -629,9 +629,9 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
         for u in db.all("SELECT id, employee_id, name, designation FROM users WHERE active = 1 ORDER BY employee_id"):
             if team is not None and u["id"] not in team:
                 continue
-            lvs = db.all("SELECT from_date, to_date, type, status, reason FROM leaves WHERE user_id = ? AND substr(from_date, 1, 4) = ? ORDER BY from_date", u["id"], str(year))
+            lvs = db.all("SELECT from_date, to_date, half, type, status, reason FROM leaves WHERE user_id = ? AND substr(from_date, 1, 4) = ? ORDER BY from_date", u["id"], str(year))
             for lv in lvs:
-                lv["days"] = modules.leave_days(db, lv["from_date"], lv["to_date"])
+                lv["days"] = modules.leave_len(db, lv)
             rows.append({**u, "balances": leave_balances(db, u["id"], year), "leaves": lvs})
         company = (db.setting("company") or {}).get("name", "")
         if fmt == "pdf":

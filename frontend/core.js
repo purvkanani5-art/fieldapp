@@ -284,37 +284,134 @@ function distanceM(lat1, lng1, lat2, lng2) {
   const a = Math.sin(((lat2 - lat1) * r) / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(((lng2 - lng1) * r) / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(a));
 }
-/** Start locating in the background; the view re-renders when the fix lands. */
+/* Phones give a rough guess from towers or Wi-Fi first (often ±100 m to ±2 km) and the satellite fix a few seconds
+   later, so the app keeps listening for up to GPS_WAIT_MS, keeps the most accurate reading, and stops early once it is
+   very good. Check-in and trips wait until the reading is within gpsNeed() metres (HR settings, work hours); after the
+   wait a weaker reading can still be used, and the record shows its accuracy. */
+const GPS_WAIT_MS = 30000, GPS_GREAT_M = 15, GPS_FRESH_MS = 120000;
+const gpsNeed = () => Number(KL.boot?.gpsNeed) || 50;
+/** Accurate enough for check-in and trips. */
+const gpsGood = (g = KL.ui.gps) => Boolean(g && (g.simulated || g.accuracy <= gpsNeed()));
+/** Good, or the wait is over (then it is used and flagged as weak GPS). */
+const gpsUsable = () => Boolean(KL.ui.gps && (gpsGood() || KL.ui.gps.final));
+const gpsFresh = () => Boolean(KL.ui.gps && Date.now() - new Date(KL.ui.gps.at).getTime() < GPS_FRESH_MS);
+/** Start locating in the background; the GPS parts of the screen update as the reading improves. */
 function locate(force = false) {
   if (KL.ui.locating) return;
   if (!force && KL.ui.gps && Date.now() - new Date(KL.ui.gps.at).getTime() < 20000) return;
-  KL.ui.locating = true; KL.ui.gpsError = '';
-  render();
-  getFix({ fresh: force }).then((fix) => { KL.ui.gps = fix; }).catch((e) => { KL.ui.gpsError = e.message; }).finally(() => { KL.ui.locating = false; render(); });
+  if (!force && KL.ui.gps && Date.now() - (KL.ui.gpsEndedAt || 0) < 20000) return; // just finished a wait: no new one on every redraw
+  KL.ui.locating = true; KL.ui.gpsError = ''; KL.ui.gpsSince = Date.now();
+  if (force) KL.ui.gps = null; // a fresh reading, never an old one
+  const prev = KL.ui.gps; // a background refresh keeps showing the last reading until the new one is as good
+  let best = null, n = 0, timer = null, id = null;
+  const finish = (err = '') => {
+    KL.ui.locating = false; KL.ui.gpsEndedAt = Date.now();
+    if (best) KL.ui.gps = { ...best, final: true }; // the wait is over: this reading can be used even if weak
+    else if (KL.ui.gps) KL.ui.gps.final = true;
+    if (err && !KL.ui.gps) KL.ui.gpsError = err;
+    gpsRender();
+  };
+  setTimeout(gpsRender, 0); // locate() is often called from inside render(): show "Finding…" right after it
+  if (DemoLoc.active() && simulatedFix()) {
+    getFix().then((fix) => { best = fix; finish(); }).catch((e) => finish(e.message));
+    return;
+  }
+  if (!navigator.geolocation) { finish('This phone has no location service'); return; }
+  const stop = (err = '') => { clearTimeout(timer); if (id !== null) navigator.geolocation.clearWatch(id); if (KL.ui.locating) finish(err); };
+  id = navigator.geolocation.watchPosition((p) => {
+    n += 1;
+    const fix = { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy, at: new Date().toISOString(), samples: n };
+    if (!best || fix.accuracy <= best.accuracy + 2) best = fix; // as good or better: take the newer reading
+    KL.ui.gps = !prev || best.accuracy <= Math.max(prev.accuracy, gpsNeed()) ? best : prev;
+    if (best.accuracy <= GPS_GREAT_M && n >= 2) stop();
+    else gpsPaint();
+  }, (err) => {
+    if (err.code === 1) stop('Location is blocked. Allow location for this app in your phone settings.');
+    else if (err.code === 3) stop('Could not get a location fix. Move to open sky and try again.');
+  }, { enableHighAccuracy: true, maximumAge: 0, timeout: GPS_WAIT_MS });
+  timer = setTimeout(() => stop('Could not get a location fix. Move to open sky and try again.'), GPS_WAIT_MS);
 }
+/** Redraw the screen for a GPS change, but not while someone is typing (only the GPS parts change then). */
+function gpsRender() {
+  const a = document.activeElement;
+  if (a && a.matches && a.matches('input:not([type=checkbox]):not([type=radio]), textarea')) { gpsPaint(true); return; }
+  render();
+  KL.ui.gpsShape = gpsShapeNow();
+}
+/** What decides the buttons on a GPS screen: a reading or not, good enough, still listening, inside each site shown. */
+function gpsShapeNow() {
+  return [Boolean(KL.ui.gps), gpsGood(), gpsUsable(), KL.ui.locating, ...[...document.querySelectorAll('[data-gps]')].map((el) => (el.dataset.site ? insideSite(siteById(el.dataset.site)) : ''))].join('|');
+}
+/** Update only the GPS parts of the screen (status, line, map); a full redraw when the result changes (inside / outside, good enough). */
+function gpsPaint(partsOnly = false) {
+  const parts = [...document.querySelectorAll('[data-gps]')];
+  if (!parts.length) return;
+  if (!partsOnly && gpsShapeNow() !== KL.ui.gpsShape) return gpsRender();
+  for (const el of parts) {
+    const site = el.dataset.site ? siteById(el.dataset.site) : null;
+    const html = el.dataset.gps === 'line' ? gpsLine(site) : el.dataset.gps === 'geo' ? geoCard(site) : siteStatus(site, el.dataset.att ? KL.me?.openAttendance : null);
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    const fresh = tmp.firstElementChild;
+    if (fresh) { el.replaceWith(fresh); translate(fresh); }
+  }
+}
+/** The reading in words, how it is improving, and what to do when it stays weak. */
 function gpsLine(site) {
   const g = KL.ui.gps;
-  if (KL.ui.locating && !g) return `<div class="gps wait"><span class="dot"></span><span>Finding your location…</span>${DemoLoc.active() ? '<span class="sim">demo</span>' : ''}</div>`;
-  if (!g) return `<div class="gps bad"><span class="dot"></span><span>${esc(KL.ui.gpsError || 'Location not found yet.')}</span><button type="button" class="btn small ghost" data-action="locate">Retry</button></div>`;
-  let text = `±${Math.round(g.accuracy)} m · ${g.lat.toFixed(5)}, ${g.lng.toFixed(5)}`;
+  const sid = site?.id ? ` data-site="${esc(site.id)}"` : '';
+  if (KL.ui.locating && !g) return `<div class="gps wait" data-gps="line"${sid}><span class="dot"></span><span>Finding your location…</span>${DemoLoc.active() ? '<span class="sim">demo</span>' : ''}</div>`;
+  if (!g) return `<div class="gps bad" data-gps="line"${sid}><span class="dot"></span><span>${esc(KL.ui.gpsError || 'Location not found yet.')}</span><button type="button" class="btn small ghost" data-action="locate">Retry</button></div>`;
+  const acc = Math.round(g.accuracy);
+  let text = `±${acc} m · ${g.lat.toFixed(5)}, ${g.lng.toFixed(5)}`;
   let cls = 'ok';
   if (site) {
     const d = distanceM(g.lat, g.lng, site.lat, site.lng);
-    const slack = Math.min(g.accuracy || 0, 50);
-    const inside = d <= site.radius_m + slack;
+    const inside = insideSite(site);
     cls = inside ? 'ok' : 'bad';
-    text = `${inside ? 'At the site' : 'Not at the site'}: ${fmtNum(d)} m away (allowed ${site.radius_m} m) · GPS ±${Math.round(g.accuracy)} m`;
+    text = `${inside ? 'At the site' : 'Not at the site'}: ${fmtNum(d)} m away (allowed ${site.radius_m} m) · GPS ±${acc} m`;
   }
-  return `<div class="gps ${cls}"><span class="dot"></span><span>${esc(text)}</span>${g.simulated ? '<span class="sim">demo</span>' : ''}<button type="button" class="btn small ghost" data-action="locate" aria-label="Refresh location">${ic('refresh')}</button></div>`;
+  const good = gpsGood();
+  if (!good && KL.ui.locating) { cls = 'wait'; text = `Improving GPS: ±${acc} m now, needs ±${gpsNeed()} m or better`; }
+  let help = '';
+  if (!good && !KL.ui.locating) {
+    help = acc >= 1000
+      ? `<div class="banner warn gps-help">${ic('alert')}<div><b>Your phone is giving only an approximate location (±${fmtNum(acc)} m)</b><p>Turn on precise location, then tap Retry. Android: Settings › Location › App location permissions › Chrome › Use precise location, and Settings › Location › Location services › Google Location Accuracy on. iPhone: Settings › Privacy & Security › Location Services › Safari Websites › Precise Location on.</p></div></div>`
+      : `<div class="banner warn gps-help">${ic('alert')}<div><b>Weak GPS (±${acc} m)</b><p>Step outside, away from roofs and walls, keep mobile data on, and tap Retry. You can still go ahead; your manager sees that the GPS was weak.</p></div></div>`;
+  }
+  return `<div class="gps-wrap" data-gps="line"${sid}><div class="gps ${cls}"><span class="dot"></span><span>${esc(text)}</span>${g.simulated ? '<span class="sim">demo</span>' : ''}<button type="button" class="btn small ghost" data-action="locate" aria-label="Refresh location">${ic('refresh')}</button></div>${help}</div>`;
 }
 /** Where you are relative to the site, in words, first thing on the check-in screen. */
 function siteStatus(site, att = null) {
   const g = KL.ui.gps;
   if (!site) return '';
-  if (!g) return `<div class="ci-status wait"><span class="ci-dot" aria-hidden="true"></span><div><b>${KL.ui.locating ? 'Finding your location…' : 'Location not found yet'}</b><span>${esc(site.name)} · allowed within ${site.radius_m} m</span></div></div>`;
+  const attrs = `data-gps="status" data-site="${esc(site.id || '')}"${att ? ' data-att="1"' : ''}`;
+  if (!g) return `<div class="ci-status wait" ${attrs}><span class="ci-dot" aria-hidden="true"></span><div><b>${KL.ui.locating ? 'Finding your location…' : 'Location not found yet'}</b><span>${esc(site.name)} · allowed within ${site.radius_m} m</span></div></div>`;
   const d = distanceM(g.lat, g.lng, site.lat, site.lng);
   const inside = insideSite(site);
-  return `<div class="ci-status ${inside ? 'ok' : 'bad'}" role="status"><span class="ci-dot" aria-hidden="true"></span><div><b>${inside ? `Inside ${esc(site.name)}` : `Outside ${esc(site.name)}`}</b><span>${fmtNum(d)} m from the centre · allowed ${site.radius_m} m · GPS ±${Math.round(g.accuracy)} m${att ? ` · checked in ${esc((fmtDate(att.checkin_at).split(', ')[1]) || '')}` : ''}</span></div>${tag(inside ? 'At site' : 'Away', inside ? 'ok' : 'bad')}</div>`;
+  const weak = !gpsGood();
+  return `<div class="ci-status ${inside ? 'ok' : 'bad'}" role="status" ${attrs}><span class="ci-dot" aria-hidden="true"></span><div><b>${inside ? `Inside ${esc(site.name)}` : `Outside ${esc(site.name)}`}</b><span>${fmtNum(d)} m from the centre · allowed ${site.radius_m} m · GPS ±${Math.round(g.accuracy)} m${weak ? (KL.ui.locating ? ' (improving…)' : ' (weak)') : ''}${att ? ` · checked in ${esc((fmtDate(att.checkin_at).split(', ')[1]) || '')}` : ''}</span></div>${tag(inside ? 'At site' : 'Away', inside ? 'ok' : 'bad')}</div>`;
+}
+/** One careful reading for setting a site centre: listen up to 30 s, stop at ±10 m; resolves with the best fix or null. */
+function measureHere() {
+  if (DemoLoc.active() && simulatedFix()) return getFix();
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) return resolve(null);
+    let best = null, n = 0, id = null;
+    const done = () => { clearTimeout(timer); navigator.geolocation.clearWatch(id); resolve(best); };
+    const timer = setTimeout(done, GPS_WAIT_MS);
+    id = navigator.geolocation.watchPosition((p) => {
+      n += 1;
+      if (!best || p.coords.accuracy <= best.accuracy) best = { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy, at: new Date().toISOString() };
+      if (best.accuracy <= 10 && n >= 3) done();
+    }, (err) => { if (err.code === 1) done(); }, { enableHighAccuracy: true, maximumAge: 0, timeout: GPS_WAIT_MS });
+  });
+}
+/** Before saving check-in, check-out or a trip: a fresh, usable reading; otherwise start one and say why. */
+function gpsReadyFor(what) {
+  if (!KL.ui.gps || !gpsFresh()) { locate(true); toast(`Getting a fresh location for ${what}. Try again in a few seconds.`, 'error'); return false; }
+  if (!gpsUsable()) { toast(`Waiting for accurate GPS (±${Math.round(KL.ui.gps.accuracy)} m now, needs ±${gpsNeed()} m)`, 'error'); return false; }
+  return true;
 }
 /** Items saved on this phone and not yet sent, optionally only those for one API path prefix. */
 function queuedList(prefix = '') {
@@ -338,7 +435,7 @@ function geoCard(site) {
     me = `<span class="me ${inside ? '' : 'out'}" style="left:calc(50% + ${(dx * k * f).toFixed(1)}px);top:calc(50% - ${(dy * k * f).toFixed(1)}px)"></span>`;
     legend = `<span>${esc(site.name)} · ${site.radius_m} m fence</span>${tag(inside ? 'Inside' : `${fmtNum(d)} m away`, inside ? 'ok' : 'bad')}`;
   }
-  return `<div class="geo-card"><div class="grid"></div><div class="fence"></div><div class="site"></div>${me}<div class="legend">${legend}</div></div>`;
+  return `<div class="geo-card" data-gps="geo" data-site="${esc(site.id || '')}"><div class="grid"></div><div class="fence"></div><div class="site"></div>${me}<div class="legend">${legend}</div></div>`;
 }
 /** Prototype switch: pretend location (at the site, away) or the real GPS. */
 function demoRibbon() {
@@ -649,7 +746,7 @@ function lrow({ href, action, data = {}, icon = 'dot', tone = '', title, sub, ri
 }
 const tag = (text, tone = '') => `<span class="tag ${tone}">${esc(text)}</span>`;
 /** The one status vocabulary (design-system/MASTER.md): same word and colour on every screen. */
-const STATUS = { ok: ['At site', 'ok'], pending: ['Pending', 'warn'], rejected: ['Rejected', 'bad'], open: ['Open', 'info'], submitted: ['Pending', 'warn'], approved: ['Approved', 'ok'],
+const STATUS = { ok: ['At site', 'ok'], pending: ['Pending', 'warn'], withdrawn: ['Withdrawn', ''], rejected: ['Rejected', 'bad'], open: ['Open', 'info'], submitted: ['Pending', 'warn'], approved: ['Approved', 'ok'],
   closed: ['Closed', ''], in_progress: ['In progress', 'info'], not_started: ['Not started', ''], completed: ['Done', 'ok'], locked: ['Locked', 'ok'], draft: ['Draft', 'info'],
   late: ['Late', 'warn'], absent: ['Absent', 'bad'], present: ['Present', 'ok'], leave: ['On leave', 'info'], offline: ['Offline', 'bad'], queued: ['Saved on phone', 'warn'],
   synced: ['Synced', 'ok'], overdue: ['Overdue', 'bad'], done: ['Done', 'ok'], produced: ['Produced', 'info'], tested: ['Tested', 'ok'], applied: ['Applied', 'ok'],

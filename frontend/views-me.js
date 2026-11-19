@@ -129,25 +129,36 @@ Views.leaves = () => {
   const list = data('leaves:mine', () => api('/api/leaves'));
   const types = KL.boot?.leaveTypes || ['Casual'];
   const bal = data('hr:balances', () => api('/api/hr/leave-balances'));
+  const half = F('lv-half', '');
+  const dates = (l) => `${esc(fmtDate(l.from_date, false))}${l.to_date !== l.from_date ? ` to ${esc(fmtDate(l.to_date, false))}` : ''}${l.half ? ` · ${l.half === 'first' ? 'first half' : 'second half'}` : ''}`;
+  const withdrawBtn = (l) => (l.canWithdraw ? `<button type="button" class="btn small ghost" data-action="leaveWithdraw" data-id="${esc(l.id)}" data-approved="${l.status === 'approved' ? '1' : ''}">Withdraw</button>` : '');
   return `${topbar('Leave', '#me')}
     ${bal && !bal.error ? `<div class="tiles four" style="margin-bottom:14px">${bal.rows.map((b) => `<div class="tile ${b.available === null ? '' : b.available <= 1 ? 'warn' : 'ok'}"><b>${b.available === null ? '∞' : fmtNum(b.available, 1)}</b><span>${esc(b.type)} left${b.available === null ? ' (unpaid)' : ` · ${fmtNum(b.accrued + b.opening, 1)} credited, ${fmtNum(b.used, 1)} used${b.pending ? `, ${fmtNum(b.pending, 1)} pending` : ''}`}</span></div>`).join('')}</div>` : ''}
     ${group('Apply for leave', `<div class="card stack">
-      <div class="grid2">${field('From', input('lv-from', F('lv-from', todayISO()), { type: 'date' }), { required: true })}${field('To', input('lv-to', F('lv-to', todayISO()), { type: 'date' }), { required: true })}</div>
-      <div class="grid2">${field('Type', select('lv-type', F('lv-type', types[0]), types), { required: true })}${field('Reason', input('lv-reason', F('lv-reason'), { placeholder: 'Optional' }), { help: 'Your manager sees this.' })}</div>
+      <div class="grid2">${field('Length', select('lv-half', half, [['', 'Full day or days'], ['first', 'Half day · first half'], ['second', 'Half day · second half']]))}${field('Type', select('lv-type', F('lv-type', types[0]), types), { required: true })}</div>
+      <div class="grid2">${field(half ? 'Date' : 'From', input('lv-from', F('lv-from', todayISO()), { type: 'date' }), { required: true })}${half ? '' : field('To', input('lv-to', F('lv-to', todayISO()), { type: 'date' }), { required: true })}</div>
+      ${field('Reason', input('lv-reason', F('lv-reason'), { placeholder: 'Optional' }), { help: 'Your manager sees this.' })}
       <button type="button" class="btn primary wide" data-action="leaveApply">Apply</button>
     </div>`)}
     ${group('My leave', list === null ? spinner() : list.error ? errorBox(list.error) : list.rows.length ? dataTable({ id: 'my-leave', rows: list.rows, pageSize: 10,
-      filters: [{ key: 'st', label: 'Status', options: [['pending', 'Pending'], ['approved', 'Approved'], ['rejected', 'Rejected']], match: (l, v) => l.status === v }],
-      columns: [{ key: 'from_date', label: 'Dates', render: (l) => `${esc(fmtDate(l.from_date, false))}${l.to_date !== l.from_date ? ` to ${esc(fmtDate(l.to_date, false))}` : ''}` },
+      filters: [{ key: 'st', label: 'Status', options: [['pending', 'Pending'], ['approved', 'Approved'], ['rejected', 'Rejected'], ['withdrawn', 'Withdrawn']], match: (l, v) => l.status === v }],
+      columns: [{ key: 'from_date', label: 'Dates', render: (l) => dates(l) },
         { key: 'type', label: 'Type' }, { key: 'days', label: 'Days', align: 'right', value: (l) => l.days || 0, render: (l) => fmtNum(l.days || 0, 1) },
         { key: 'reason', label: 'Note', phone: false, render: (l) => esc([l.reason, l.decision_note, l.status === 'pending' && l.waiting ? `with ${l.waiting}` : ''].filter(Boolean).join(' · ') || '–') },
-        { key: 'status', label: 'Status', render: (l) => statusTag(l.status) }],
-      phoneRow: (l) => `<div class="lrow-static row"><span class="tx" style="flex:1"><b>${esc(l.type)} · ${esc(fmtDate(l.from_date, false))}${l.to_date !== l.from_date ? ` to ${esc(fmtDate(l.to_date, false))}` : ''}</b><span class="muted" style="font-size:14px;display:block">${fmtNum(l.days || 0, 1)} working day${l.days === 1 ? '' : 's'}${l.reason ? ` · ${esc(l.reason)}` : ''}${l.decision_note ? ` · ${esc(l.decision_note)}` : ''}${l.status === 'pending' && l.waiting ? ` · with ${esc(l.waiting)}` : ''}</span></span>${statusTag(l.status)}</div>` })
+        { key: 'status', label: 'Status', render: (l) => `${statusTag(l.status)} ${withdrawBtn(l)}` }],
+      phoneRow: (l) => `<div class="lrow-static row"><span class="tx" style="flex:1"><b>${esc(l.type)} · ${dates(l)}</b><span class="muted" style="font-size:14px;display:block">${l.half ? 'Half day' : `${fmtNum(l.days || 0, 1)} working day${l.days === 1 ? '' : 's'}`}${l.reason ? ` · ${esc(l.reason)}` : ''}${l.decision_note ? ` · ${esc(l.decision_note)}` : ''}${l.status === 'pending' && l.waiting ? ` · with ${esc(l.waiting)}` : ''}</span></span><span class="right">${statusTag(l.status)}${l.canWithdraw ? `<br/>${withdrawBtn(l)}` : ''}</span></div>` })
       : emptyState('sun', 'No leave requests yet', 'Apply above; your manager is told at once.'))}`;
 };
 Actions.leaveApply = async () => {
   try {
-    await api('/api/leaves', { json: { from: F('lv-from', todayISO()), to: F('lv-to', todayISO()), type: F('lv-type', KL.boot.leaveTypes[0]), reason: F('lv-reason', '') } });
-    clearF('lv-reason'); invalidate('leaves', 'hr:balances'); toast('Leave request sent to your manager'); render();
+    const half = F('lv-half', '');
+    const from = F('lv-from', todayISO());
+    await api('/api/leaves', { json: { from, to: half ? from : F('lv-to', todayISO()), half, type: F('lv-type', KL.boot.leaveTypes[0]), reason: F('lv-reason', '') } });
+    clearF('lv-reason', 'lv-half'); invalidate('leaves', 'hr:balances'); toast('Leave request sent to your manager'); render();
   } catch (e) { toast(e.message, 'error'); }
+};
+Actions.leaveWithdraw = async (el) => {
+  const approved = Boolean(el.dataset.approved);
+  if (!(await modal({ title: approved ? 'Cancel this approved leave?' : 'Withdraw this leave request?', message: approved ? 'The days go back to your balance and your manager is told. You can apply again if you need to.' : 'It is taken back from your approvers and the days go back to your balance.', confirmText: 'Withdraw', danger: true }))) return;
+  try { await api(`/api/leaves/${el.dataset.id}/withdraw`, { json: {} }); invalidate('leaves', 'hr:balances', 'approvals'); await refreshMe(); toast('Leave withdrawn'); render(); } catch (e) { toast(e.message, 'error'); }
 };

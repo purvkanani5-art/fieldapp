@@ -189,12 +189,14 @@ async function resetPinFlow(u) {
 function adminSites() {
   return `${topbar('Sites & geofences', '#admin', '<button type="button" class="btn small primary" data-action="siteEdit">+ Add</button>')}
     <div class="card flush">${KL.boot.sites.map((s) => lrow({ action: 'siteEdit', data: { id: s.id }, icon: PROJECT_ICON[s.project_type] || 'pin', title: s.name, sub: `${esc(s.project_type)} · ${s.lat.toFixed(5)}, ${s.lng.toFixed(5)} · radius ${s.radius_m} m${s.address ? ` · ${esc(s.address)}` : ''}` })).join('')}</div>
-    <p class="hint" style="margin-top:8px">Stand at the centre of the site and tap "Use my location" in the form to set the coordinates. Radius is how far from the centre a check-in still counts.</p>`;
+    <p class="hint" style="margin-top:8px">To set a centre, stand at the middle of the site, open it here and choose "Set to where I am standing now". The app takes a careful GPS reading (up to 30 seconds). Radius is how far from the centre a check-in still counts.</p>`;
 }
 Actions.siteEdit = async (el) => {
   const s = el.dataset.id ? KL.boot.sites.find((x) => x.id === el.dataset.id) : null;
   const g = KL.ui.gps;
+  const HERE = 'Set to where I am standing now', TYPED = 'Use the numbers below';
   const v = await modal({ title: s ? `Edit ${s.name}` : 'New site', fields: [
+    { key: 'centre', label: 'Site centre', type: 'select', options: [TYPED, HERE], value: s ? TYPED : HERE },
     { key: 'name', label: 'Name', value: s?.name || '' }, { key: 'project_type', label: 'Project', type: 'select', options: [...(KL.boot.projectList || []).filter((p) => p.key !== 'management').map((p) => p.key), 'office'], value: s?.project_type || 'biochar' },
     { key: 'subtype', label: 'Biochar type (biochar sites only)', type: 'select', options: ['kiln', 'plant', ''], value: s?.subtype || 'kiln' },
     { key: 'strict', label: 'Check-in rule', type: 'select', options: ['Allow exceptions', 'Strict'], value: s?.strict ? 'Strict' : 'Allow exceptions' },
@@ -203,6 +205,15 @@ Actions.siteEdit = async (el) => {
     ...(s ? [{ key: 'active', label: 'Status', type: 'select', options: ['active', 'inactive'], value: s.active ? 'active' : 'inactive' }] : []),
   ], confirmText: 'Save' });
   if (!v) return;
+  if (v.centre === HERE) {
+    toast('Taking a careful GPS reading. Stand still in the open (up to 30 seconds)…');
+    const fix = await measureHere();
+    if (!fix) return toast('Could not get a location. Allow location for this app and try again in the open.', 'error');
+    if (fix.accuracy > 25 && !(await modal({ title: `GPS is only ±${Math.round(fix.accuracy)} m here`, message: 'The centre could be off by that much. Use it anyway, or cancel and try again in the open, away from roofs and walls.', confirmText: 'Use it' }))) return;
+    v.lat = fix.lat.toFixed(6); v.lng = fix.lng.toFixed(6);
+    toast(`Centre set at ±${Math.round(fix.accuracy)} m`);
+  }
+  delete v.centre;
   try { await api('/api/admin/sites', { json: { ...v, subtype: v.project_type === 'biochar' ? v.subtype : '', strict: v.strict === 'Strict', id: s?.id, active: s ? v.active === 'active' : true } }); await reloadBoot(); toast('Saved'); render(); } catch (e) { toast(e.message, 'error'); }
 };
 function adminItems() {

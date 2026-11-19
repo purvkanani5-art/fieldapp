@@ -46,8 +46,8 @@ Views.attendance = () => {
       ${geoCard(siteById(att.site_id))}
       ${gpsLine(site)}
       ${photoBox('checkout', 'Take check-out selfie', 'user', stamp)}
-      ${!inside && KL.ui.gps ? field('Why are you checking out from here?', textarea('att-reason', F('att-reason'), 'e.g. Left early for the next site, GPS weak inside the shed')) : ''}
-      <button type="button" class="btn primary wide" data-action="checkout" ${KL.ui.photos.checkout && KL.ui.gps ? '' : 'disabled'}>${inside || !KL.ui.gps ? 'Check out' : 'Check out with exception'}</button>
+      ${!inside && gpsUsable() ? field('Why are you checking out from here?', textarea('att-reason', F('att-reason'), 'e.g. Left early for the next site, GPS weak inside the shed')) : ''}
+      <button type="button" class="btn primary wide" data-action="checkout" ${KL.ui.photos.checkout && gpsUsable() ? '' : 'disabled'}>${!gpsUsable() ? gpsWaitText() : inside ? `Check out${weakText()}` : 'Check out with exception'}</button>
       <p class="hint">Location, time and the photo are recorded together. Check-out is allowed at the site; from elsewhere it goes to your manager as an exception.</p>
     </div>`;
   } else {
@@ -59,11 +59,11 @@ Views.attendance = () => {
       ${field('Site', select('att-site', chosen, sites.map((s) => [s.id, s.name]), { blank: sites.length === 1 ? '' : 'Choose the site' }))}
       ${site ? `${demoRibbon()}${geoCard(site)}${gpsLine(site)}` : `<p class="hint">Choose the site you have reached.</p>`}
       ${site ? photoBox('checkin', 'Take check-in selfie', 'user', stamp) : ''}
-      ${site && site.strict && KL.ui.gps && !inside ? `<div class="banner bad">${ic('lock')}<div><b>Strict site: check-in only inside the boundary</b><p>${esc(site.name)} does not allow exceptions. Move inside the ${site.radius_m} m circle.</p></div></div>` : ''}
-      ${site && !site.strict && KL.ui.gps && !inside ? field('Request an exception: why are you not inside the site boundary?', textarea('att-reason', F('att-reason'), 'e.g. Working at the far plot, boundary needs widening')) : ''}
-      ${site ? `<button type="button" class="btn primary wide" data-action="checkin" ${KL.ui.photos.checkin && KL.ui.gps && (inside || !site.strict) ? '' : 'disabled'}>${inside ? 'Check in' : KL.ui.gps && !site.strict ? 'Request check-in exception' : 'Check in'}</button>` : ''}
+      ${site && site.strict && gpsUsable() && !inside ? `<div class="banner bad">${ic('lock')}<div><b>Strict site: check-in only inside the boundary</b><p>${esc(site.name)} does not allow exceptions. Move inside the ${site.radius_m} m circle.</p></div></div>` : ''}
+      ${site && !site.strict && gpsUsable() && !inside ? field('Request an exception: why are you not inside the site boundary?', textarea('att-reason', F('att-reason'), 'e.g. Working at the far plot, boundary needs widening')) : ''}
+      ${site ? `<button type="button" class="btn primary wide" data-action="checkin" ${KL.ui.photos.checkin && gpsUsable() && (inside || !site.strict) ? '' : 'disabled'}>${!gpsUsable() ? gpsWaitText() : inside ? `Check in${weakText()}` : !site.strict ? 'Request check-in exception' : 'Check in'}</button>` : ''}
       ${site && site.strict ? `<p class="hint">${ic('lock')} Strict site. While you are checked in, the app tells your manager if you leave the boundary.</p>` : ''}
-      <p class="hint">Check-in is allowed only within ${site ? site.radius_m : '…'} m of the site. GPS accuracy up to 50 m is allowed on top. The selfie is taken live, not from the gallery.</p>
+      <p class="hint">Check-in is allowed only within ${site ? site.radius_m : '…'} m of the site. GPS accuracy up to 50 m is allowed on top. The app waits up to 30 seconds for GPS of ±${gpsNeed()} m or better; stand in the open. The selfie is taken live, not from the gallery.</p>
     </div>`;
   }
   const rows = hist && !hist.error ? hist.rows : [];
@@ -74,7 +74,7 @@ Views.attendance = () => {
 };
 function attRow(a, showUser = false) {
   const hours = a.checkout_at ? duration(a.checkin_at, a.checkout_at) : 'on site now';
-  return `<div class="lrow-static row">${authImg(a.checkin_file)}<span class="tx" style="flex:1;min-width:0"><b>${esc(showUser ? a.user_name : a.site_name)}</b><span class="muted" style="font-size:13px;display:block">${esc(showUser ? a.site_name + ' · ' : '')}${esc(fmtDate(a.checkin_at))} → ${esc(a.checkout_at ? fmtDate(a.checkout_at).split(', ')[1] || fmtDate(a.checkout_at) : '…')} · ${esc(hours)}${a.checkin_dist > 0 ? ` · ${fmtNum(a.checkin_dist)} m` : ''}</span>${a.override_reason ? `<span class="muted" style="font-size:12px;display:block">${esc(a.override_reason)}</span>` : ''}</span>${statusTag(a.status, 'attendance')}</div>`;
+  return `<div class="lrow-static row">${authImg(a.checkin_file)}<span class="tx" style="flex:1;min-width:0"><b>${esc(showUser ? a.user_name : a.site_name)}</b><span class="muted" style="font-size:13px;display:block">${esc(showUser ? a.site_name + ' · ' : '')}${esc(fmtDate(a.checkin_at))} → ${esc(a.checkout_at ? fmtDate(a.checkout_at).split(', ')[1] || fmtDate(a.checkout_at) : '…')} · ${esc(hours)}${a.checkin_dist > 0 ? ` · ${fmtNum(a.checkin_dist)} m` : ''}${a.checkin_acc > gpsNeed() ? ` · weak GPS ±${fmtNum(a.checkin_acc)} m` : ''}</span>${a.override_reason ? `<span class="muted" style="font-size:12px;display:block">${esc(a.override_reason)}</span>` : ''}</span>${statusTag(a.status, 'attendance')}</div>`;
 }
 Actions.locate = () => locate(true);
 Actions.photo = (el) => openCamera(el.dataset.slot, { facing: el.dataset.facing, kind: el.dataset.kind, stamp: JSON.parse(el.dataset.stamp || '[]') });
@@ -84,6 +84,7 @@ Actions.checkin = async () => {
   const p = KL.ui.photos.checkin;
   const g = KL.ui.gps;
   if (!site || !p || !g) return toast('Pick the site, wait for location and take the selfie', 'error');
+  if (!gpsReadyFor('check-in')) return;
   const inside = insideSite(site);
   const reason = F('att-reason', '').trim();
   if (!inside && !reason) { render(); return toast('Write why you are checking in from outside the boundary', 'error'); }
@@ -104,6 +105,7 @@ Actions.checkout = async () => {
   const p = KL.ui.photos.checkout;
   const g = KL.ui.gps;
   if (!att || !p || !g) return toast('Wait for location and take the selfie', 'error');
+  if (!gpsReadyFor('check-out')) return;
   const site = siteById(att.site_id);
   const inside = insideSite(site);
   const reason = F('att-reason', '').trim();
@@ -138,7 +140,7 @@ Views.trips = () => {
       ${field('Odometer reading now (km)', input('trip-end-reading', F('trip-end-reading'), { type: 'number', inputmode: 'decimal', placeholder: String(Math.round(trip.start_reading)), step: '0.1', min: trip.start_reading }))}
       <div id="preview">${KL.ui.previewFn()}</div>
       ${photoBox('tripEnd', 'Photograph the odometer', 'environment', stamp)}
-      <button type="button" class="btn primary wide" data-action="tripEnd" ${KL.ui.photos.tripEnd && KL.ui.gps ? '' : 'disabled'}>End trip and submit</button>
+      <button type="button" class="btn primary wide" data-action="tripEnd" ${KL.ui.photos.tripEnd && gpsUsable() ? '' : 'disabled'}>${gpsUsable() ? `End trip and submit${weakText()}` : gpsWaitText()}</button>
     </div>`;
   } else {
     const vehicle = F('trip-vehicle', Object.keys(travel.vehicles)[0] || '');
@@ -151,7 +153,7 @@ Views.trips = () => {
       ${demoRibbon()}
       ${gpsLine()}
       ${photoBox('tripStart', 'Photograph the odometer', 'environment', stamp)}
-      <button type="button" class="btn primary wide" data-action="tripStart" ${KL.ui.photos.tripStart && KL.ui.gps ? '' : 'disabled'}>Start trip</button>
+      <button type="button" class="btn primary wide" data-action="tripStart" ${KL.ui.photos.tripStart && gpsUsable() ? '' : 'disabled'}>${gpsUsable() ? `Start trip${weakText()}` : gpsWaitText()}</button>
       <p class="hint">The start and end photos, readings and GPS points go to your manager. The app also shows them the straight-line distance between the two points.</p>
     </div>`;
   }
@@ -164,12 +166,21 @@ Views.trips = () => {
     ${group('My trips', list === null ? spinner() : list.error ? errorBox(list.error) : rows.length ? `<div class="card flush">${rows.map((t) => tripRow(t)).join('')}</div>` : `<div class="card"><p class="empty">No trips yet.</p></div>`)}`;
 };
 function tripRow(t, showUser = false) {
-  return `<div class="lrow-static row">${authImg(t.start_file)}<span class="tx" style="flex:1;min-width:0"><b>${esc(showUser ? t.user_name : `${fmtNum(t.km_claimed, 1)} km · ${t.vehicle}`)}</b><span class="muted" style="font-size:13px;display:block">${esc(showUser ? `${fmtNum(t.km_claimed, 1)} km · ${t.vehicle} · ` : '')}${esc(fmtDate(t.start_at))}${t.purpose ? ` · ${esc(t.purpose)}` : ''}${t.km_straight !== null && t.km_straight !== undefined ? ` · straight line ${fmtNum(t.km_straight, 1)} km` : ''}</span>${t.decision_note ? `<span class="muted" style="font-size:12px;display:block">${esc(t.decision_note)}</span>` : ''}</span><span class="right"><b class="mono">${esc(rupees(t.amount))}</b><br/>${statusTag(t.status)}</span></div>`;
+  return `<div class="lrow-static row">${authImg(t.start_file)}<span class="tx" style="flex:1;min-width:0"><b>${esc(showUser ? t.user_name : `${fmtNum(t.km_claimed, 1)} km · ${t.vehicle}`)}</b><span class="muted" style="font-size:13px;display:block">${esc(showUser ? `${fmtNum(t.km_claimed, 1)} km · ${t.vehicle} · ` : '')}${esc(fmtDate(t.start_at))}${t.purpose ? ` · ${esc(t.purpose)}` : ''}${t.km_straight !== null && t.km_straight !== undefined ? ` · straight line ${fmtNum(t.km_straight, 1)} km` : ''}</span>${t.decision_note ? `<span class="muted" style="font-size:12px;display:block">${esc(t.decision_note)}</span>` : ''}</span><span class="right"><b class="mono">${esc(rupees(t.amount))}</b><br/>${statusTag(t.status)}${!showUser && t.status === 'submitted' && t.user_id === KL.user.id ? `<br/><button type="button" class="btn small ghost" style="margin-top:6px" data-action="tripWithdraw" data-id="${esc(t.id)}">Withdraw</button>` : ''}</span></div>`;
 }
+/** Button text while GPS is not good enough yet. */
+const gpsWaitText = () => (KL.ui.gps ? `Waiting for accurate GPS (±${Math.round(KL.ui.gps.accuracy)} m)` : 'Waiting for location…');
+/** Added to the button when the wait is over and the reading is still weak. */
+const weakText = () => (KL.ui.gps && !gpsGood() ? ` (weak GPS ±${Math.round(KL.ui.gps.accuracy)} m)` : '');
+Actions.tripWithdraw = async (el) => {
+  if (!(await modal({ title: 'Withdraw this travel claim?', message: 'It is taken back from your approvers and kept on record as withdrawn. You cannot send it again.', confirmText: 'Withdraw', danger: true }))) return;
+  try { await api(`/api/trips/${el.dataset.id}/withdraw`, { json: {} }); invalidate('trips', 'approvals'); await refreshMe(); toast('Claim withdrawn'); render(); } catch (e) { toast(e.message, 'error'); }
+};
 Actions.tripStart = async () => {
   const g = KL.ui.gps, p = KL.ui.photos.tripStart;
   const reading = F('trip-reading');
   if (!g || !p || !reading) return toast('Reading, location and the odometer photo are needed', 'error');
+  if (!gpsReadyFor('the trip start')) return;
   try {
     const r = await submitEvidence('/api/trips/start', { vehicle: F('trip-vehicle', Object.keys(KL.boot.travel.vehicles)[0]), reading, purpose: F('trip-purpose', ''), siteId: F('trip-site', ''), lat: g.lat, lng: g.lng, takenAt: p.at }, photoFile('tripStart', 'odometer-start.jpg'), 'Trip start');
     const vehicle = F('trip-vehicle', Object.keys(KL.boot.travel.vehicles)[0]);
@@ -185,6 +196,7 @@ Actions.tripEnd = async () => {
   const trip = KL.me?.openTrip, g = KL.ui.gps, p = KL.ui.photos.tripEnd;
   const reading = F('trip-end-reading');
   if (!trip || !g || !p || !reading) return toast('Reading, location and the odometer photo are needed', 'error');
+  if (!gpsReadyFor('the trip end')) return;
   try {
     const r = await submitEvidence(`/api/trips/${trip.id}/end`, { reading, lat: g.lat, lng: g.lng, takenAt: p.at }, photoFile('tripEnd', 'odometer-end.jpg'), 'Trip end');
     clearPhotos('tripEnd'); clearF('trip-end-reading');

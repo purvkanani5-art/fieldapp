@@ -61,6 +61,7 @@ MIGRATIONS = [
     "ALTER TABLE sites ADD COLUMN subtype TEXT DEFAULT ''",
     "ALTER TABLE users ADD COLUMN department TEXT DEFAULT ''",
     "ALTER TABLE approval_steps ADD COLUMN subject_id TEXT",
+    "ALTER TABLE leaves ADD COLUMN half TEXT DEFAULT ''",  # '' full days, 'first' / 'second' half of one day
     "CREATE TABLE IF NOT EXISTS user_projects (user_id TEXT NOT NULL, project TEXT NOT NULL, PRIMARY KEY (user_id, project))",
 ]
 
@@ -98,7 +99,8 @@ DEFAULTS = {
         "Earned": {"per_year": 15, "accrual": "monthly"},
         "Unpaid": {"per_year": 0, "accrual": "none"},
     },
-    "work_hours": {"start": "09:00", "end": "18:00", "grace_min": 15, "half_day_hours": 4.5, "full_day_hours": 9, "weekly_off": [6]},
+    "work_hours": {"start": "09:00", "end": "18:00", "grace_min": 15, "half_day_hours": 4.5, "full_day_hours": 9, "weekly_off": [6],
+                   "gps_accuracy_m": 50},  # check-in waits for a GPS fix at least this good (metres)
     "retention": {"photos_years": 8, "attendance_years": 3, "farmer_documents_years": 10},
     "messaging": {"whatsapp": True, "sms": False},
 }
@@ -256,6 +258,9 @@ def init(db: Db) -> None:
     for k, v in DEFAULTS.items():
         if db.setting(k) is None:
             db.set_setting(k, v)
+    wh = db.setting("work_hours") or {}
+    if "gps_accuracy_m" not in wh:  # added 2026-11-18; HR can change it in HR settings
+        db.set_setting("work_hours", {**wh, "gps_accuracy_m": 50})
 
 
 def setting(db: Db, key: str):
@@ -415,6 +420,31 @@ def decide_chain(db: Db, kind: str, ref_id: str, user: dict, decision: str, note
     return "approved"
 
 
+def withdraw_chain(db: Db, kind: str, ref_id: str, user: dict, title: str, link: str) -> set:
+    """The person withdrew their own request: open steps close, and whoever approved it or is deciding it now is told."""
+    import perms
+
+    told: set = set()
+    for s in steps_for(db, kind, ref_id):
+        if s["status"] == "approved" and s["decided_by"]:
+            told.add(s["decided_by"])
+        elif s["status"] == "waiting":
+            if s["approver_id"]:
+                told.add(s["approver_id"])
+            elif s["role"].startswith(("role:", "dept:")):
+                told |= {m["id"] for m in perms.members(db, s["role"])}
+        if s["status"] in ("waiting", "queued"):
+            db.update("approval_steps", s["id"], {"status": "withdrawn", "decided_by": user["id"], "decided_at": now_iso()})
+    if not told:  # made before approval rules, or nobody decided yet: the reporting manager
+        mgr = (db.one("SELECT manager_id FROM users WHERE id = ?", user["id"]) or {}).get("manager_id")
+        if mgr:
+            told.add(mgr)
+    told.discard(user["id"])
+    for uid in told:
+        db.notify(uid, f"Withdrawn: {title}", f"{user['name']} withdrew this request", link)
+    return told
+
+
 def waiting_for(db: Db, user: dict) -> list[dict]:
     """Steps waiting for this user to decide."""
     import perms
@@ -447,7 +477,8 @@ def working_day(db: Db, d: date, hol: dict | None = None) -> bool:
     return d.isoformat() not in (hol if hol is not None else holidays(db))
 
 
-def leave_days(db: Db, fd: str, td: str) -> float:
+def leave_days(db: Db, fd: str, td: str, half: str = "") -> float:
+    """Working days between two dates; a half-day leave (one date, first or second half) is 0.5."""
     a, b = date.fromisoformat(fd), date.fromisoformat(td)
     hol = holidays(db)
     n, d = 0, a
@@ -455,7 +486,14 @@ def leave_days(db: Db, fd: str, td: str) -> float:
         if working_day(db, d, hol):
             n += 1
         d += timedelta(days=1)
-    return float(n)
+    return n * 0.5 if half and fd == td else float(n)
+
+
+def leave_len(db: Db, lv: dict) -> float:
+    return leave_days(db, lv["from_date"], lv["to_date"], lv.get("half") or "")
+
+
+HALVES = {"first": "first half", "second": "second half"}
 
 
 def leave_balances(db: Db, user_id: str, year: int | None = None) -> list[dict]:
@@ -472,7 +510,7 @@ def leave_balances(db: Db, user_id: str, year: int | None = None) -> list[dict]:
         opening = num(prof.get(f"opening_{typ.lower()}"))
         used = pending = 0.0
         for lv in db.all("SELECT * FROM leaves WHERE user_id = ? AND type = ? AND substr(from_date, 1, 4) = ? AND status IN ('approved', 'pending')", user_id, typ, str(year)):
-            days = leave_days(db, lv["from_date"], lv["to_date"])
+            days = leave_len(db, lv)
             if lv["status"] == "approved":
                 used += days
             else:
@@ -504,7 +542,15 @@ def attendance_month(db: Db, user_id: str, month: str) -> dict:
         d = to_local(a["checkin_at"]).date().isoformat()
         att.setdefault(d, []).append(a)
     lv: dict[str, str] = {}
+    hlv: dict[str, str] = {}  # half-day leave: date -> leave type
     for x in db.all("SELECT * FROM leaves WHERE user_id = ? AND status = 'approved' AND to_date >= ? AND from_date <= ?", user_id, first.isoformat(), last.isoformat()):
+        if x.get("half") and x["from_date"] == x["to_date"]:
+            if x["from_date"] in hlv:  # first and second half both on leave: a full day
+                hlv.pop(x["from_date"])
+                lv[x["from_date"]] = x["type"]
+            else:
+                hlv[x["from_date"]] = x["type"]
+            continue
         d = date.fromisoformat(x["from_date"])
         while d <= date.fromisoformat(x["to_date"]):
             lv[d.isoformat()] = x["type"]
@@ -521,8 +567,8 @@ def attendance_month(db: Db, user_id: str, month: str) -> dict:
     d = first
     while d <= last:
         key = d.isoformat()
-        rec = {"date": key, "code": "", "in": "", "out": "", "hours": 0.0, "late": False, "ot": 0.0, "note": ""}
-        if d > today or (d == today and key not in att and key not in lv and key not in reg and key not in mus):
+        rec = {"date": key, "code": "", "in": "", "out": "", "hours": 0.0, "late": False, "ot": 0.0, "note": "", "leave_days": 0.0, "leave_type": ""}
+        if d > today or (d == today and key not in att and key not in lv and key not in hlv and key not in reg and key not in mus):
             rec["code"] = "--"  # the future, or today before the person has checked in
         elif key in reg:
             r = reg[key]
@@ -551,8 +597,13 @@ def attendance_month(db: Db, user_id: str, month: str) -> dict:
             rec.update(code=m_["code"], ot=num(m_["ot_hours"]), note=f"crew muster by {m_['by_name'] or 'supervisor'}")
         elif key in lv:
             rec["code"], rec["note"] = "L", lv[key]
+            rec["leave_days"], rec["leave_type"] = 1.0, lv[key]
             if lv[key] == "Unpaid":
                 totals["unpaid"] += 1
+        elif key in hlv and working_day(db, d, hol):
+            # half-day leave and no work recorded: the other half is absent (loss of pay)
+            rec["code"] = "A" if hlv[key] == "Unpaid" else "H"
+            rec["note"] = f"½ day {hlv[key]} leave, ½ absent"
         elif key in hol:
             rec["code"], rec["note"] = "HO", hol[key]
         elif d.weekday() in wh.get("weekly_off", [6]):
@@ -561,6 +612,13 @@ def attendance_month(db: Db, user_id: str, month: str) -> dict:
             rec["code"] = "A"
             if key in mus:
                 rec["note"] = f"marked absent by {mus[key]['by_name'] or 'supervisor'}"
+        if key in hlv and rec["code"] != "--":
+            typ = hlv[key]
+            worked = key in reg or key in att or (key in mus and mus[key]["code"] in ("P", "H"))
+            if worked and rec["code"] in ("P", "H"):  # worked the other half: a paid half-day leave makes it a full day, an unpaid one a half day
+                rec["code"] = "H" if typ == "Unpaid" else "P"
+                rec["note"] = (rec["note"] + f" · ½ day {typ} leave").strip(" ·")
+            rec["leave_days"], rec["leave_type"] = 0.5, typ
         if rec["code"] in totals:
             totals[rec["code"]] += 1
         totals["late"] += 1 if rec["late"] else 0
@@ -778,6 +836,9 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
             raise HTTPException(404, "Not found")
         rec = enrich(db, kind, rec, full=True)
         rec["canDecide"] = bool(approver or (k.get("approval") and user["role"] == "admin")) and rec["status"] == "pending"
+        rec["canWithdraw"] = bool(k.get("approval")) and rec["status"] == "pending" and user["id"] in (rec.get("user_id"), rec.get("created_by"))
+        if rec["canWithdraw"] and rec.get("user_id") == user["id"]:
+            rec["canDecide"] = False  # your own request: withdraw it, someone else decides
         if kind == "policy":
             rec["acked"] = bool(db.one("SELECT 1 FROM records WHERE kind = 'policy_ack' AND user_id = ? AND json_extract(data, '$.policy') = ?", user["id"], rid))
         if kind == "batch":
@@ -798,6 +859,8 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
         if old:
             if not (is_staff(user) or old["created_by"] == user["id"]):
                 raise HTTPException(403, "Only the person who made it or a manager can change it")
+            if old["status"] == "withdrawn":
+                raise HTTPException(409, "This request was withdrawn; make a new one")
             if k.get("approval") and old["status"] in ("approved", "rejected") and not is_staff(user):
                 raise HTTPException(409, "Already decided; it can no longer be changed")
             if k.get("approval") and not is_staff(user) and db.one("SELECT 1 FROM approval_steps WHERE kind = ? AND ref_id = ? AND status <> 'pending'", kind, old["id"]):
@@ -1126,6 +1189,27 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
             if day and res == "approved":
                 hrops.log_change(db, user["id"], "attendance", rid, rec["user_id"], f"Attendance {day}", before, hrops.day_text(db, rec["user_id"], day), "attendance correction approved")
         return {"status": res}
+
+    @r.post("/m-steps/{kind}/{rid}/withdraw")
+    def withdraw(kind: str, rid: str, user: user_dep, db: db_dep):
+        """Take back your own request while it waits for approval; it stays on record as withdrawn."""
+        k = kind_or_404(kind)
+        rec = db.one("SELECT * FROM records WHERE id = ? AND kind = ?", rid, kind)
+        if not rec or user["id"] not in (rec["user_id"], rec["created_by"]):
+            raise HTTPException(404, "Not found")
+        if not k.get("approval") or rec["status"] != "pending":
+            raise HTTPException(409, "Only a request waiting for approval can be withdrawn")
+        import hrops
+
+        day = json.loads(rec["data"]).get("date", "") if kind == "regularisation" else ""
+        if day:
+            hrops.assert_open(db, day)
+        withdraw_chain(db, k["approval"], rid, user, f"{k['one']} · {rec['title']}", f"#rec/{kind}/{rid}")
+        db.update("records", rid, {"status": "withdrawn", "updated_at": now_iso()})
+        if kind in ("regularisation", "advance", "expense"):
+            hrops.log_change(db, user["id"], kind, rid, rec["user_id"], f"{k['one']} {rec['title']}", "pending", "withdrawn", "withdrawn by the employee")
+        db.audit(user["id"], f"{kind}_withdrawn", kind, rid, rec["title"])
+        return {"ok": True}
 
     # -------------------------------------------------------------- people
 

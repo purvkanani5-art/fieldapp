@@ -127,7 +127,7 @@ function recList(k) {
   KL.ui.siteBack = null;
   const list = data(`m:${k.key}`, () => api(`/api/m/${k.key}`));
   const st = F(`rl-${k.key}-status`, '');
-  const statuses = k.approval ? ['pending', 'approved', 'rejected'] : (k.statuses || []);
+  const statuses = k.approval ? ['pending', 'approved', 'rejected', 'withdrawn'] : (k.statuses || []);
   const rows = list && !list.error ? list.rows.filter((r) => !st || r.status === st) : [];
   const back = ['hr', 'money'].includes(k.group) ? (isStaff() ? '#hr' : '#me') : (isStaff() ? '#sites' : '#mysite');
   const right = `${isStaff() ? `<a class="btn icon-only" href="/api/m-export/${esc(k.key)}.csv?token=${encodeURIComponent(KL.token)}" aria-label="Download CSV">${ic('download')}</a>` : ''}${k.canCreate ? `<a class="btn small primary" href="#rec/${esc(k.key)}/new">${ic('plus')} New</a>` : ''}`;
@@ -175,7 +175,7 @@ function recDetail(k, id) {
   const back = KL.ui.siteBack || `#rec/${k.key}`;
   if (r === null) return `${topbar(k.one, back)}${spinner()}`;
   if (r.error) return `${topbar(k.one, back)}${errorBox(r.error)}`;
-  const mayEdit = isStaff() || (r.created_by === KL.user.id && !(k.approval && ['approved', 'rejected'].includes(r.status)));
+  const mayEdit = r.status !== 'withdrawn' && (isStaff() || (r.created_by === KL.user.id && !(k.approval && ['approved', 'rejected'].includes(r.status))));
   const right = `${mayEdit && !['batch', 'application', 'transfer', 'dispatch', 'checklist_run'].includes(k.key) ? `<a class="btn small" href="#rec/${esc(k.key)}/${esc(id)}/edit">${ic('pen')} Edit</a>` : ''}`;
   const kv = k.fields.filter((f) => !['checklist', 'answers', 'textarea'].includes(f.type)).map((f) => `<span>${esc(f.label)}</span><span>${esc(fmtVal(f, r.data[f.key]))}</span>`).join('');
   const long = k.fields.filter((f) => f.type === 'textarea' && r.data[f.key]).map((f) => `<div class="sec-text"><small>${esc(f.label)}</small><p>${esc(r.data[f.key])}</p></div>`).join('');
@@ -201,6 +201,7 @@ function recDetail(k, id) {
       ${statusBtns}${prBtns}
     </div>
     ${r.steps && r.steps.length ? stepsBox(k, r) : ''}
+    ${r.canWithdraw ? `<button type="button" class="btn" style="margin-top:14px" data-action="recWithdraw" data-kind="${esc(k.key)}" data-id="${esc(id)}">${ic('back')} Withdraw this request</button>` : ''}
     ${extra}
     ${isStaff() && !['batch', 'application', 'transfer', 'dispatch'].includes(k.key) ? `<button type="button" class="btn ghost" style="margin-top:14px;color:var(--danger)" data-action="recDelete" data-kind="${esc(k.key)}" data-id="${esc(id)}">${ic('trash')} Delete</button>` : ''}`;
 }
@@ -256,6 +257,10 @@ Actions.recDecide = async (el) => {
     invalidate(`m:${el.dataset.kind}`, 'm-approvals', 'approvals'); await refreshMe();
     toast(r.status === 'pending' ? 'Approved; sent to the next approver' : r.status === 'approved' ? 'Approved' : 'Rejected'); render();
   } catch (e) { toast(e.message, 'error'); }
+};
+Actions.recWithdraw = async (el) => {
+  if (!(await modal({ title: 'Withdraw this request?', message: 'It is taken back from your approvers and kept on record as withdrawn. To ask again, make a new request.', confirmText: 'Withdraw', danger: true }))) return;
+  try { await api(`/api/m-steps/${el.dataset.kind}/${el.dataset.id}/withdraw`, { json: {} }); invalidate(`m:${el.dataset.kind}`, 'approvals'); await refreshMe(); toast('Request withdrawn'); render(); } catch (e) { toast(e.message, 'error'); }
 };
 Actions.recDelete = async (el) => {
   if (!(await modal({ title: 'Delete this record?', message: 'It is removed for everyone. The audit log keeps a note of it.', confirmText: 'Delete', danger: true }))) return;
@@ -647,7 +652,7 @@ Views.hrsettings = () => {
   }
   return `${topbar('HR settings', '#hub/hr')}
     ${group('Approval rules', `<div class="card flush">${lrow(isAdmin() ? { href: '#settings/roles', icon: 'shield', tone: 'green', title: 'Who approves what', sub: 'Settings > Roles & permissions: approvers and limits for leave, travel, expenses and more' } : { icon: 'shield', title: 'Who approves what', sub: 'The director sets approvers and limits in Settings > Roles & permissions', chev: false })}</div>`)}
-    ${group('Leave policy and work hours', `<div class="card stack">${field('Leave policy', textarea('hs-leave', F('hs-leave')))}${field('Work hours, grace and weekly off (0 = Monday … 6 = Sunday)', textarea('hs-hours', F('hs-hours')))}${field('Data retention (years)', textarea('hs-ret', F('hs-ret')))}</div>`)}
+    ${group('Leave policy and work hours', `<div class="card stack">${field('Leave policy', textarea('hs-leave', F('hs-leave')))}${field('Work hours, grace and weekly off (0 = Monday … 6 = Sunday)', textarea('hs-hours', F('hs-hours')), { help: 'gps_accuracy_m: how accurate the GPS must be before check-in (metres, 50 suits most sites).' })}${field('Data retention (years)', textarea('hs-ret', F('hs-ret')))}</div>`)}
     <button type="button" class="btn primary wide" style="margin-top:14px" data-action="hsSave">Save settings</button>
     ${group('For reviewers', reviewerNote())}
     ${group('Integrations', `<div class="card flush">

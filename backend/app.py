@@ -409,6 +409,7 @@ def bootstrap(user: UserDep, db: DbDep):
         "company": db.setting("company"), "travel": db.setting("travel"), "leaveTypes": db.setting("leave_types"),
         "updatePrompts": db.setting("update_prompts"), "offices": db.setting("offices", []) or [], "sites": sites, "mySites": mine, "items": items, "templates": templates, "people": people,
         "demo": DEMO, "projects": modules.PROJECTS, **lists.boot_extra(db),
+        "gpsNeed": modules.num(modules.setting(db, "work_hours").get("gps_accuracy_m"), 50) or 50,
     }
 
 
@@ -591,6 +592,19 @@ def trip_decide(trip_id: str, payload: dict, user: UserDep, db: DbDep):
             db.notify(trip["user_id"], f"Trip {decision}", f"{trip['km_claimed']} km on {trip['start_at'][:10]}" + (f": {note}" if note else ""), "#trips")
     db.audit(user["id"], f"trip_{decision}", "trip", trip_id)
     return {"ok": True, "status": res}
+
+
+@app.post("/api/trips/{trip_id}/withdraw")
+def trip_withdraw(trip_id: str, user: UserDep, db: DbDep):
+    trip = db.one("SELECT * FROM trips WHERE id = ?", trip_id)
+    if not trip or trip["user_id"] != user["id"]:
+        raise HTTPException(404, "Trip not found")
+    if trip["status"] != "submitted":
+        raise HTTPException(409, "Only a claim waiting for approval can be withdrawn")
+    modules.withdraw_chain(db, "travel", trip_id, user, f"Trip {trip['km_claimed']:g} km on {trip['start_at'][:10]}", "#trips")
+    db.update("trips", trip_id, {"status": "withdrawn"})
+    db.audit(user["id"], "trip_withdrawn", "trip", trip_id)
+    return {"ok": True}
 
 
 @app.post("/api/attendance/{att_id}/decide")
@@ -878,8 +892,14 @@ def leaves(user: UserDep, db: DbDep, scope: str = "mine"):
         cur = next((s for s in st if s["status"] == "waiting"), None)
         lv["waiting"] = (cur["approver_name"] or cur["role"]) if cur else ""
         lv["steps"] = st
-        lv["days"] = modules.leave_days(db, lv["from_date"], lv["to_date"])
+        lv["days"] = modules.leave_len(db, lv)
+        lv["canWithdraw"] = lv["user_id"] == user["id"] and leave_withdrawable(lv)
     return {"rows": rows}
+
+
+def leave_withdrawable(lv: dict) -> bool:
+    """Your own leave can be withdrawn while it waits, or once approved until its first day."""
+    return lv["status"] == "pending" or (lv["status"] == "approved" and lv["from_date"] > modules.local_today().isoformat())
 
 
 @app.post("/api/leaves")
@@ -890,21 +910,46 @@ def add_leave(payload: dict, user: UserDep, db: DbDep):
     typ = str(payload.get("type", "Casual"))[:30]
     if typ not in (db.setting("leave_types", []) or []):
         raise HTTPException(422, "Choose a leave type from the list")
-    clash = db.one("SELECT from_date, to_date, status FROM leaves WHERE user_id = ? AND status IN ('pending', 'approved') AND from_date <= ? AND to_date >= ?",
-                   user["id"], td, fd)
-    if clash:  # the same days twice would count twice against the balance
-        raise HTTPException(409, f"You already have leave from {clash['from_date']} to {clash['to_date']} ({clash['status']})")
+    half = str(payload.get("half") or "")
+    if half not in ("", *modules.HALVES):
+        raise HTTPException(422, "Half day must be the first or the second half")
+    if half and fd != td:
+        raise HTTPException(422, "A half day is one date: make From and To the same day")
+    for c in db.all("SELECT from_date, to_date, half, status FROM leaves WHERE user_id = ? AND status IN ('pending', 'approved') AND from_date <= ? AND to_date >= ?",
+                    user["id"], td, fd):
+        if half and c["half"] and c["half"] != half:
+            continue  # the other half of the same day is fine
+        # the same days twice would count twice against the balance
+        when = f"on {c['from_date']} ({modules.HALVES[c['half']]})" if c["half"] else f"from {c['from_date']} to {c['to_date']}"
+        raise HTTPException(409, f"You already have leave {when} ({c['status']})")
     hrops.assert_range_open(db, fd, td)
-    days = modules.leave_days(db, fd, td)
+    days = modules.leave_days(db, fd, td, half)
     if days <= 0:
-        raise HTTPException(422, "Those dates are all holidays or weekly offs")
+        raise HTTPException(422, "That day is a holiday or weekly off" if half else "Those dates are all holidays or weekly offs")
     bal = next((b for b in modules.leave_balances(db, user["id"], int(fd[:4])) if b["type"] == typ), None)
     if bal and bal["available"] is not None and typ != "Unpaid" and days > bal["available"] + 1e-9:
         raise HTTPException(422, f"Only {bal['available']:g} days of {typ} leave left; this request is {days:g} days. Apply for the rest as Unpaid.")
-    lid = db.insert("leaves", {"user_id": user["id"], "from_date": fd, "to_date": td, "type": typ, "reason": str(payload.get("reason", ""))[:500],
+    lid = db.insert("leaves", {"user_id": user["id"], "from_date": fd, "to_date": td, "half": half, "type": typ, "reason": str(payload.get("reason", ""))[:500],
                                "status": "pending", "created_at": now_iso()})
-    modules.start_chain(db, "leave", lid, user["id"], days, f"Leave · {user['name']} · {typ} {days:g} day(s)", "#approvals")
+    what = f"{typ} ½ day ({modules.HALVES[half]})" if half else f"{typ} {days:g} day(s)"
+    modules.start_chain(db, "leave", lid, user["id"], days, f"Leave · {user['name']} · {what}", "#approvals")
     return {"id": lid, "days": days}
+
+
+@app.post("/api/leaves/{leave_id}/withdraw")
+def leave_withdraw(leave_id: str, user: UserDep, db: DbDep):
+    lv = db.one("SELECT * FROM leaves WHERE id = ?", leave_id)
+    if not lv or lv["user_id"] != user["id"]:
+        raise HTTPException(404, "Leave not found")
+    if not leave_withdrawable(lv):
+        raise HTTPException(409, "This leave has started or is decided. Ask HR to change it." if lv["status"] == "approved" else "This leave is already decided")
+    hrops.assert_range_open(db, lv["from_date"], lv["to_date"])
+    when = lv["from_date"] if lv["from_date"] == lv["to_date"] else f"{lv['from_date']} to {lv['to_date']}"
+    modules.withdraw_chain(db, "leave", leave_id, user, f"Leave {when} ({lv['type']})", "#leaves")
+    db.update("leaves", leave_id, {"status": "withdrawn"})
+    hrops.log_change(db, user["id"], "leave", leave_id, user["id"], f"{lv['type']} leave {when}", lv["status"], "withdrawn", "withdrawn by the employee")
+    db.audit(user["id"], "leave_withdrawn", "leave", leave_id, lv["status"])
+    return {"ok": True}
 
 
 @app.post("/api/leaves/{leave_id}/decide")
@@ -975,7 +1020,7 @@ def approvals(user: UserDep, db: DbDep):
         st = modules.steps_for(db, "leave", x["id"])
         if (not st and staff and (team is None or x["user_id"] in team)) or x["id"] in mine:
             x["steps"] = st
-            x["days"] = modules.leave_days(db, x["from_date"], x["to_date"])
+            x["days"] = modules.leave_len(db, x)
             x["balance"] = next((b for b in modules.leave_balances(db, x["user_id"]) if b["type"] == x["type"]), None)
             keep.append(x)
     return {"trips": trips_, "attendance": att, "leaves": keep}
