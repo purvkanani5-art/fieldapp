@@ -1368,3 +1368,33 @@ input.sw:focus-visible { outline: 3px solid var(--accent-tint); outline-offset: 
 .aud-sites summary { cursor: pointer; padding: 6px 0; font-weight: 600; color: var(--muted); }
 .aud-sites .chips { margin-top: 6px; }
 .pb-list { display: grid; gap: 6px; max-height: 40vh; overflow-y: auto; font-size: 14px; }
+
+/* Logo kit "Rooted Flame" (brand/, 2026-11-19): horizontal logo in the headers, stacked on the splash, light / dark copies */
+.klogo { display: inline-flex; align-items: center; }
+.klogo img { display: block; height: 100%; width: auto; border-radius: 0; }
+.klogo .lg-dark { display: none; }
+:root[data-theme="dark"] .klogo .lg-light { display: none; }
+:root[data-theme="dark"] .klogo .lg-dark { display: block; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .klogo .lg-light { display: none; }
+  :root:not([data-theme="light"]) .klogo .lg-dark { display: block; }
+}
+.apphead .brand .klogo { height: 36px; }
+.apphead .brand .klogo img { width: auto; height: 36px; border-radius: 0; }
+.side .brand .klogo { height: 42px; }
+.side .brand .klogo img { width: auto; height: 42px; border-radius: 0; }
+.side .brand .side-icon { display: none; }
+body.side-mini .side .brand .side-logo { display: none; }
+body.side-mini .side .brand .side-icon { display: block; width: 32px; height: 32px; }
+.auth .brand .klogo { height: 46px; }
+.auth .brand .klogo img { width: auto; height: 46px; border-radius: 0; }
+.auth .tagline, .splash .tagline { color: var(--muted); font-size: 13px; letter-spacing: .01em; margin: 10px 0 0; }
+.splash .klogo { height: 150px; justify-content: center; }
+.splash .klogo img { width: auto; height: 150px; border-radius: 0; }
+.splash .tagline { display: block; margin-top: 16px; }
+.auth { grid-template-columns: minmax(0, 1fr); }
+.klogo img { max-width: 100%; }
+.auth .panel { grid-template-columns: minmax(0, 1fr); }
+.demo-people { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.demo-people button { min-width: 0; }
+@media (max-width: 380px) { .demo-people { grid-template-columns: minmax(0, 1fr); } }

@@ -363,3 +363,12 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
   inside the viewport); wait for `#modal` hidden with `waitForFunction`, not a hidden-element selector; the
   browser caches GPS for 10 s unless `fresh` (locate(true) passes maximumAge 0).
 - Bash heredocs in this environment mangle backslashes: write patch scripts with the Write tool, or use the Edit tool.
+34. **Logo kit "Rooted Flame" (2026-11-19, v0.6.2)**. The owner's kit is kept in brand/ (SVGs + README; PNGs made by
+   D:/PersonalBooks/.cache/kl-brand-render.mjs into brand/png). frontend/icon.svg = rounded icon; icon-192/512 (any),
+   icon-maskable-192/512 (full-bleed square), apple-touch-icon (square, 180), favicon.ico; logo-h(-dark).svg in the
+   phone header, sidebar (icon when collapsed) and sign-in; logo-stacked(-dark).svg + tagline "Every acre. Every
+   batch. On record." on the splash; brandLogo() picks light / dark by theme in CSS. Install background #F4F1E8.
+   PDF letterheads carry the circle mark (backend/brand_mark.py, PNG as base64 so the in-browser demo has it too).
+   The Sajeevan company logo (logo.png) stays as "An app of" and in the Me footer. App colours and fonts unchanged.
+   Owner: "it is a fully functional app now": the Me footer reads "Kshetralekha v<version> · <company>"; "For
+   reviewers" shows only in the demo; HR settings no longer say "prototype".

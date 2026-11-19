@@ -42,9 +42,11 @@ const LANG_SHORT = { en: 'EN', gu: 'ગુ', hi: 'हि' };
 const langBtn = () => `<button type="button" class="lang-btn" data-action="langPick" aria-label="Language" title="Language">${ic('globe')}<span class="notr">${LANG_SHORT[lang()] || 'EN'}</span></button>`;
 Actions.langPick = () => modal({ title: 'Language', noButtons: true,
   html: `<div class="lang-pick notr">${[['en', 'English'], ['gu', 'ગુજરાતી'], ['hi', 'हिन्दी']].map(([k, l]) => `<button type="button" class="btn wide ${lang() === k ? 'primary' : ''}" data-action="lang" data-lang="${k}">${l}</button>`).join('')}</div>` });
+/** The Kshetralekha logo (brand/ kit): horizontal for headers, stacked for the splash; light and dark copies, CSS shows the one that fits the theme. */
+const brandLogo = (kind = 'h', cls = '') => `<span class="klogo ${cls}"><img class="lg-light" src="./logo-${kind}.svg" alt="Kshetralekha by Sajeevan" /><img class="lg-dark" src="./logo-${kind}-dark.svg" alt="Kshetralekha by Sajeevan" /></span>`;
 /** Phones: a slim bar on top with the language button (and Settings for office roles). */
 function appHead() {
-  return `<header class="apphead"><a class="brand" href="#home"><img src="./icon.svg" alt="" /><b>Kshetralekha</b></a><span class="sp"></span>${langBtn()}${isStaff() ? `<a class="btn ghost icon-only" href="#settings" aria-label="Settings" title="Settings">${ic('cog')}</a>` : ''}</header>`;
+  return `<header class="apphead"><a class="brand" href="#home" aria-label="Kshetralekha, home">${brandLogo('h')}</a><span class="sp"></span>${langBtn()}${isStaff() ? `<a class="btn ghost icon-only" href="#settings" aria-label="Settings" title="Settings">${ic('cog')}</a>` : ''}</header>`;
 }
 const fieldTabs = () => TABS_FIELD_ALL.filter(([k]) => k !== 'mysite' || (KL.boot?.mySites || []).some((s) => s.project_type !== 'office'));
 const TAB_OF = { attendance: 'work', trips: 'work', registers: 'work', farmers: 'work', sign: 'work', updates: 'me', leaves: 'me', feedback: 'me', dashboard: 'manage', approvals: 'manage', team: 'manage', hrdesk: 'manage', admin: 'manage',
@@ -131,7 +133,7 @@ function sideNav(active) {
   const on = (k) => isStaff() ? sectionOf(route().name) === SECTIONS.find((s) => s.tabs[0][0] === k)?.key : cur === k || cur.startsWith(`${k}/`) || (k === active && !navGroups().some(([, items]) => items.some(([x]) => x !== k && (cur === x || cur.startsWith(`${x}/`)))));
   const link = ([k, icon, label, badge]) => `<a class="nav ${on(k) ? 'on' : ''}" href="#${k}" title="${esc(label)}" ${on(k) ? 'aria-current="page"' : ''}>${ic(icon)}<span>${esc(label)}</span>${badge ? `<span class="badge">${badge}</span>` : ''}</a>`;
   return `<aside class="side" aria-label="Main navigation">
-    <div class="side-top"><a class="brand" href="#home"><img src="./icon.svg" alt="" /><span><b>Kshetralekha</b><small>${esc(KL.boot?.company?.short || 'Sajeevan')}</small></span></a>
+    <div class="side-top"><a class="brand" href="#home" aria-label="Kshetralekha, home"><img class="side-icon" src="./icon.svg" alt="" />${brandLogo('h', 'side-logo')}</a>
       <button type="button" class="btn ghost icon-only side-toggle" data-action="sideToggle" aria-label="Collapse the menu" title="Collapse the menu">${ic('back')}</button></div>
     ${isStaff() ? `<button type="button" class="btn primary side-new" data-action="newOpen" title="Add something new">${ic('plus')}<span>New</span></button>` : ''}
     <nav class="side-nav">${navGroups().map(([title, items]) => `<div class="nav-group">${title ? `<div class="label">${esc(title)}</div>` : ''}${items.map(link).join('')}${title === 'Operations' ? tree.map(([p, list]) => `<div class="nav-tree"><span class="tree-label">${ic(p.icon)}<span>${esc(p.name)}</span></span>${list.map((s) => `<a class="nav sub ${cur.startsWith(`site/${s.id}`) ? 'on' : ''}" href="#site/${esc(s.id)}" title="${esc(s.name)}"><span>${esc(s.name)}</span></a>`).join('')}</div>`).join('') : ''}</div>`).join('')}</nav>
@@ -157,7 +159,8 @@ function loginView() {
   const byRole = demo ? ['admin', 'manager', 'hr', 'field'].map((r) => [r, KL.demoInfo.people.filter((p) => p.role === r)]).filter(([, list]) => list.length) : [];
   return `<div class="auth">
     <section class="top">
-      <div class="brand"><img src="./icon.svg" alt="" /><span><b>Kshetralekha</b><small>Sajeevan Life · field operations and HR</small></span></div>
+      <div class="brand">${brandLogo('h')}</div>
+      <p class="tagline">Every acre. Every batch. On record.</p>
       <h1>Sign in</h1>
       <p class="lede">Attendance, site records, approvals and HR in one place. Works without signal; anything saved offline is sent when you are back online.</p>
     </section>

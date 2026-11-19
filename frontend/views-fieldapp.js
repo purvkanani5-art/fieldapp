@@ -242,7 +242,7 @@ Views.settings = () => {
       ${['admin', 'hr'].includes(u.role) ? `<a class="fa-row" href="#hrsettings"><span class="fa-ic">${ic('cog')}</span><span class="fa-tx"><b>HR settings</b><span>Leave policy, work hours</span></span><span class="chev">${ic('chevron')}</span></a>` : ''}
     </div>`) : ''}
     ${failedItems()}
-    ${group('For reviewers', reviewerNote())}`;
+    ${KL.boot?.demo ? group('For reviewers', reviewerNote()) : ''}`;
 };
 
 /* ---------------------------------------------------------------- wire into the existing views */

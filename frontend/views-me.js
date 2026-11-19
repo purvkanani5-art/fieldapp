@@ -34,7 +34,7 @@ Views.me = () => {
       ${lrow({ href: '#trips', icon: 'bike', title: 'My travel claims', sub: 'Approved, pending and rejected' })}
     </div>`)}
     ${group('Settings', `<div class="card flush">${lrow({ href: '#settings', icon: 'cog', title: 'Settings', sub: 'Language, appearance, PIN, sign out, administration' })}</div>`)}
-    <div class="foot"><img src="./logo.png" alt="Sajeevan" />Kshetralekha prototype v${esc(KL.me?.version || '')} · ${esc(KL.boot?.company?.name || '')}</div>`;
+    <div class="foot"><img src="./logo.png" alt="Sajeevan" />Kshetralekha v${esc(KL.me?.version || '')} · ${esc(KL.boot?.company?.name || '')}</div>`;
 };
 Actions.changePin = async () => {
   const v = await modal({ title: 'Change PIN', fields: [{ key: 'old', label: 'Current PIN', type: 'password', inputmode: 'numeric' }, { key: 'new', label: 'New PIN (6 digits)', type: 'password', inputmode: 'numeric' }, { key: 'again', label: 'New PIN again', type: 'password', inputmode: 'numeric' }], confirmText: 'Change' });

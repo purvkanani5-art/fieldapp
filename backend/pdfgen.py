@@ -14,6 +14,14 @@ from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 
 
+def _mark(c, m: float, h: float) -> None:
+    """The Kshetralekha circle mark at the left of the green letterhead band."""
+    from reportlab.lib.utils import ImageReader
+
+    import brand_mark
+    c.drawImage(ImageReader(io.BytesIO(brand_mark.PNG)), m - 1 * mm, h - 20 * mm, 18 * mm, 18 * mm, mask="auto")
+
+
 def _wrap(c, text: str, x: float, y: float, width: float, size: float = 10.5, leading: float = 14.5) -> float:
     c.setFont("Helvetica", size)
     for para in text.split("\n"):
@@ -50,11 +58,12 @@ def render_document(*, company: dict, template: dict, fields: dict, farmer: dict
     c.rect(0, h - 22 * mm, w, 22 * mm, fill=1, stroke=0)
     c.setFillColorRGB(0.41, 0.28, 0.16)  # earth brown rule
     c.rect(0, h - 23.2 * mm, w, 1.2 * mm, fill=1, stroke=0)
+    _mark(c, m, h)
     c.setFillColorRGB(1, 1, 1)
     c.setFont("Helvetica-Bold", 16)
-    c.drawString(m, h - 13 * mm, company.get("name", "Company"))
+    c.drawString(m + 19 * mm, h - 13 * mm, company.get("name", "Company"))
     c.setFont("Helvetica", 9)
-    c.drawString(m, h - 18.5 * mm, company.get("address", ""))
+    c.drawString(m + 19 * mm, h - 18.5 * mm, company.get("address", ""))
     c.drawRightString(w - m, h - 13 * mm, f"Document no. {doc_no}")
     c.drawRightString(w - m, h - 18.5 * mm, when.strftime("%d %b %Y, %H:%M"))
     c.setFillColorRGB(0, 0, 0)
@@ -142,11 +151,12 @@ def render_declaration(*, company: dict, person: dict, policies: list[tuple[str,
     m = 18 * mm
     c.setFillColorRGB(0.18, 0.48, 0.29)
     c.rect(0, h - 22 * mm, w, 22 * mm, fill=1, stroke=0)
+    _mark(c, m, h)
     c.setFillColorRGB(1, 1, 1)
     c.setFont("Helvetica-Bold", 16)
-    c.drawString(m, h - 13 * mm, company.get("name", "Company"))
+    c.drawString(m + 19 * mm, h - 13 * mm, company.get("name", "Company"))
     c.setFont("Helvetica", 9)
-    c.drawString(m, h - 18.5 * mm, company.get("address", ""))
+    c.drawString(m + 19 * mm, h - 18.5 * mm, company.get("address", ""))
     c.drawRightString(w - m, h - 13 * mm, "Policy declaration")
     c.drawRightString(w - m, h - 18.5 * mm, when.strftime("%d %b %Y, %H:%M"))
     c.setFillColorRGB(0, 0, 0)

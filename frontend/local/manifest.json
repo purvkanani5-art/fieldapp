@@ -11,6 +11,7 @@
   "lists.py",
   "modules.py",
   "pdfgen.py",
+  "brand_mark.py",
   "perms.py",
   "planner.py",
   "policies.py",

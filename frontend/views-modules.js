@@ -660,11 +660,11 @@ Views.hrsettings = () => {
     ${group('Approval rules', `<div class="card flush">${lrow(isAdmin() ? { href: '#settings/roles', icon: 'shield', tone: 'green', title: 'Who approves what', sub: 'Settings > Designations & access: approvers and limits for leave, travel, expenses and more' } : { icon: 'shield', title: 'Who approves what', sub: 'The director sets approvers and limits in Settings > Roles & permissions', chev: false })}</div>`)}
     ${group('Leave policy and work hours', `<div class="card stack">${field('Leave policy', textarea('hs-leave', F('hs-leave')))}${field('Work hours, grace and weekly off (0 = Monday … 6 = Sunday)', textarea('hs-hours', F('hs-hours')), { help: 'gps_accuracy_m: how accurate the GPS must be before check-in (metres, 50 suits most sites).' })}${field('Data retention (years)', textarea('hs-ret', F('hs-ret')))}</div>`)}
     <button type="button" class="btn primary wide" style="margin-top:14px" data-action="hsSave">Save settings</button>
-    ${group('For reviewers', reviewerNote())}
+    ${KL.boot?.demo ? group('For reviewers', reviewerNote()) : ''}
     ${group('Integrations', `<div class="card flush">
-      ${lrow({ href: '#messages', icon: 'chat', tone: 'green', title: 'WhatsApp / SMS alerts', sub: `Simulated in the prototype: ${kd.messaging.whatsapp ? 'WhatsApp on' : 'off'}. See what field staff would receive.` })}
+      ${lrow({ href: '#messages', icon: 'chat', tone: 'green', title: 'WhatsApp / SMS alerts', sub: `${kd.messaging.whatsapp ? 'WhatsApp on' : 'Off'} · no WhatsApp / SMS provider connected yet, so messages are not sent. See what field staff would receive.` })}
       ${lrow({ href: '#monthend', icon: 'lock', tone: 'violet', title: 'Zoho Payroll', sub: 'Pay, PF, ESI, PT, LWF, TDS, Form 16 and salary payment are in Zoho. Each month HR locks attendance and imports the file (or Zoho pulls the JSON).' })}
-      ${lrow({ icon: 'building', title: 'Microsoft 365 sign-in and SharePoint', sub: 'Not connected in the prototype (needs the company tenant)', chev: false })}
+      ${lrow({ icon: 'building', title: 'Microsoft 365 sign-in', sub: 'Office staff sign in with their PIN for now; Microsoft sign-in comes later', chev: false })}
     </div>`)}`;
 };
 Actions.hsSave = async () => {
