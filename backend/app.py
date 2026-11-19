@@ -29,6 +29,7 @@ from storage import FILES_DIR, store  # noqa: E402
 import demo  # noqa: E402
 import demo_modules  # noqa: E402
 import committees  # noqa: E402
+import policies  # noqa: E402
 import hrops  # noqa: E402
 import modules  # noqa: E402
 import lists  # noqa: E402
@@ -135,7 +136,7 @@ def site_allowed(user: dict, site_id: str) -> bool:
 
 def public_user(u: dict) -> dict:
     return {k: u.get(k) for k in ("id", "employee_id", "name", "role", "designation", "phone", "email", "active", "must_change_pin", "sites", "created_at", "manager_id", "consent_at",
-                                  "all_sites", "projects", "direct_sites", "supervisor", "app_access", "perms", "dept", "department", "level")}
+                                  "all_sites", "projects", "direct_sites", "supervisor", "app_access", "perms", "dept", "department", "level", "photo_id")}
 
 
 def parse_float(v, name: str, required: bool = True) -> float | None:
@@ -246,6 +247,7 @@ app.include_router(lists.router(UserDep, DbDep))
 app.include_router(perms.router(UserDep, DbDep))
 app.include_router(planner.make_router(UserDep, DbDep, save_upload=save_upload, is_staff=is_staff))
 app.include_router(committees.make_router(UserDep, DbDep))
+app.include_router(policies.make_router(UserDep, DbDep, save_upload=save_upload, save_bytes=save_bytes))
 app.include_router(hrops.make_router(UserDep, DbDep, save_upload=save_upload, is_staff=is_staff, site_allowed=site_allowed, demo=DEMO))
 app.include_router(modules.make_router(UserDep, DbDep, save_upload=save_upload, save_bytes=save_bytes, is_staff=is_staff, site_allowed=site_allowed, demo=DEMO))
 
@@ -396,7 +398,8 @@ def me(user: UserDep, db: DbDep):
         team = modules.team_ids(db, user)
         pending += sum(1 for r in db.all("SELECT user_id FROM leaves l WHERE status = 'pending' AND NOT EXISTS (SELECT 1 FROM approval_steps s WHERE s.kind = 'leave' AND s.ref_id = l.id)")
                        if team is None or r["user_id"] in team)
-    return {"user": public_user(user), "unread": unread, "openAttendance": open_att, "openTrip": open_trip, "pendingApprovals": pending, "version": APP_VERSION}
+    return {"user": public_user(user), "unread": unread, "openAttendance": open_att, "openTrip": open_trip, "pendingApprovals": pending, "version": APP_VERSION,
+            "policiesPending": policies.pending_count(db, user)}
 
 
 @app.get("/api/bootstrap")
@@ -407,11 +410,11 @@ def bootstrap(user: UserDep, db: DbDep):
     templates = db.all("SELECT id, name, project_type, fields FROM templates WHERE active = 1 ORDER BY name")
     for t in templates:
         t["fields"] = json.loads(t["fields"])
-    people = db.all("SELECT id, employee_id, name, role, designation FROM users WHERE active = 1 ORDER BY name")
+    people = db.all("SELECT id, employee_id, name, role, designation, photo_id FROM users WHERE active = 1 ORDER BY name")
     return {
         "company": db.setting("company"), "travel": db.setting("travel"), "leaveTypes": db.setting("leave_types"),
         "updatePrompts": db.setting("update_prompts"), "offices": db.setting("offices", []) or [], "sites": sites, "mySites": mine, "items": items, "templates": templates, "people": people,
-        "demo": DEMO, "projects": modules.PROJECTS, **lists.boot_extra(db),
+        "demo": DEMO, "projects": modules.PROJECTS, "offKinds": [k for k, v in modules.KINDS.items() if v.get("off")], **lists.boot_extra(db),
         "gpsNeed": modules.num(modules.setting(db, "work_hours").get("gps_accuracy_m"), 50) or 50,
     }
 
@@ -1302,6 +1305,13 @@ def admin_site_save(payload: dict, user: UserDep, db: DbDep):
         raise HTTPException(422, "Latitude or longitude is out of range")
     if row["project_type"] != "office" and row["project_type"] not in lists.project_codes(db):
         raise HTTPException(422, "Choose the project")
+    groups = [x["key"] for x in lists.subgroups(db).get(row["project_type"], [])]
+    if row["subtype"] and row["subtype"] not in groups:
+        raise HTTPException(422, "Choose a sub-group of this project")
+    if groups and not row["subtype"] and row["project_type"] == "biochar":
+        row["subtype"] = "kiln"  # older app versions sent no type for low-tech kiln sites; other projects show "Sub-group not set"
+    if not groups:
+        row["subtype"] = ""
     add, remove = payload.get("teamAdd") or [], payload.get("teamRemove") or []
     if not isinstance(add, list) or not isinstance(remove, list):
         raise HTTPException(422, "Team changes must be lists")
@@ -1418,6 +1428,31 @@ def admin_audit(user: UserDep, db: DbDep, limit: int = 200):
 
 
 # ------------------------------------------------------------------ files
+
+
+@app.post("/api/people/{uid}/photo")
+async def set_photo(uid: str, user: UserDep, db: DbDep, photo: UploadFile = File(...)):
+    """A person's photo, shown in place of their initials. HR and the director for anyone; everyone for themselves."""
+    if uid != user["id"]:
+        perms.need(user, "users.edit")
+    u = db.one("SELECT id, employee_id, name FROM users WHERE id = ?", uid)
+    if not u:
+        raise HTTPException(404, "Not found")
+    if not (photo.content_type or "").startswith("image/"):
+        raise HTTPException(422, "Choose a photo")
+    fid = await save_upload(db, photo, f"HR/{u['employee_id']} {u['name']}", "profile_photo", user, name=f"{u['employee_id']} photo.jpg")
+    db.update("users", uid, {"photo_id": fid})
+    db.audit(user["id"], "photo_set", "user", uid, "")
+    return {"photo_id": fid}
+
+
+@app.post("/api/people/{uid}/photo/remove")
+def remove_photo(uid: str, user: UserDep, db: DbDep):
+    if uid != user["id"]:
+        perms.need(user, "users.edit")
+    db.update("users", uid, {"photo_id": None})
+    db.audit(user["id"], "photo_removed", "user", uid, "")
+    return {"ok": True}
 
 
 @app.get("/api/files/{file_id}")

@@ -27,12 +27,12 @@ USERS = [
 # Projects (verticals) hold sites. Biochar sites are low-tech (Kon-Tiki kilns) or high-tech (industrial pyrolysis plant).
 SITES = [
     ("Lodhika Kiln Site", "biochar", "kiln", 22.3039, 70.8022, 200, "Survey 112, Lodhika, Rajkot"),
-    ("Nava Agroforestry Site", "agroforestry", "", 21.5222, 70.4579, 400, "Nava, Vanthali road, Junagadh"),
+    ("Nava Agroforestry Site", "agroforestry", "farmer", 21.5222, 70.4579, 400, "Nava, Vanthali road, Junagadh"),
     ("Balaji Gasifier Site", "gasifier", "", 21.1702, 72.8311, 150, "Balaji Industrial Estate, Sachin, Surat"),
     ("Head Office, Ahmedabad", "office", "", 23.0225, 72.5714, 120, "SG Highway, Ahmedabad"),
     ("Viramgam Biochar Plant", "biochar", "plant", 23.1226, 72.0367, 250, "GIDC Viramgam, Ahmedabad"),
-    ("Deesa Agroforestry Site", "agroforestry", "", 24.2585, 72.1907, 500, "Deesa, Banaskantha"),
-    ("Salariya Agroforestry Site", "agroforestry", "", 21.3301, 70.6203, 500, "Salariya, Junagadh"),
+    ("Deesa Agroforestry Site", "agroforestry", "trust", 24.2585, 72.1907, 500, "Deesa, Banaskantha"),
+    ("Salariya Agroforestry Site", "agroforestry", "retro", 21.3301, 70.6203, 500, "Salariya, Junagadh"),
 ]
 
 BIOCHAR_ITEMS = [("Diesel", "L", "input", 60), ("Biomass (feedstock)", "kg", "input", 2000), ("Biochar (finished)", "kg", "product", 0)]

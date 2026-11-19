@@ -2610,3 +2610,79 @@ exceptions allowed,અપવાદ મંજૂર,अपवाद की अन
 {x} read your update,{x} એ તમારું અપડેટ વાંચ્યું,{x} ने आपका अपडेट पढ़ा
 {x} wrote back,{x} એ જવાબ લખ્યો,{x} ने जवाब लिखा
 Reference,સંદર્ભ નંબર,संदर्भ संख्या
+Add a photo,ફોટો ઉમેરો,फोटो जोड़ें
+Change photo,ફોટો બદલો,फोटो बदलें
+Choose a photo,ફોટો પસંદ કરો,फोटो चुनें
+Choose a sub-group of this project,આ પ્રોજેક્ટનું પેટા-જૂથ પસંદ કરો,इस प्रोजेक्ट का उप-समूह चुनें
+Choose the sub-group,પેટા-જૂથ પસંદ કરો,उप-समूह चुनें
+Choose the sub-group (e.g. low-tech or high-tech),પેટા-જૂથ પસંદ કરો (દા.ત. લો-ટેક કે હાઇ-ટેક),उप-समूह चुनें (जैसे लो-टेक या हाई-टेक)
+Farmer land,ખેડૂતની જમીન,किसान की ज़मीन
+Give the sub-group a name,પેટા-જૂથને નામ આપો,उप-समूह को नाम दें
+High-tech (industrial plant),હાઇ-ટેક (ઔદ્યોગિક પ્લાન્ટ),हाई-टेक (औद्योगिक प्लांट)
+Initials show instead.,તેની જગ્યાએ નામના અક્ષર દેખાશે.,उसकी जगह नाम के अक्षर दिखेंगे।
+"Its sites stay; they show as ""Sub-group not set"" until you edit them.","તેની સાઇટ રહેશે; તમે બદલો નહીં ત્યાં સુધી ""પેટા-જૂથ નક્કી નથી"" તરીકે દેખાશે.","इसकी साइटें रहेंगी; जब तक आप बदलें नहीं, ""उप-समूह तय नहीं"" के रूप में दिखेंगी।"
+Low-tech (kilns),લો-ટેક (ભઠ્ઠીઓ),लो-टेक (भट्ठियाँ)
+Low-tech and high-tech biochar can be renamed but not removed,"લો-ટેક અને હાઇ-ટેક બાયોચારનું નામ બદલી શકાય, કાઢી શકાય નહીં","लो-टेक और हाई-टेक बायोचार का नाम बदला जा सकता है, हटाया नहीं जा सकता"
+New sub-group in {x},{x} માં નવું પેટા-જૂથ,{x} में नया उप-समूह
+Photo removed,ફોટો કાઢ્યો,फोटो हटाया
+Photo saved,ફોટો સાચવ્યો,फोटो सहेजा
+Remove the photo?,ફોટો કાઢવો છે?,फोटो हटाएँ?
+Remove {x}?,{x} કાઢવું છે?,{x} हटाएँ?
+Rename sub-group,પેટા-જૂથનું નામ બદલો,उप-समूह का नाम बदलें
+Retro agroforestry,રેટ્રો એગ્રોફોરેસ્ટ્રી,रेट्रो एग्रोफ़ॉरेस्ट्री
+Site sub-groups,સાઇટના પેટા-જૂથ,साइट के उप-समूह
+"Sites are listed by project and then by these sub-groups. Rename with the pen; a removed sub-group's sites show as ""Sub-group not set"" until edited.","સાઇટ પ્રોજેક્ટ અને પછી આ પેટા-જૂથ મુજબ દેખાય છે. પેનથી નામ બદલો; કાઢેલા પેટા-જૂથની સાઇટ બદલાય નહીં ત્યાં સુધી ""પેટા-જૂથ નક્કી નથી"" તરીકે દેખાશે.","साइटें प्रोजेक्ट और फिर इन उप-समूहों के अनुसार दिखती हैं। पेन से नाम बदलें; हटाए गए उप-समूह की साइटें बदलने तक ""उप-समूह तय नहीं"" के रूप में दिखेंगी।"
+Sub-group,પેટા-જૂથ,उप-समूह
+Sub-group not found,પેટા-જૂથ મળ્યું નહીં,उप-समूह नहीं मिला
+Sub-group not set,પેટા-જૂથ નક્કી નથી,उप-समूह तय नहीं
+That photo could not be read,તે ફોટો વાંચી શકાયો નહીં,वह फोटो पढ़ी नहीं जा सकी
+Trust land,ટ્રસ્ટની જમીન,ट्रस्ट की ज़मीन
+Accept all {n} first,પહેલાં બધી {n} સ્વીકારો,पहले सभी {n} स्वीकार करें
+Accept and sign,સ્વીકારો અને સહી કરો,स्वीकार करें और हस्ताक्षर करें
+Accepted {x},{x} એ સ્વીકાર્યું,{x} को स्वीकार किया
+Accepting,સ્વીકાર,स्वीकृति
+Archive (no longer required),આર્કાઇવ કરો (હવે જરૂરી નથી),संग्रह करें (अब ज़रूरी नहीं)
+Before you start,શરૂ કરતાં પહેલાં,शुरू करने से पहले
+Bring it back,પાછી લાવો,वापस लाएँ
+Choose PDF,PDF પસંદ કરો,PDF चुनें
+Clear,સાફ કરો,मिटाएँ
+Company policies,કંપનીની નીતિઓ,कंपनी की नीतियाँ
+Declaration,જાહેરનામું,घोषणा
+Edit policy,નીતિ બદલો,नीति बदलें
+Everyone has accepted.,બધાએ સ્વીકારી છે.,सबने स्वीकार कर ली है।
+For reading only,ફક્ત વાંચવા માટે,केवल पढ़ने के लिए
+Give the policy a name,નીતિને નામ આપો,नीति को नाम दें
+I have read and understood the company policies listed above and agree to follow them. I understand that breaking them can lead to disciplinary action.,મેં ઉપર જણાવેલી કંપનીની નીતિઓ વાંચી અને સમજી છે અને તેનું પાલન કરવા સંમત છું. હું સમજું છું કે તેનો ભંગ કરવાથી શિસ્તભંગના પગલાં લેવાઈ શકે છે.,मैंने ऊपर दी गई कंपनी की नीतियाँ पढ़ और समझ ली हैं और उनका पालन करने के लिए सहमत हूँ। मैं समझता/समझती हूँ कि इन्हें तोड़ने पर अनुशासनात्मक कार्रवाई हो सकती है।
+I have read this policy and I accept it,મેં આ નીતિ વાંચી છે અને હું તે સ્વીકારું છું,मैंने यह नीति पढ़ी है और मैं इसे स्वीकार करता/करती हूँ
+Manage policies,નીતિઓ સંભાળો,नीतियाँ संभालें
+Must accept and sign,સ્વીકારવી અને સહી કરવી જરૂરી,स्वीकार और हस्ताक्षर ज़रूरी
+No policies yet,હજી કોઈ નીતિ નથી,अभी कोई नीति नहीं
+Not accepted yet,હજી સ્વીકાર્યું નથી,अभी स्वीकार नहीं किया
+Not accepted yet · {n},હજી સ્વીકાર્યું નથી · {n},अभी स्वीकार नहीं किया · {n}
+Open the app to read it and sign.,વાંચવા અને સહી કરવા એપ ખોલો.,पढ़ने और हस्ताक्षर करने के लिए ऐप खोलें।
+Open the policy first,પહેલાં નીતિ ખોલો,पहले नीति खोलें
+Policies accepted and declaration signed,નીતિઓ સ્વીકારી અને જાહેરનામા પર સહી કરી,नीतियाँ स्वीकार कीं और घोषणा पर हस्ताक्षर किए
+Policy declaration,નીતિ જાહેરનામું,नीति घोषणा
+Policy declaration (paper),નીતિ જાહેરનામું (કાગળ),नीति घोषणा (कागज़)
+Policy name,નીતિનું નામ,नीति का नाम
+Read,વાંચો,पढ़ें
+"Read the company policies, accept them and sign. This is needed once, and again when a policy changes.","કંપનીની નીતિઓ વાંચો, સ્વીકારો અને સહી કરો. આ એક વાર જરૂરી છે, અને નીતિ બદલાય ત્યારે ફરી.","कंपनी की नीतियाँ पढ़ें, स्वीकार करें और हस्ताक्षर करें। यह एक बार ज़रूरी है, और नीति बदलने पर फिर से।"
+Remind them,તેમને યાદ અપાવો,उन्हें याद दिलाएँ
+Replace,બદલો,बदलें
+Required,જરૂરી,ज़रूरी
+Save policy,નીતિ સાચવો,नीति सहेजें
+Save the declaration,જાહેરનામું સાચવો,घोषणा सहेजें
+Short summary (optional),ટૂંકો સાર (વૈકલ્પિક),छोटा सार (वैकल्पिक)
+Sign here with your finger,અહીં આંગળીથી સહી કરો,यहाँ उंगली से हस्ताक्षर करें
+Sign in the box first,પહેલાં ખાનામાં સહી કરો,पहले खाने में हस्ताक्षर करें
+The declaration people sign,લોકો સહી કરે છે તે જાહેરનામું,लोग जिस घोषणा पर हस्ताक्षर करते हैं
+The policies you accepted. Your signed declaration is under Me › Payslips and documents.,તમે સ્વીકારેલી નીતિઓ. તમારું સહી કરેલું જાહેરનામું Me › પગારપત્રક અને દસ્તાવેજમાં છે.,आपकी स्वीकार की गई नीतियाँ। आपकी हस्ताक्षरित घोषणा Me › वेतन पर्ची और दस्तावेज़ में है।
+The policy (PDF),નીતિ (PDF),नीति (PDF)
+Upload the policy PDF,નીતિની PDF અપલોડ કરો,नीति की PDF अपलोड करें
+Upload the policy as a PDF,નીતિ PDF તરીકે અપલોડ કરો,नीति PDF के रूप में अपलोड करें
+Uploaded,અપલોડ થયું,अपलोड हुआ
+What you accepted,તમે શું સ્વીકાર્યું,आपने क्या स्वीकार किया
+"When HR adds one for you, you are asked to read and accept it.",HR તમારા માટે ઉમેરે ત્યારે તમને વાંચવા અને સ્વીકારવા કહેવાશે.,"जब HR आपके लिए कोई जोड़ेगा, तो आपसे पढ़ने और स्वीकार करने को कहा जाएगा।"
+Who must accept it,કોણે સ્વીકારવી જોઈએ,किसे स्वीकार करनी चाहिए
+Your signed declaration is saved in your documents.,તમારું સહી કરેલું જાહેરનામું તમારા દસ્તાવેજમાં સાચવ્યું છે.,आपकी हस्ताक्षरित घोषणा आपके दस्तावेज़ों में सहेजी गई है।
+{x} are switched off,{x} બંધ છે,{x} बंद हैं

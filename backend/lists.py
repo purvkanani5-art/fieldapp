@@ -100,6 +100,20 @@ def projects(db: Db) -> list[dict]:
     return out + [{**c, "builtin": False} for c in custom] + [MANAGEMENT]
 
 
+# Sites sit in a project and, where the project has them, a sub-group (sites.subtype holds the key). Biochar's
+# kiln / plant keys drive its tabs and words, so they can be renamed but not deleted. Offices may have sub-groups too.
+SUBGROUP_DEFAULTS = {
+    "biochar": [{"key": "kiln", "name": "Low-tech (kilns)"}, {"key": "plant", "name": "High-tech (industrial plant)"}],
+    "agroforestry": [{"key": "trust", "name": "Trust land"}, {"key": "farmer", "name": "Farmer land"}, {"key": "retro", "name": "Retro agroforestry"}],
+}
+FIXED_SUBGROUPS = {("biochar", "kiln"), ("biochar", "plant")}
+
+
+def subgroups(db: Db) -> dict[str, list[dict]]:
+    saved = db.setting("subgroups")
+    return saved if isinstance(saved, dict) else {k: [dict(x) for x in v] for k, v in SUBGROUP_DEFAULTS.items()}
+
+
 def project_codes(db: Db) -> dict[str, str]:
     return {p["key"]: p["code"] for p in projects(db)}
 
@@ -111,6 +125,12 @@ def sync(db: Db) -> None:
             del modules.PROJECTS[k]
     for c in db.setting("projects_custom", []) or []:
         modules.PROJECTS[c["key"]] = {"name": c["name"], "icon": c.get("icon") or "pin", "tone": "", "blurb": c.get("blurb", "")}
+    sg = subgroups(db)
+    for k, p in modules.PROJECTS.items():
+        if sg.get(k):
+            p["subtypes"] = {x["key"]: x["name"] for x in sg[k]}
+        else:
+            p.pop("subtypes", None)
     for key, (_, _, refs) in FORM_LISTS.items():
         vals = form_values(db, key)
         for kind, field in refs:
@@ -190,7 +210,7 @@ def allowed(user: dict, lst: dict) -> bool:
 
 def boot_extra(db: Db) -> dict:
     """What every screen needs: roles, projects with codes, departments, translations of added items."""
-    return {"roles": roles(db), "projectList": projects(db), "departments": _departments(db), "listTr": db.setting("list_tr", {}) or {},
+    return {"roles": roles(db), "projectList": projects(db), "departments": _departments(db), "listTr": db.setting("list_tr", {}) or {}, "subgroups": subgroups(db),
             "levels": [level_info(db, k) for k in levels(db)]}
 
 
@@ -395,6 +415,53 @@ def router(user_dep, db_dep) -> APIRouter:
             db.set_setting("lists", {**(db.setting("lists", {}) or {}), key: [v for v in form_values(db, key) if v != value]})
         sync(db)
         db.audit(user["id"], "list_delete", "list", key, value)
+        return {"ok": True}
+
+
+    # -------------------------------------------------------------- site sub-groups (Settings > Lists)
+    def sg_project(db: Db, user: dict, payload: dict) -> tuple[str, dict]:
+        import perms
+
+        perms.need(user, "sites.edit")
+        proj = str(payload.get("project", ""))
+        if proj != "office" and proj not in project_codes(db):
+            raise HTTPException(422, "Choose the project")
+        return proj, subgroups(db)
+
+    @r.post("/subgroups")
+    def subgroup_save(payload: dict, user: user_dep, db: db_dep):
+        """Add a sub-group to a project, or rename one (key given)."""
+        proj, sg = sg_project(db, user, payload)
+        name = str(payload.get("name", "")).strip()[:40]
+        if len(name) < 2:
+            raise HTTPException(422, "Give the sub-group a name")
+        cur = sg.get(proj, [])
+        key = str(payload.get("key") or "")
+        if any(x["name"].lower() == name.lower() and x["key"] != key for x in cur):
+            raise HTTPException(409, f"{name} already exists")
+        if key:
+            if not any(x["key"] == key for x in cur):
+                raise HTTPException(404, "Sub-group not found")
+            cur = [{**x, "name": name} if x["key"] == key else x for x in cur]
+        else:
+            key = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")[:20] or "group"
+            while any(x["key"] == key for x in cur):
+                key = f"{key[:17]}_{len(cur) + 1}"
+            cur = [*cur, {"key": key, "name": name}]
+        db.set_setting("subgroups", {**sg, proj: cur})
+        sync(db)
+        db.audit(user["id"], "subgroup_saved", "project", proj, name)
+        return {"key": key}
+
+    @r.post("/subgroups/remove")
+    def subgroup_delete(payload: dict, user: user_dep, db: db_dep):
+        proj, sg = sg_project(db, user, payload)
+        key = str(payload.get("key", ""))
+        if (proj, key) in FIXED_SUBGROUPS:
+            raise HTTPException(409, "Low-tech and high-tech biochar can be renamed but not removed")
+        db.set_setting("subgroups", {**sg, proj: [x for x in sg.get(proj, []) if x["key"] != key]})
+        sync(db)  # sites in it show under "Sub-group not set" until they are edited
+        db.audit(user["id"], "subgroup_deleted", "project", proj, key)
         return {"ok": True}
 
     return r

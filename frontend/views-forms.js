@@ -17,7 +17,6 @@ function newTiles() {
     { icon: 'receipt', label: 'Expense', href: '#rec/expense/new' },
     { icon: 'sun', label: 'Leave', href: '#leaves' },
     { icon: 'alert', label: 'Incident', href: '#rec/incident/new' },
-    { icon: 'more', label: 'More…', action: 'newMore' },
   ].filter(Boolean);
 }
 const newTile = (x) => `<button type="button" class="fa-tile" data-action="newGo" ${x.href ? `data-href="${esc(x.href)}"` : ''} ${x.action ? `data-act="${esc(x.action)}"` : ''}>${ic(x.icon)}<span>${esc(x.label)}</span></button>`;
@@ -92,8 +91,7 @@ function empCodePreview(proj, office) {
 }
 function sitePicker(prefix) {
   const chosen = new Set(String(F(`${prefix}-sites`, '')).split(',').filter(Boolean));
-  const projs = KL.boot.projectList || [];
-  const groups = [...projs.map((p) => [p.name, KL.boot.sites.filter((s) => s.project_type === p.key && s.active !== 0)]), ['Offices', KL.boot.sites.filter((s) => s.project_type === 'office')]].filter(([, l]) => l.length);
+  const groups = siteGroups(KL.boot.sites.filter((s) => s.active !== 0)).flatMap((g) => g.parts.map(([sub, list]) => [sub ? `${g.meta.name} · ${sub}` : g.meta.name, list]));
   if (!groups.length) return '<p class="hint">No sites yet. Add a site first, or save now and add the person to a site later.</p>';
   return `${groups.map(([label, list]) => `<div class="label" style="margin:8px 0 4px">${esc(label)}</div><div class="chips">${list.map((s) => `<button type="button" data-action="pickSite" data-prefix="${prefix}" data-id="${esc(s.id)}" aria-pressed="${chosen.has(s.id)}">${esc(s.name)}</button>`).join('')}</div>`).join('')}
     <p class="hint" style="margin-top:6px">${chosen.size ? `${chosen.size} site${chosen.size === 1 ? '' : 's'} chosen.` : 'No site chosen: the person can use HR, tasks and requests, but cannot check in at a site.'}</p>`;
@@ -260,7 +258,7 @@ function siteForm(id) {
   if (KL.ui.sfInit !== initKey) {
     KL.ui.sfInit = initKey;
     for (const k of Object.keys(KL.ui.forms)) if (k.startsWith('sf-')) delete KL.ui.forms[k];
-    if (s) { setF(sf('name'), s.name); setF(sf('project'), s.project_type); setF(sf('subtype'), s.subtype || 'kiln'); setF(sf('address'), s.address || ''); setF(sf('lat'), String(s.lat)); setF(sf('lng'), String(s.lng)); setF(sf('radius'), String(s.radius_m)); setF(sf('rule'), String(s.strict || 0)); setF(sf('active'), s.active === 0 ? 'inactive' : 'active'); }
+    if (s) { setF(sf('name'), s.name); setF(sf('project'), s.project_type); setF(sf('subtype'), s.subtype || ''); setF(sf('address'), s.address || ''); setF(sf('lat'), String(s.lat)); setF(sf('lng'), String(s.lng)); setF(sf('radius'), String(s.radius_m)); setF(sf('rule'), String(s.strict || 0)); setF(sf('active'), s.active === 0 ? 'inactive' : 'active'); }
     else { setF(sf('project'), KL.ui.sfProject || (KL.boot.projectList || [])[0]?.key || 'biochar'); setF(sf('radius'), '200'); setF(sf('rule'), '0'); }
     KL.ui.sfTeam0 = s ? null : ''; // null: the team is still loading (nothing about it is sent until it has)
     if (s && can('users.assign')) loadSiteTeam(s.id);
@@ -275,8 +273,8 @@ function siteForm(id) {
     <div class="card stack">
       ${field('Site name', input(sf('name'), F(sf('name')), { placeholder: 'e.g. Deesa plantation, Banaskantha' }), { required: true })}
       <div class="grid2">${field('Project', select(sf('project'), proj, [...projs.map((p) => [p.key, p.name]), ['office', 'Office']]), { required: true })}
-        ${proj === 'biochar' ? field('Biochar type', select(sf('subtype'), F(sf('subtype'), 'kiln'), [['kiln', 'Low-tech · kilns'], ['plant', 'High-tech · industrial plant']])) : field('Address or village', input(sf('address'), F(sf('address')), { placeholder: 'optional' }))}</div>
-      ${proj === 'biochar' ? field('Address or village', input(sf('address'), F(sf('address')), { placeholder: 'optional' })) : ''}
+        ${subgroupsOf(proj).length ? field('Sub-group', select(sf('subtype'), F(sf('subtype'), ''), subgroupsOf(proj).map((g) => [g.key, g.name]), { blank: 'Choose' }), { required: true }) : field('Address or village', input(sf('address'), F(sf('address')), { placeholder: 'optional' }))}</div>
+      ${subgroupsOf(proj).length ? field('Address or village', input(sf('address'), F(sf('address')), { placeholder: 'optional' })) : ''}
     </div>
     ${group('Geofence', `<div class="card stack">
       <p class="hint">Tap the map to put the centre there, or stand at the middle of the site and use your location. The circle is where check-in counts.</p>
@@ -369,9 +367,10 @@ Actions.siteSave = async (el) => {
   if (v('name').length < 2) return toast('Type the site name', 'error');
   const lat = Number(v('lat')), lng = Number(v('lng'));
   if (!v('lat') || !v('lng') || !Number.isFinite(lat) || !Number.isFinite(lng)) return toast('Set the centre: tap the map, use your location or type the coordinates', 'error');
+  if (!v('subtype') && subgroupsOf(v('project')).length) return toast('Choose the sub-group', 'error');
   const radius = Number(v('radius'));
   if (!(radius >= 10 && radius <= 20000)) return toast('Radius must be between 10 m and 20 km', 'error');
-  const body = { id, name: v('name'), project_type: v('project'), subtype: v('project') === 'biochar' ? v('subtype') || 'kiln' : '', address: v('address'), lat, lng, radius_m: Math.round(radius), strict: Number(v('rule') || 0), active: id ? v('active') !== 'inactive' : true };
+  const body = { id, name: v('name'), project_type: v('project'), subtype: subgroupsOf(v('project')).length ? v('subtype') : '', address: v('address'), lat, lng, radius_m: Math.round(radius), strict: Number(v('rule') || 0), active: id ? v('active') !== 'inactive' : true };
   if (can('users.assign') && KL.ui.sfTeam0 !== null) {
     const was = new Set(String(KL.ui.sfTeam0 || '').split(',').filter(Boolean)), now = new Set(String(F(sf('team'), '')).split(',').filter(Boolean));
     body.teamAdd = [...now].filter((x) => !was.has(x)); body.teamRemove = [...was].filter((x) => !now.has(x));

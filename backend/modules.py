@@ -62,6 +62,7 @@ MIGRATIONS = [
     "ALTER TABLE users ADD COLUMN department TEXT DEFAULT ''",
     "ALTER TABLE approval_steps ADD COLUMN subject_id TEXT",
     "ALTER TABLE leaves ADD COLUMN half TEXT DEFAULT ''",
+    "ALTER TABLE users ADD COLUMN photo_id TEXT",
     "ALTER TABLE users ADD COLUMN level TEXT DEFAULT ''",  # a custom access level (Settings > Designations & access); role holds its base  # '' full days, 'first' / 'second' half of one day
     "CREATE TABLE IF NOT EXISTS user_projects (user_id TEXT NOT NULL, project TEXT NOT NULL, PRIMARY KEY (user_id, project))",
 ]
@@ -132,22 +133,22 @@ KINDS: dict[str, dict] = {
                     "fields": [F("asset", "Asset", required=True), F("category", "Category", "select", options=["Phone", "Safety kit", "Tool", "Laptop", "Vehicle", "Uniform"]),
                                F("serial", "Serial / IMEI"), F("person", "Issued to", "user", required=True), F("issued_on", "Issued on", "date"),
                                F("value", "Value", "money"), F("condition", "Condition", "select", options=["New", "Good", "Fair", "Damaged"]), F("returned_on", "Returned on", "date")]},
-    "training": {"label": "Training & certificates", "one": "Training", "group": "hr", "icon": "shield", "create": "staff", "scope": "own", "title": "title", "photo": "Certificate",
+    "training": {"off": True, "hidden": True, "label": "Training & certificates", "one": "Training", "group": "hr", "icon": "shield", "create": "staff", "scope": "own", "title": "title", "photo": "Certificate",
                  "fields": [F("title", "Training", required=True), F("person", "Person", "user", required=True), F("provider", "Given by"),
                             F("completed_on", "Completed on", "date"), F("valid_until", "Valid until", "date")]},
-    "goal": {"label": "Goals", "one": "Goal", "group": "hr", "icon": "target", "create": "staff", "scope": "own", "title": "title", "statuses": ["on track", "at risk", "done"],
+    "goal": {"off": True, "hidden": True, "label": "Goals", "one": "Goal", "group": "hr", "icon": "target", "create": "staff", "scope": "own", "title": "title", "statuses": ["on track", "at risk", "done"],
              "fields": [F("person", "Person", "user", required=True), F("title", "Goal", required=True), F("target", "Measure of success"),
                         F("due", "Due", "date"), F("weight", "Weight %", "number"), F("progress", "Progress %", "number")]},
-    "review": {"label": "Performance reviews", "one": "Review", "group": "hr", "icon": "chart", "create": "staff", "scope": "own", "title": "period",
+    "review": {"off": True, "hidden": True, "label": "Performance reviews", "one": "Review", "group": "hr", "icon": "chart", "create": "staff", "scope": "own", "title": "period",
                "fields": [F("person", "Person", "user", required=True), F("period", "Period", required=True, placeholder="e.g. Apr–Sep 2026"),
                           F("rating", "Rating", "select", options=["5 Outstanding", "4 Exceeds", "3 Meets", "2 Needs work", "1 Unsatisfactory"]),
                           F("strengths", "Strengths", "textarea"), F("improve", "To improve", "textarea")]},
     "policy": {"label": "Policies", "one": "Policy", "group": "hr", "icon": "doc", "create": "hr", "scope": "all", "title": "title",
-               "fields": [F("title", "Policy", required=True), F("version", "Version"), F("body", "Text", "textarea", required=True),
+               "fields": [F("title", "Policy", required=True), F("version", "Version"), F("body", "Summary", "textarea"),
                           F("must_ack", "Everyone must accept", "select", options=["Yes", "No"])]},
     "onboarding": {"label": "Onboarding", "one": "Joiner", "group": "hr", "icon": "users", "create": "hr", "scope": "staff", "title": "name", "statuses": ["in progress", "done"],
                    "fields": [F("name", "New joiner", required=True), F("role", "Role"), F("site", "Site", "site"), F("joining_date", "Joining date", "date"),
-                              F("checklist", "Checklist", "checklist", default="Offer letter signed\nID and address proof collected\nBank details and PAN\nUAN / ESIC registration\nPhone and app PIN issued\nSafety induction\nSite introduction")]},
+                              F("checklist", "Checklist", "checklist", default="Offer letter signed\nID and address proof collected\nBank details and PAN\nUAN / ESIC registration\nPhone and app PIN issued\nPolicies accepted and declaration signed\nSafety induction\nSite introduction")]},
     "exit": {"label": "Exits & settlement", "one": "Exit", "group": "hr", "icon": "logout", "create": "hr", "scope": "staff", "title": "person", "statuses": ["in progress", "settled"],
              "fields": [F("person", "Employee", "user", required=True), F("last_day", "Last working day", "date"), F("reason", "Reason", "select", options=["Resigned", "Contract ended", "Terminated", "Retired"]),
                         F("checklist", "Checklist", "checklist", default="Assets returned\nAdvance recovery sent to Zoho Payroll\nLeave encashment days sent to Zoho Payroll\nFull and final done in Zoho\nExperience letter\nApp access removed"),
@@ -163,7 +164,7 @@ KINDS: dict[str, dict] = {
     "advance": {"label": "Advances & loans", "one": "Advance", "group": "money", "icon": "receipt", "create": "all", "scope": "own", "approval": "advance", "title": "type", "amount": "amount",
                 "fields": [F("type", "Type", "select", options=["Salary advance", "Loan"], required=True), F("amount", "Amount", "money", required=True),
                            F("recover_months", "Recover over (months)", "number", default="3"), F("purpose", "Purpose", "textarea", required=True)]},
-    "farmer_payment": {"label": "Farmer payments", "one": "Farmer payment", "group": "money", "icon": "sprout", "create": "staff", "scope": "site", "approval": "farmer_payment",
+    "farmer_payment": {"off": True, "hidden": True, "label": "Farmer payments", "one": "Farmer payment", "group": "money", "icon": "sprout", "create": "staff", "scope": "site", "approval": "farmer_payment",
                        "title": "farmer", "amount": "amount", "photo": "Proof of payment",
                        "fields": [F("farmer", "Farmer", "farmer", required=True), F("amount", "Amount", "money", required=True),
                                   F("purpose", "For", "select", options=["Sapling incentive", "Carbon revenue share", "Biomass purchase", "Labour", "Other"]),
@@ -195,7 +196,7 @@ KINDS: dict[str, dict] = {
                          F("feedstock_kg", "Feedstock used (kg)", "number", required=True), F("moisture", "Feedstock moisture %", "number"),
                          F("output_kg", "Biochar out (kg)", "number", required=True), F("peak_temp", "Peak temperature °C", "number"),
                          F("run_hours", "Run hours (plants)", "number"), F("power_kwh", "Power used kWh (plants)", "number"), F("notes", "Notes", "textarea")]},
-    "gas_run": {"label": "Gasifier runs", "one": "Gasifier run", "group": "ops", "icon": "cog", "create": "all", "scope": "site", "title": "date", "photo": "Energy meter",
+    "gas_run": {"off": True, "hidden": True, "label": "Gasifier runs", "one": "Gasifier run", "group": "ops", "icon": "cog", "create": "all", "scope": "site", "title": "date", "photo": "Energy meter",
                 "fields": [F("site", "Site", "site", required=True), F("equipment", "Gasifier", "ref", ref="equipment"), F("date", "Date", "date", required=True),
                            F("run_hours", "Run hours", "number", required=True), F("feedstock_kg", "Feedstock used (kg)", "number", required=True),
                            F("power_kwh", "Power generated (kWh)", "number", required=True), F("ash_kg", "Ash / char out (kg)", "number"),
@@ -878,6 +879,8 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
                 raise HTTPException(409, "An approver has already acted on it; ask them to reject it and file a new one")
             if kind in ("batch", "application", "gas_run") or (kind in ("transfer", "dispatch") and old["status"] not in ("pending", "")):
                 raise HTTPException(409, "This moved stock; record a correction in the register instead of changing it")
+        elif k.get("off"):
+            raise HTTPException(403, f"{k['label']} are switched off")
         elif not can_create(user, k):
             raise HTTPException(403, f"Only {'HR' if k.get('create') == 'hr' else 'managers'} can add {k['label'].lower()}")
         anon = kind == "incident" and not old and str(form.get("anonymous") or "") in ("1", "true")
@@ -1256,7 +1259,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
             uid = user["id"]
         if uid != user["id"] and not is_staff(user):
             raise HTTPException(403, "Not allowed")
-        u = db.one("SELECT id, employee_id, name, role, designation, phone, email, manager_id, created_at, active, department, level, COALESCE(app_access, 1) AS app_access, COALESCE(supervisor, 0) AS supervisor FROM users WHERE id = ?", uid)
+        u = db.one("SELECT id, employee_id, name, role, designation, phone, email, manager_id, photo_id, created_at, active, department, level, COALESCE(app_access, 1) AS app_access, COALESCE(supervisor, 0) AS supervisor FROM users WHERE id = ?", uid)
         if not u:
             raise HTTPException(404, "Not found")
         p = profile_data(db, uid)

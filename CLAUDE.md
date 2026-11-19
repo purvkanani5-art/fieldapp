@@ -312,7 +312,29 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
    Email status 2026-11-19: owner granted Mail.Send (application) and an access policy for the four shared
    mailboxes (mail-enabled security group "Kshetralekha Mail", RestrictAccess; checked Granted / Denied); KL_MAIL=on;
    all four test emails received, also after the lock-down. A new committee mailbox must be added to that group.
-
+32. **Sub-groups, offices, photos, policies; registers switched off (2026-11-19)**. Sites list by project then
+   sub-group (lists.subgroups(), setting "subgroups", defaults Biochar kiln "Low-tech (kilns)" / plant "High-tech
+   (industrial plant)" (keys fixed: they drive tabs; rename only), Agroforestry trust / farmer / retro; editable in
+   Settings > Lists > Site sub-groups, POST /api/admin/lists/subgroups and /subgroups/remove; any project or
+   office may have them). Site form asks the sub-group when the project has some; the server fills "kiln" for an old
+   client's biochar site and leaves others "Sub-group not set". Offices are their own group in Operations > Sites
+   (core.js siteGroups(), projMeta('office')); an office hub has no stock / kiln tiles. Profile card fix (old
+   ".profile span {display:block}" broke the avatar and the tag row). Employee photos: users.photo_id, POST
+   /api/people/{id}/photo (+ /remove), self or users.edit; client crops to a 384 px square JPEG; filed in HR/<code>
+   <name>/; avatar() finds the photo by name from boot people. Tab rows keep their sideways scroll (keepTabRow).
+   Switched off by the owner ("deactivate means hide"): training, goal, review, farmer_payment, gas_run
+   (KINDS off + hidden; boot offKinds; isOff(); server refuses new ones; old data stays). "More…" removed from the
+   office "+". Company policies (backend/policies.py, views-policies.js): HR uploads PDF (en, optional gu / hi),
+   version, audience (notice audiences), must accept or reading only; anyone with an unaccepted required policy
+   (current version) sees only "Before you start" (app.js gate; HR / director can still open #policies): open each
+   PDF, tick, sign the declaration (setting policy_declaration) -> pdfgen.render_declaration PDF in HR documents
+   (category "Policy declaration") + policy_ack {policy, version, declaration}; a new version asks again; HR sees
+   accepted / not, Remind, Archive; onboarding checklist item "Policies accepted and declaration signed" is ticked
+   by name. Crew without phones: HR uploads a paper declaration ("Policy declaration (paper)"). Demo users have
+   accepted the demo policies. Tests: kl-tabrow.mjs, kl-photos-ui.mjs, kl-policies-ui.mjs.
+   Storage (owner asked 2026-11-19): database = container disk + Litestream to Azure Storage (7 days, continuous) +
+   nightly gzip copy to the SharePoint "Backups" library (30 kept); files = SharePoint only (no separate backup yet;
+   offered a nightly copy to Azure Storage, not built).
 
 ## Testing
 - `D:\PersonalBooks\.cache\kl-e2e.mjs` (2026-11-14): resets the demo, then manager assigns a photo-proof task →

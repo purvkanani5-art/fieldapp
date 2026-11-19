@@ -1334,3 +1334,29 @@ input.sw:focus-visible { outline: 3px solid var(--accent-tint); outline-offset: 
 .code-big { font-size: 28px; font-weight: 800; letter-spacing: .06em; padding: 14px 20px; border-radius: 16px; background: var(--surface-2, var(--bg)); user-select: all; }
 .case-facts { display: grid; gap: 6px; font-size: 14px; color: var(--muted); } .case-facts b { color: var(--text); }
 .ref { display: block; font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .02em; margin-top: 2px; }
+
+/* profile card: the photo circle and the tag row (an old ".profile span {display:block}" broke both) */
+.profile .avatar { display: inline-grid; color: #fff; font-size: 20px; }
+.profile span.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.profile span.row .tag { display: inline-flex; margin: 0; line-height: 1.2; }
+.avatar.has-photo { overflow: hidden; background: var(--surface-2) !important; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+.av-wrap { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; flex: none; }
+.av-edit { position: relative; border: 0; padding: 0; background: none; cursor: pointer; border-radius: 50%; display: inline-flex; }
+.av-edit .av-cam { position: absolute; right: -2px; bottom: -2px; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff; display: inline-grid; place-items: center; box-shadow: 0 0 0 2px var(--surface); }
+.av-edit .av-cam svg.ic { width: 13px; height: 13px; }
+.av-remove { border: 0; background: none; color: var(--muted); font: 600 12px var(--font); cursor: pointer; padding: 2px 4px; }
+/* sites grouped by sub-group */
+.pj-sub { font-size: 12.5px; font-weight: 800; letter-spacing: .02em; color: var(--muted); padding: 10px 16px 2px; text-transform: none; }
+.pj-sub span { font-weight: 600; opacity: .8; }
+.sg-row { display: grid; gap: 6px; padding: 8px 0; border-top: 1px solid var(--border); }
+.sg-row:first-of-type { border-top: 0; }
+.sg-chip { display: inline-flex; align-items: center; gap: 2px; padding: 4px 4px 4px 12px; border-radius: 999px; background: var(--surface-2, var(--bg)); font-size: 14px; font-weight: 600; }
+.sg-chip .x { border: 0; background: none; padding: 4px; cursor: pointer; color: var(--muted); display: inline-flex; }
+.sg-chip .x svg.ic { width: 15px; height: 15px; }
+/* company policies: the "Before you start" screen */
+.pol-row { display: grid; gap: 8px; padding: 12px 14px; border-radius: 16px; background: var(--surface-2, var(--bg)); }
+.pol-tick { font-weight: 700; }
+.pol-tick.off { opacity: .6; }
+.pol-decl { border-left: 4px solid var(--accent); padding: 8px 12px; background: var(--accent-tint); border-radius: 0 12px 12px 0; }
+.pol-decl p { margin: 4px 0 0; line-height: 1.5; }

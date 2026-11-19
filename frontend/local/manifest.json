@@ -13,6 +13,7 @@
   "pdfgen.py",
   "perms.py",
   "planner.py",
+  "policies.py",
   "seed.py",
   "storage.py"
  ],

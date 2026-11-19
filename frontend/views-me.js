@@ -9,20 +9,19 @@ Views.me = () => {
   let theme = 'auto';
   try { theme = localStorage.getItem('kl.theme') || 'auto'; } catch { /* private mode */ }
   return `<h1 class="large">Me</h1>
-    <div class="card profile" style="margin-top:14px">${avatar(u.name, 'xl')}<div style="min-width:0"><b>${esc(u.name)}</b><span>${esc(u.designation || ROLE_TEXT[u.role] || u.role)}</span><span class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap">${tag(u.employee_id, 'info')}${tag(ROLE_TEXT[u.role] || u.role, 'ok')}${(u.sites || []).slice(0, 2).map((id) => tag(siteName(id))).join('')}</span></div></div>
+    <div class="card profile" style="margin-top:14px">${profilePhoto(u)}<div style="min-width:0"><b>${esc(u.name)}</b><span>${esc(u.designation || ROLE_TEXT[u.role] || u.role)}</span><span class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap">${tag(u.employee_id, 'info')}${tag(ROLE_TEXT[u.role] || u.role, 'ok')}${(u.sites || []).slice(0, 2).map((id) => tag(siteName(id))).join('')}</span></div></div>
     ${u.must_change_pin ? `<div class="banner warn"><b>Change your PIN</b><p>HR gave you a starting PIN. Set your own 6-digit PIN now.</p><button type="button" class="btn small" data-action="changePin" style="margin-top:8px">Change PIN</button></div>` : ''}
     ${group('My documents', docs === null ? spinner() : docs.error ? errorBox(docs.error) : docs.rows.length ? `<div class="card flush">${docs.rows.map((d) => `<div class="lrow-static row"><span class="icon blue">${ic('doc')}</span><span class="tx" style="flex:1"><b>${esc(d.title)}</b><span class="muted" style="font-size:13px;display:block">${esc(d.category)} · ${esc(fmtDate(d.created_at, false))}</span></span>${fileLink(d.file_id)}</div>`).join('')}</div>` : '<div class="card"><p class="empty">Payslips, letters and ID documents appear here when HR uploads them.</p></div>', 'From HR')}
-    ${(() => { const pol = data('m:policy', () => api('/api/m/policy')); const todo = pol && !pol.error ? pol.rows.filter((p) => p.data.must_ack === 'Yes' && !p.acked) : []; return todo.length ? `<div class="banner warn" style="margin-top:14px">${ic('doc')}<div><b>${todo.length} polic${todo.length === 1 ? 'y' : 'ies'} to read and accept</b><p>${todo.map((p) => `<a href="#rec/policy/${esc(p.id)}">${esc(p.title)}</a>`).join(' · ')}</p></div></div>` : ''; })()}
     ${group('My HR', `<div class="card flush">
-      ${lrow({ href: '#person/me', icon: 'user', tone: 'blue', title: 'My employee record', sub: 'Details, bank and statutory numbers, leave balance, assets, training, goals' })}
+      ${lrow({ href: '#person/me', icon: 'user', tone: 'blue', title: 'My employee record', sub: 'Details, bank and statutory numbers, leave balance, assets' })}
       ${lrow({ href: '#attsum', icon: 'calendar', tone: 'green', title: 'Attendance summary', sub: 'This month: present, late, absent, overtime' })}
       ${lrow({ href: '#rec/regularisation', icon: 'clock', tone: 'amber', title: 'Attendance corrections', sub: 'Fix a missed check-out; your manager approves' })}
       ${lrow({ href: '#rec/expense', icon: 'receipt', tone: 'violet', title: 'Expense claims', sub: 'Bills with receipt photos; manager, then HR above ₹2,000' })}
       ${lrow({ href: '#rec/advance', icon: 'receipt', title: 'Advances & loans', sub: 'Recovered by Zoho Payroll in monthly parts' })}
       ${lrow({ href: '#rec/asset_issue', icon: 'box', title: 'My assets', sub: 'Phone, tools and safety kit issued to me' })}
-      ${lrow({ href: '#rec/training', icon: 'shield', tone: 'green', title: 'Training & certificates', sub: 'With expiry dates' })}
-      ${lrow({ href: '#rec/goal', icon: 'target', title: 'Goals & reviews', sub: 'Targets set by my manager' })}
-      ${lrow({ href: '#rec/policy', icon: 'doc', title: 'Policies', sub: 'Read and accept' })}
+      ${isOff('training') ? '' : lrow({ href: '#rec/training', icon: 'shield', tone: 'green', title: 'Training & certificates', sub: 'With expiry dates' })}
+      ${isOff('goal') ? '' : lrow({ href: '#rec/goal', icon: 'target', title: 'Goals & reviews', sub: 'Targets set by my manager' })}
+      ${lrow({ href: '#mypolicies', icon: 'doc', title: 'Company policies', sub: 'What you accepted' })}
     </div>`)}
     ${group('My requests', `<div class="card flush">
       ${lrow({ href: '#updates', icon: 'note', title: 'Daily work update', sub: 'Today and the last two weeks' })}

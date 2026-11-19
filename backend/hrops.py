@@ -1293,5 +1293,13 @@ def seed(db: Db) -> None:
         db.insert("survey_done", {"survey_id": sp, "user_id": users[emp]["id"], "at": now_iso()})
         db.insert("survey_answers", {"survey_id": sp, "user_id": None, "project": main_project(db, users[emp]["id"]), "at": today.isoformat(), "answers": json.dumps(a)})
     _ = purv
+    for p in db.all("SELECT id, data FROM records WHERE kind = 'policy'"):
+        d = json.loads(p["data"])
+        if d.get("must_ack", "Yes") == "No":
+            continue
+        for u in db.all("SELECT id FROM users WHERE active = 1"):
+            db.run("DELETE FROM records WHERE kind = 'policy_ack' AND user_id = ? AND json_extract(data, '$.policy') = ?", u["id"], p["id"])
+            db.insert("records", {"kind": "policy_ack", "title": "Accepted", "user_id": u["id"], "status": "open", "created_by": u["id"],
+                                  "data": json.dumps({"policy": p["id"], "version": d.get("version") or ""}), "created_at": now_iso(), "updated_at": now_iso()})
     committees.seed_demo(db, users)
     committees.route_old_cases(db)

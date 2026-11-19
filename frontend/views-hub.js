@@ -16,7 +16,7 @@ function hubTile(t) {
 
 function siteHub(s, { back = '', field = false } = {}) {
   const sum = data(`site:${s.id}`, () => api(`/api/sites/${s.id}/summary`));
-  const p = projectsMeta()[s.project_type] || {};
+  const p = projMeta(s.project_type);
   const tone = HUB_TONE[s.project_type] || '';
   const office = !field;
   const head = field ? fieldBar(s.name)
@@ -37,7 +37,9 @@ function siteHub(s, { back = '', field = false } = {}) {
       rec('sapling', 'tree', 'green', 'Plant saplings', `${fmtNum(st.planted || 0)} planted`), rec('survival', 'leaf', 'violet', 'Survival check', st.survival !== null && st.survival !== undefined ? `${st.survival}% alive` : 'Count living trees')];
     if (sum.items.length) tiles.push(stockTile);
   } else if (s.project_type === 'gasifier') {
-    tiles = [stockTile, safetyTile, rec('gas_run', 'sun', 'blue', 'Log a run', `${fmtNum(st.kwh || 0)} kWh this month`), rec('maintenance', 'cog', 'violet', 'Equipment service', st.down ? `${st.down} not working` : 'All working')];
+    tiles = [stockTile, safetyTile, ...(isOff('gas_run') ? [] : [rec('gas_run', 'sun', 'blue', 'Log a run', `${fmtNum(st.kwh || 0)} kWh this month`)]), rec('maintenance', 'cog', 'violet', 'Equipment service', st.down ? `${st.down} not working` : 'All working')];
+  } else if (s.project_type === 'office') {
+    tiles = []; // an office: its people, problems and records; no kilns or stock
   } else {
     tiles = [stockTile, safetyTile, rec('batch', 'flame', 'orange', s.subtype === 'plant' ? 'Plant run' : 'Kiln batch', `${st.batches || 0} this month · ${fmtNum(st.output || 0)} kg`)];
     if (s.project_type === 'biochar') tiles.push({ icon: 'sprout', tone: 'green', label: 'Farmers', sub: `${st.farmers || 0} farmers`, href: `#site/${s.id}/farmers` });
@@ -47,7 +49,7 @@ function siteHub(s, { back = '', field = false } = {}) {
   if (office || KL.user.supervisor) tiles.push({ icon: 'checklist', tone: 'violet', label: 'Crew attendance', sub: 'Workers without phones', href: `#muster/${s.id}` });
   if (office) tiles.push({ icon: 'list', tone: 'teal', label: 'Site records', sub: 'Everything logged here', href: `#site/${s.id}/overview` });
   const stat = (href, label, value, cls) => `<a class="today-tile ${cls || ''}" href="${href}"><span class="tt-lbl">${esc(label)}</span><b>${value}</b></a>`;
-  const second = s.project_type === 'agroforestry' ? stat(`#site/${s.id}/nursery`, 'In the nursery', fmtNum(st.inNursery || 0)) : s.project_type === 'gasifier' ? stat(`#site/${s.id}/generation`, 'Power this month', `${fmtNum(st.kwh || 0)}<small> kWh</small>`)
+  const second = s.project_type === 'office' ? '' : s.project_type === 'agroforestry' ? stat(`#site/${s.id}/nursery`, 'In the nursery', fmtNum(st.inNursery || 0)) : s.project_type === 'gasifier' && !isOff('gas_run') ? stat(`#site/${s.id}/generation`, 'Power this month', `${fmtNum(st.kwh || 0)}<small> kWh</small>`)
     : main ? stat(`#site/${s.id}/stock`, main.name, `${fmtNum(main.balance)}<small> ${esc(main.unit)}</small>`, low.includes(main) ? 'warn' : '') : '';
   const recent = (sum.recent || []).slice(0, 6);
   return `${head}${kicker}

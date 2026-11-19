@@ -781,6 +781,8 @@ function select(id, value, options, { blank = '' } = {}) {
 function textarea(id, value, placeholder = '') {
   return `<textarea id="${esc(id)}" class="input" placeholder="${esc(placeholder)}" data-input="form" data-key="${esc(id)}">${esc(value ?? '')}</textarea>`;
 }
+/** Registers the owner switched off (Training, Goals, Reviews, Farmer payments, Gasifier runs): hidden everywhere. */
+const isOff = (kind) => (KL.boot?.offKinds || []).includes(kind);
 /** The reference number of anything sent or logged (LV-2026-27-0014), as a small chip. */
 const refLine = (x) => (x && x.ref ? `<span class="ref mono">${esc(x.ref)}</span>` : '');
 /** A few choices as big tap-to-pick pills (instead of a dropdown); the value lives in the form like a select's. */
@@ -813,10 +815,67 @@ function initials(name) {
   const p = String(name || '').trim().split(/\s+/).filter(Boolean);
   return ((p[0]?.[0] || '?') + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase();
 }
-function avatar(name, size = '') {
+/** The photo a person uploaded (People > a person, or Me), found by name, since screens pass names around. */
+let photoMap = null;
+function photoFor(name) {
+  const people = KL.boot?.people;
+  if (!photoMap || photoMap.src !== people || photoMap.me !== KL.user?.photo_id) {
+    photoMap = { src: people, me: KL.user?.photo_id, by: new Map((people || []).filter((p) => p.photo_id).map((p) => [p.name, p.photo_id])) };
+    if (KL.user?.photo_id) photoMap.by.set(KL.user.name, KL.user.photo_id);
+  }
+  return photoMap.by.get(name) || null;
+}
+function avatar(name, size = '', photoId = undefined) {
   let h = 0;
   for (const ch of String(name || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return `<span class="avatar ${size}" style="background:${AV_COLORS[h % AV_COLORS.length]}" title="${esc(name)}">${esc(initials(name))}</span>`;
+  const pid = photoId === undefined ? photoFor(name) : photoId;
+  const inner = pid ? `<img class="authimg" data-file="${esc(pid)}" alt="" />` : esc(initials(name));
+  return `<span class="avatar ${size}${pid ? ' has-photo' : ''}" style="background:${AV_COLORS[h % AV_COLORS.length]}" title="${esc(name)}">${inner}</span>`;
+}
+/** Square, small JPEG of a chosen photo (centre crop), so a profile photo stays a few tens of KB. */
+async function squarePhoto(file, size = 384) {
+  const bmp = await createImageBitmap(file);
+  const side = Math.min(bmp.width, bmp.height);
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  c.getContext('2d').drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, size, size);
+  return new Promise((ok) => c.toBlob(ok, 'image/jpeg', 0.85));
+}
+/** The big photo on a profile card; tappable to change it for HR, the director and the person themself. */
+function profilePhoto(u) {
+  const mine = u.id === KL.user.id;
+  if (!(mine || can('users.edit'))) return avatar(u.name, 'xl', u.photo_id || null);
+  return `<span class="av-wrap"><button type="button" class="av-edit" data-action="photoPick" data-id="${esc(u.id)}" aria-label="${u.photo_id ? 'Change photo' : 'Add a photo'}">${avatar(u.name, 'xl', u.photo_id || null)}<span class="av-cam">${ic('camera')}</span></button>${u.photo_id ? `<button type="button" class="av-remove" data-action="photoRemove" data-id="${esc(u.id)}">Remove</button>` : ''}</span>`;
+}
+const afterPhoto = async (id) => { await reloadBoot(); if (id === KL.user.id) await refreshMe(); invalidate('hr', 'person', 'admin'); render(); };
+Actions.photoPick = (el) => pickFile('image/*', async (file) => {
+  try {
+    const form = new FormData();
+    form.append('photo', await squarePhoto(file), 'photo.jpg');
+    await api(`/api/people/${el.dataset.id}/photo`, { form });
+    toast('Photo saved'); await afterPhoto(el.dataset.id);
+  } catch (e) { toast(e.message || 'That photo could not be read', 'error'); }
+});
+Actions.photoRemove = async (el) => {
+  if (!(await modal({ title: 'Remove the photo?', message: 'Initials show instead.', confirmText: 'Remove' }))) return;
+  try { await api(`/api/people/${el.dataset.id}/photo/remove`, { json: {} }); toast('Photo removed'); await afterPhoto(el.dataset.id); } catch (e) { toast(e.message, 'error'); }
+};
+
+/* ---------------------------------------------------------------- projects, sub-groups and offices */
+const OFFICE_META = { name: 'Office', icon: 'home', tone: '' };
+const projMeta = (key) => (key === 'office' ? OFFICE_META : (KL.boot?.projects || {})[key] || {});
+const subgroupsOf = (key) => KL.boot?.subgroups?.[key] || [];
+const subgroupName = (s) => subgroupsOf(s.project_type).find((x) => x.key === s.subtype)?.name || '';
+/** Sites by project (built-ins, added projects, then offices), each split into its sub-groups when it has them. */
+function siteGroups(sites) {
+  const keys = [...Object.keys(KL.boot?.projects || {}), 'office'];
+  for (const s of sites) if (!keys.includes(s.project_type)) keys.push(s.project_type);
+  return keys.map((key) => {
+    const list = sites.filter((s) => s.project_type === key);
+    const subs = subgroupsOf(key);
+    const parts = subs.length ? [...subs.map((g) => [g.name, list.filter((s) => s.subtype === g.key)]), ['Sub-group not set', list.filter((s) => !subs.some((g) => g.key === s.subtype))]].filter(([, l]) => l.length) : [['', list]];
+    return { key, meta: projMeta(key), list, parts };
+  }).filter((g) => g.list.length);
 }
 const personById = (id) => (KL.boot ? KL.boot.people.find((p) => p.id === id) : null);
 const ROLE_TEXT = { admin: 'Director', manager: 'Manager', hr: 'HR', field: 'Field staff' };

@@ -96,7 +96,7 @@ function siteAddTiles(s) {
   const go = (href, icon, label, extra = {}) => ({ icon, label, href, ...extra });
   const t = [];
   if (s.project_type === 'biochar') t.push(go(`#site/${s.id}/stock`, 'box', 'Stock in or out'), rec('batch', 'flame', s.subtype === 'plant' ? 'Plant run' : 'Kiln batch'), go('', 'checklist', 'Daily safety check', { check: s.id }), go('#farmers', 'sprout', 'Farmer or signing'));
-  else if (s.project_type === 'gasifier') t.push(go(`#site/${s.id}/stock`, 'box', 'Stock in or out'), rec('gas_run', 'sun', 'Generation run'), rec('maintenance', 'cog', 'Equipment service'), go('', 'checklist', 'Daily safety check', { check: s.id }));
+  else if (s.project_type === 'gasifier') t.push(go(`#site/${s.id}/stock`, 'box', 'Stock in or out'), ...(isOff('gas_run') ? [] : [rec('gas_run', 'sun', 'Generation run')]), rec('maintenance', 'cog', 'Equipment service'), go('', 'checklist', 'Daily safety check', { check: s.id }));
   else if (s.project_type === 'agroforestry') t.push(rec('nursery', 'sprout', 'Nursery entry'), rec('sapling', 'tree', 'Saplings planted'), rec('survival', 'leaf', 'Survival check'), go('#farmers', 'users', 'Farmer or signing'));
   else t.push(go(`#site/${s.id}/stock`, 'box', 'Stock in or out'), go('', 'checklist', 'Daily safety check', { check: s.id }), go('#updates', 'note', 'Daily update')); // a project added in Settings > Lists
   if (sup) t.push(go(`#muster/${s.id}`, 'users', 'Crew attendance'));
@@ -150,10 +150,9 @@ function fieldSiteList(sites) {
 function fieldSite(s) { return siteHub(s, { field: true, back: fieldSites().length > 1 ? '#mysite' : '' }); }
 /** Projects as panels with their sites listed inside (used by everyone's Sites page and the field site picker). */
 function projectGroups(sites, hrefFor = (s) => `#site/${s.id}`) {
-  const groups = Object.entries(projectsMeta()).map(([key, p]) => [key, p, sites.filter((s) => s.project_type === key)]).filter(([, , list]) => list.length);
-  return groups.map(([key, p, list]) => `<section class="pj-panel pj-${esc(key)}" aria-label="${esc(p.name)}">
+  return siteGroups(sites).map(({ key, meta: p, list, parts }) => `<section class="pj-panel pj-${esc(key)}" aria-label="${esc(p.name)}">
       <header class="pj-panel-head"><span class="pj-ic">${ic(p.icon)}</span><b>${esc(p.name)}</b><span class="pj-count">${list.length} site${list.length === 1 ? '' : 's'}</span>${isStaff() && can('sites.edit') ? `<a class="btn small ghost icon-only" href="#sitenew" data-action="siteNewFor" data-project="${esc(key)}" aria-label="Add a ${esc(p.name)} site" title="Add a ${esc(p.name)} site">${ic('plus')}</a>` : ''}</header>
-      ${list.map((s) => `<a class="site-card" href="${esc(hrefFor(s))}"><span class="tx"><b>${esc(s.name)}</b><small>${esc([subtypeText(s), s.address].filter(Boolean).join(' · '))}</small></span>${s.strict ? tag(s.strict >= 2 ? 'Fence in & out' : 'Fence at check-in', 'bad') : ''}<span class="chev">${ic('chevron')}</span></a>`).join('')}
+      ${parts.map(([sub, subList]) => `${sub ? `<div class="pj-sub">${esc(sub)} <span>${subList.length}</span></div>` : ''}${subList.map((s) => `<a class="site-card" href="${esc(hrefFor(s))}"><span class="tx"><b>${esc(s.name)}</b><small>${esc(s.address || '')}</small></span>${s.strict ? tag(s.strict >= 2 ? 'Fence in & out' : 'Fence at check-in', 'bad') : ''}<span class="chev">${ic('chevron')}</span></a>`).join('')}`).join('')}
     </section>`).join('');
 }
 
@@ -210,7 +209,7 @@ function fieldMe() {
   const newN = w && !w.error ? (w.unreadNotices || 0) + w.surveys.length : 0;
   const row = (href, icon, title, sub = '', right = '', action = '') => `<${action ? 'button type="button"' : 'a'} class="fa-row" ${action ? `data-action="${action}"` : `href="${href}"`}><span class="fa-ic ${ME_TONE[icon] || ''}">${ic(icon)}</span><span class="fa-tx"><b>${esc(title)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</span>${right || `<span class="chev">${ic('chevron')}</span>`}</${action ? 'button' : 'a'}>`;
   return `${fieldBar('Me')}
-    <div class="fa-me-head card">${avatar(u.name, 'xl')}<div><b>${esc(u.name)}</b><span>${esc(u.designation || 'Field staff')} · ${esc(u.employee_id)}</span>${u.manager_id ? `<span>Reports to ${esc(personName(u.manager_id))}</span>` : ''}</div></div>
+    <div class="fa-me-head card">${profilePhoto(u)}<div><b>${esc(u.name)}</b><span>${esc(u.designation || 'Field staff')} · ${esc(u.employee_id)}</span>${u.manager_id ? `<span>Reports to ${esc(personName(u.manager_id))}</span>` : ''}</div></div>
     <div class="fa-list">
       ${row('#person/me', 'user', 'My details')}
       ${row('#attsum', 'calendar', 'My attendance', att && !att.error && att.totals ? `${att.totals.P} present this month` : '')}

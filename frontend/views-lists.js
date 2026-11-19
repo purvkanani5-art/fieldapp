@@ -62,8 +62,30 @@ function listsView() {
   if (d.error) return `${head}${errorBox(d.error)}`;
   const groups = Object.keys(d.groups).map((g) => [g, d.lists.filter((L) => L.group === g)]).filter(([, ls]) => ls.length);
   return `${head}<p class="sub">Every dropdown in the app. Add with the Add button; delete with the bin. Items already used in a record stay.</p>
-    ${groups.map(([g, ls]) => group(LIST_GROUP_TITLE[g] || g, `<div class="lc-grid">${ls.map((L) => listCard(L, d)).join('')}</div>`)).join('')}`;
+    ${groups.map(([g, ls]) => group(LIST_GROUP_TITLE[g] || g, `<div class="lc-grid">${ls.map((L) => listCard(L, d)).join('')}</div>`)).join('')}
+    ${can('sites.edit') ? group('Site sub-groups', subgroupCard()) : ''}`;
 }
+/** Sub-groups inside each project (e.g. Biochar: low-tech, high-tech). Sites are grouped by them. */
+function subgroupCard() {
+  const keys = [...Object.keys(KL.boot?.projects || {}), 'office'];
+  return `<div class="card stack"><p class="hint">Sites are listed by project and then by these sub-groups. Rename with the pen; a removed sub-group's sites show as "Sub-group not set" until edited.</p>
+    ${keys.map((k) => `<div class="sg-row"><b>${esc(projMeta(k).name || k)}</b><div class="chips">${subgroupsOf(k).map((g) => `<span class="sg-chip"><span>${esc(g.name)}</span><button type="button" class="x" aria-label="Rename ${esc(g.name)}" data-action="sgRename" data-project="${esc(k)}" data-key="${esc(g.key)}" data-name="${esc(g.name)}">${ic('pen')}</button>${['kiln', 'plant'].includes(g.key) && k === 'biochar' ? '' : `<button type="button" class="x" aria-label="Remove ${esc(g.name)}" data-action="sgDelete" data-project="${esc(k)}" data-key="${esc(g.key)}" data-name="${esc(g.name)}">${ic('trash')}</button>`}</span>`).join('')}<button type="button" class="btn small" data-action="sgAdd" data-project="${esc(k)}">${ic('plus')} Add</button></div></div>`).join('')}</div>`;
+}
+const sgDone = async (msg) => { await reloadBoot(); invalidate('admin:lists'); toast(msg); render(); };
+Actions.sgAdd = async (el) => {
+  const v = await modal({ title: `New sub-group in ${projMeta(el.dataset.project).name || el.dataset.project}`, fields: [{ key: 'name', label: 'Name', placeholder: 'e.g. Trust land' }], confirmText: 'Add' });
+  if (!v) return;
+  try { await api('/api/admin/lists/subgroups', { json: { project: el.dataset.project, name: v.name } }); await sgDone('Added'); } catch (e) { toast(e.message, 'error'); }
+};
+Actions.sgRename = async (el) => {
+  const v = await modal({ title: 'Rename sub-group', fields: [{ key: 'name', label: 'Name', value: el.dataset.name }], confirmText: 'Save' });
+  if (!v) return;
+  try { await api('/api/admin/lists/subgroups', { json: { project: el.dataset.project, key: el.dataset.key, name: v.name } }); await sgDone('Renamed'); } catch (e) { toast(e.message, 'error'); }
+};
+Actions.sgDelete = async (el) => {
+  if (!(await modal({ title: `Remove ${el.dataset.name}?`, message: 'Its sites stay; they show as "Sub-group not set" until you edit them.', confirmText: 'Remove' }))) return;
+  try { await api('/api/admin/lists/subgroups/remove', { json: { project: el.dataset.project, key: el.dataset.key } }); await sgDone('Removed'); } catch (e) { toast(e.message, 'error'); }
+};
 
 Actions.listAdd = async (el) => {
   const key = el.dataset.list;

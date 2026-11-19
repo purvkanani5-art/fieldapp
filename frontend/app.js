@@ -14,7 +14,7 @@ const SECTIONS = [
 const SECTION_OF = { home: 'home', approvals: 'inbox', inbox: 'inbox',
   sites: 'ops', site: 'ops', sitenew: 'ops', siteedit: 'ops', mysite: 'ops', planner: 'ops', tasks: 'ops', carbon: 'ops', map: 'ops', registers: 'ops', farmers: 'ops', sign: 'ops', muster: 'ops', work: 'ops',
   people: 'people', person: 'people', personedit: 'people', empnew: 'people', empedit: 'people', dailyupd: 'people', assign: 'people', attsum: 'people', team: 'people', monthend: 'people', hrreg: 'people', changes: 'people',
-  notices: 'people', notice: 'people', noticenew: 'people', surveys: 'people', survey: 'people', surveynew: 'people', hrdesk: 'people', poshdesk: 'people', cases: 'people', case: 'people', committees: 'people', committee: 'people',
+  notices: 'people', notice: 'people', noticenew: 'people', surveys: 'people', survey: 'people', surveynew: 'people', hrdesk: 'people', poshdesk: 'people', policies: 'people', policy: 'people', policyedit: 'people', mypolicies: 'me', cases: 'people', case: 'people', committees: 'people', committee: 'people',
   reports: 'reports', dashboard: 'reports',
   me: 'me', leaves: 'me', trips: 'me', attendance: 'me', updates: 'me', feedback: 'me',
   settings: 'settings', privacy: 'settings', security: 'settings', admin: 'settings', hrsettings: 'settings', messages: 'settings' };
@@ -49,9 +49,9 @@ function appHead() {
 const fieldTabs = () => TABS_FIELD_ALL.filter(([k]) => k !== 'mysite' || (KL.boot?.mySites || []).some((s) => s.project_type !== 'office'));
 const TAB_OF = { attendance: 'work', trips: 'work', registers: 'work', farmers: 'work', sign: 'work', updates: 'me', leaves: 'me', feedback: 'me', dashboard: 'manage', approvals: 'manage', team: 'manage', hrdesk: 'manage', admin: 'manage',
   people: 'manage', personedit: 'manage', reports: 'manage', hrsettings: 'manage', messages: 'manage', privacy: 'me', security: 'me',
-  notices: 'me', notice: 'me', surveys: 'me', survey: 'me', changes: 'me', poshdesk: 'me', cases: 'me', case: 'me', committees: 'me', committee: 'me' };
+  notices: 'me', notice: 'me', surveys: 'me', survey: 'me', changes: 'me', poshdesk: 'me', mypolicies: 'me', cases: 'me', case: 'me', committees: 'me', committee: 'me' };
 const FIELD_ONLY = new Set(['requests']);
-const STAFF_ROUTES = new Set(['manage', 'dashboard', 'team', 'dailyupd', 'hrdesk', 'admin', 'people', 'personedit', 'empnew', 'empedit', 'sitenew', 'siteedit', 'reports', 'hrsettings', 'messages', 'hr', 'assign', 'monthend', 'hrreg', 'noticenew']);
+const STAFF_ROUTES = new Set(['manage', 'dashboard', 'team', 'dailyupd', 'hrdesk', 'policies', 'policy', 'policyedit', 'admin', 'people', 'personedit', 'empnew', 'empedit', 'sitenew', 'siteedit', 'reports', 'hrsettings', 'messages', 'hr', 'assign', 'monthend', 'hrreg', 'noticenew']);
 const NEEDS_GPS = new Set(['attendance', 'trips', 'registers', 'sign', 'farmers']);
 
 const SECTION_LABEL = {'home': 'Home', 'sites': 'Sites', 'mysite': 'My site', 'planner': 'Planner', 'tasks': 'My tasks', 'hr': 'People', 'me': 'Me', 'inbox': 'Inbox', 'manage': 'Manage', 'ops': 'Operations', 'people': 'People', 'reports': 'Reports', 'settings': 'Settings'};
@@ -61,10 +61,10 @@ function route() {
   return i === -1 ? { name: h, arg: '' } : { name: h.slice(0, i), arg: h.slice(i + 1) };
 }
 const SITE_VIEWS = new Set(['site', 'sites', 'mysite', 'work', 'registers', 'farmers', 'sign', 'carbon', 'map', 'muster']);
-const PEOPLE_VIEWS = new Set(['hr', 'hub', 'people', 'person', 'personedit', 'assign', 'attsum', 'monthend', 'hrreg', 'changes', 'notices', 'notice', 'noticenew', 'surveys', 'survey', 'surveynew', 'poshdesk', 'cases', 'case', 'committees', 'committee', 'hrsettings', 'messages', 'approvals', 'team', 'hrdesk', 'admin', 'manage', 'reports', 'dashboard', 'me', 'updates', 'leaves', 'feedback', 'privacy', 'security']);
+const PEOPLE_VIEWS = new Set(['hr', 'hub', 'people', 'person', 'personedit', 'assign', 'attsum', 'monthend', 'hrreg', 'changes', 'notices', 'notice', 'noticenew', 'surveys', 'survey', 'surveynew', 'poshdesk', 'policies', 'policy', 'policyedit', 'mypolicies', 'cases', 'case', 'committees', 'committee', 'hrsettings', 'messages', 'approvals', 'team', 'hrdesk', 'admin', 'manage', 'reports', 'dashboard', 'me', 'updates', 'leaves', 'feedback', 'privacy', 'security']);
 const FIELD_TAB = { home: 'home', tasks: 'home', inbox: 'home', attendance: 'home', updates: 'home', task: 'home', notice: 'me', notices: 'me', survey: 'me', surveys: 'me',
   mysite: 'mysite', site: 'mysite', muster: 'mysite', registers: 'mysite', farmers: 'mysite', sign: 'mysite', map: 'mysite', carbon: 'mysite',
-  requests: 'requests', leaves: 'requests', trips: 'requests', me: 'me', person: 'me', attsum: 'me', feedback: 'me', settings: 'me', privacy: 'me', security: 'me', changes: 'me', poshdesk: 'me', cases: 'me', case: 'me', committees: 'me', committee: 'me', hr: 'me', hub: 'me' };
+  requests: 'requests', leaves: 'requests', trips: 'requests', me: 'me', person: 'me', attsum: 'me', feedback: 'me', settings: 'me', privacy: 'me', security: 'me', changes: 'me', poshdesk: 'me', mypolicies: 'me', cases: 'me', case: 'me', committees: 'me', committee: 'me', hr: 'me', hub: 'me' };
 function tabOf(view) {
   if (KL.user && KL.user.role === 'field') {
     if (view === 'rec') { const k = kindDef(route().arg.split('/')[0]); return k && ['expense', 'advance', 'regularisation'].includes(k.key) ? 'requests' : k && ['hr', 'money'].includes(k.group) ? 'me' : 'mysite'; }
@@ -114,8 +114,8 @@ function navGroups() {
     staff ? ['Team', [['approvals', 'check', 'Approvals', pend], ['team', 'clock', 'Team activity'], ['attsum', 'calendar', 'Attendance']]] : null,
     ['People & HR', staff
       ? [['hr', 'users', 'People'], ['people', 'user', 'Directory'], ['monthend', 'lock', 'Month end'], ['hrreg', 'list', 'Registers'], ['changes', 'clock', 'Change log'],
-        ...(hrRole ? [['hrdesk', 'folder', 'HR desk']] : []), ['notices', 'bell', 'Notices'], ['surveys', 'chart', 'Surveys'], ['rec/policy', 'doc', 'Policies']]
-      : [['person/me', 'user', 'My record'], ['attsum', 'calendar', 'Attendance'], ['notices', 'bell', 'Notices'], ['surveys', 'chart', 'Surveys'], ['feedback', 'chat', 'Complaints'], ['rec/policy', 'doc', 'Policies']]],
+        ...(hrRole ? [['hrdesk', 'folder', 'HR desk']] : []), ['notices', 'bell', 'Notices'], ['surveys', 'chart', 'Surveys'], [hrRole ? 'policies' : 'mypolicies', 'doc', 'Policies']]
+      : [['person/me', 'user', 'My record'], ['attsum', 'calendar', 'Attendance'], ['notices', 'bell', 'Notices'], ['surveys', 'chart', 'Surveys'], ['feedback', 'chat', 'Complaints'], ['mypolicies', 'doc', 'Policies']]],
     ['Operations', [...(staff || hasSite ? [[staff ? 'sites' : 'mysite', 'pin', staff ? 'Sites' : 'My site']] : []), ['map', 'map', 'Map'], ...(staff ? [['carbon', 'leaf', 'Carbon chain'], ['hub/supply', 'box', 'Purchasing']] : [])]],
     staff ? ['Reports', [['reports', 'chart', 'Reports']]] : null,
     staff ? ['Admin', [['admin', 'cog', 'Administration'], ...(hrRole ? [['hrsettings', 'cog', 'HR settings']] : [])]] : null,
@@ -259,6 +259,13 @@ function hideSplash() {
   s.dataset.going = '1';
   setTimeout(() => { s.classList.add('gone'); setTimeout(() => s.remove(), 500); }, Math.max(0, 700 - performance.now()));
 }
+/** A signature pad on the page (farmer documents, policy declaration), keeping what was drawn across re-renders. */
+function bindSig(keep) {
+  const canvas = $('#sig');
+  if (!canvas) { KL.sig = null; return; }
+  KL.sig = signaturePad(canvas);
+  if (keep) { const im = new Image(); im.onload = () => { canvas.getContext('2d').drawImage(im, 0, 0, canvas.width / (devicePixelRatio || 1), canvas.height / (devicePixelRatio || 1)); KL.sig.restored = true; }; im.src = keep; KL.sig.isEmpty = () => false; }
+}
 /** Put the tab row back where it was, then make sure the open tab is in view (it may be past the edge). */
 function keepTabRow(wasAt) {
   const row = document.querySelector('#app .sect-tabs');
@@ -282,6 +289,10 @@ function render() {
   if (!KL.user.consent_at && KL.boot.demo !== undefined) { app.innerHTML = consentView(); hideSplash(); return; }
   if (KL.user.must_change_pin) { app.innerHTML = setPinView(); hideSplash(); return; }
   let { name, arg } = route();
+  if (KL.me?.policiesPending && !(['admin', 'hr'].includes(KL.user.role) && ['policies', 'policy', 'policyedit'].includes(name))) {
+    const keep = KL.sig && $('#sig') && !KL.sig.isEmpty() ? KL.sig.dataUrl() : null;
+    app.innerHTML = policyGateView(); bindSig(keep); translate(app); hideSplash(); return;
+  }
   if (name === 'task' && arg) {
     if (KL.ui.sheetTask !== arg) { KL.ui.sheetTask = arg; KL.ui.completing = null; invalidate(`planner:task:${arg}`); locate(); }
     name = isStaff() ? 'planner' : 'tasks'; arg = '';
@@ -321,11 +332,7 @@ function render() {
   app.innerHTML = `${appHead()}${sideNav(tab)}<main class="view ${entering ? 'enter' : ''} ${strip ? 'is-top' : ''}" id="main">${strip}${main}</main>${side}${tabBar(tab)}${switcherPill()}`;
   keepTabRow(wasAt);
   document.body.classList.toggle('has-drawer', Boolean(drawer));
-  const canvas = $('#sig');
-  if (canvas) {
-    KL.sig = signaturePad(canvas);
-    if (sigKeep) { const im = new Image(); im.onload = () => { canvas.getContext('2d').drawImage(im, 0, 0, canvas.width / (devicePixelRatio || 1), canvas.height / (devicePixelRatio || 1)); KL.sig.restored = true; }; im.src = sigKeep; KL.sig.isEmpty = () => false; }
-  } else KL.sig = null;
+  bindSig(sigKeep);
   if (boardX && $('.board')) $('.board').scrollLeft = boardX;
   if (typeof applyPlanFilter === 'function' && F('pl-q', '')) applyPlanFilter();
   loadAuthImages();

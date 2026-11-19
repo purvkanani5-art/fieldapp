@@ -4,17 +4,17 @@
 
 const SITE_TABS = {
   biochar: (s) => [['overview', 'home', 'Overview'], ['stock', 'box', 'Stock'], ['production', 'flame', s.subtype === 'plant' ? 'Plant runs' : 'Kiln batches'], ['farmers', 'sprout', 'Farmers'], ['safety', 'shield', 'Safety'], ['team', 'users', 'Team']],
-  gasifier: () => [['overview', 'home', 'Overview'], ['stock', 'box', 'Stock'], ['generation', 'sun', 'Generation'], ['equipment', 'cog', 'Equipment'], ['safety', 'shield', 'Safety'], ['team', 'users', 'Team']],
+  gasifier: () => [['overview', 'home', 'Overview'], ['stock', 'box', 'Stock'], ...(isOff('gas_run') ? [] : [['generation', 'sun', 'Generation']]), ['equipment', 'cog', 'Equipment'], ['safety', 'shield', 'Safety'], ['team', 'users', 'Team']],
   agroforestry: () => [['overview', 'home', 'Overview'], ['nursery', 'sprout', 'Nursery'], ['plantation', 'tree', 'Plantation'], ['farmers', 'users', 'Farmers'], ['team', 'users', 'Team']],
   general: () => [['overview', 'home', 'Overview'], ['stock', 'box', 'Stock'], ['safety', 'shield', 'Safety'], ['team', 'users', 'Team']], // projects added in Settings > Lists
 };
 const projectsMeta = () => KL.boot?.projects || {};
 const mySites = () => (KL.boot?.mySites || []).filter((s) => s.project_type !== 'office');
-const subtypeText = (s) => (s.project_type === 'biochar' ? projectsMeta().biochar?.subtypes?.[s.subtype] || '' : '');
+const subtypeText = (s) => subgroupName(s);
 
 /* ---------------------------------------------------------------- all my projects and sites */
 Views.sites = () => {
-  const sites = mySites();
+  const sites = isStaff() ? (KL.boot?.mySites || []) : mySites(); // office staff see offices too (their own group)
   const add = isStaff() && can('sites.edit') ? `<a class="btn small primary" href="#sitenew" data-action="siteNewFor" data-project="">${ic('plus')} Add site</a>` : '';
   if (!sites.length) return `${topbar('Sites', '#home', add)}${emptyState('pin', 'No site assigned to you', 'You can use HR, the Planner and your inbox. HR adds you to a site or project when you work at one.')}`;
   return `${topbar('Sites', '#home', isStaff() ? add : `<a class="btn small" href="#map">${ic('map')} Map</a>`)}
@@ -35,7 +35,7 @@ Views.site = (arg) => {
   const tab = tabs.some(([k]) => k === tab0) ? tab0 : 'overview';
   KL.ui.siteBack = `#site/${id}/${tab}`;
   const sum = data(`site:${id}`, () => api(`/api/sites/${id}/summary`));
-  const p = projectsMeta()[s.project_type] || {};
+  const p = projMeta(s.project_type);
   const head = `<div class="site-head pj-${esc(s.project_type)}"><span class="pj-ic">${ic(p.icon || 'pin')}</span><div class="tx"><b>${esc(p.name || '')}${subtypeText(s) ? ` · ${esc(subtypeText(s))}` : ''}</b><small>${esc(s.address || '')} · ${s.radius_m} m fence${s.strict >= 2 ? ' · check-in and check-out inside only' : s.strict ? ' · check-in inside only' : ''}</small></div>
     ${sum && !sum.error && sum.onSite.length ? `<span class="avatars" title="On site now">${sum.onSite.slice(0, 4).map((x) => avatar(x.name, 'sm')).join('')}</span>` : ''}</div>`;
   const bar = `<nav class="site-tabs">${tabs.map(([k, icon, label]) => `<a href="#site/${esc(id)}/${k}" class="${tab === k ? 'on' : ''}">${ic(icon)}<span>${esc(label)}</span></a>`).join('')}</nav>`;
@@ -80,7 +80,7 @@ const SITE_BODY = {
       tiles = [[itemBal(sum, ['biochar']), 'kg biochar in stock', 'ok', 'flame', `ov-bc-${s.id}`], [itemBal(sum, ['biomass', 'feed']), 'kg biomass in stock', '', 'leaf', `ov-bm-${s.id}`], [itemBal(sum, ['diesel']), 'L diesel', 'warn', 'fuel', `ov-dz-${s.id}`],
         [st.output, `kg made this month · ${st.batches || 0} ${s.subtype === 'plant' ? 'runs' : 'batches'}`, 'blue', 'chart', `ov-out-${s.id}`], [st.applied, 'kg applied on farms', 'violet', 'sprout', `ov-ap-${s.id}`], [st.untested, 'batches waiting for the lab', st.untested ? 'warn' : '', 'scale', `ov-un-${s.id}`]];
     } else if (s.project_type === 'gasifier') {
-      acts = [['#attendance', 'pin', '', here ? 'Check out' : 'Check in'], ['#rec/gas_run/new', 'sun', 'blue', 'Log a run', newAct('gas_run', 'site', s)], [`#site/${s.id}/stock`, 'box', 'amber', 'Stock entry'], [`#site/${s.id}/safety`, 'checklist', 'green', 'Daily check']];
+      acts = [['#attendance', 'pin', '', here ? 'Check out' : 'Check in'], ...(isOff('gas_run') ? [] : [['#rec/gas_run/new', 'sun', 'blue', 'Log a run', newAct('gas_run', 'site', s)]]), [`#site/${s.id}/stock`, 'box', 'amber', 'Stock entry'], [`#site/${s.id}/safety`, 'checklist', 'green', 'Daily check']];
       tiles = [[st.kwh, `kWh this month · ${st.runs || 0} runs`, 'ok', 'sun', `ov-kwh-${s.id}`], [st.hours, 'run hours this month', 'blue', 'clock', `ov-h-${s.id}`], [itemBal(sum, ['feed']), 'kg feedstock in stock', '', 'leaf', `ov-fs-${s.id}`],
         [itemBal(sum, ['diesel']), 'L diesel', 'warn', 'fuel', `ov-dz-${s.id}`], [st.down, 'equipment needing attention', st.down ? 'bad' : '', 'cog', `ov-dn-${s.id}`], [st.openIncidents, 'open incidents', st.openIncidents ? 'bad' : '', 'alert', `ov-in-${s.id}`]];
     } else {
@@ -126,7 +126,7 @@ const SITE_BODY = {
     return `${group(`Farmers (${rows.length})`, list, '', `<button type="button" class="btn small" data-action="farmerAdd" data-site="${esc(s.id)}">${ic('plus')} Add farmer</button>`)}
       <p class="hint">Open a farmer to sign a document on the phone, upload a KML plot boundary or land record.</p>
       ${s.project_type === 'biochar' ? recMini('application', s, { title: 'Biochar applied on farms', limit: 5 }) : ''}
-      ${isStaff() ? recMini('farmer_payment', s, { title: 'Farmer payments', limit: 4 }) : ''}`;
+      ${isStaff() && !isOff('farmer_payment') ? recMini('farmer_payment', s, { title: 'Farmer payments', limit: 4 }) : ''}`;
   },
   nursery(s, sum) {
     const n = sum.stats.nursery || {};
@@ -179,7 +179,7 @@ Views.assign = (uid) => {
   return `${topbar(`Where ${firstName(u.name)} works`, `#person/${uid}`)}
     <p class="sub">${esc(u.name)} sees only what is ticked here. Leave everything empty for someone who only uses HR and the Planner.</p>
     ${manager ? group('Manages whole projects', `<div class="chips">${groups.map(([key, pm]) => `<button type="button" data-action="asToggle" data-list="as-projects" data-id="${key}" aria-pressed="${projects.includes(key)}">${ic(pm.icon)} ${esc(pm.name)}</button>`).join('')}</div><p class="hint" style="margin-top:6px">A project manager sees every site of the project, including new ones.</p>`) : ''}
-    ${groups.map(([key, pm, list]) => group(pm.name, `<div class="chips">${list.map((s) => `<button type="button" data-action="asToggle" data-list="as-sites" data-id="${esc(s.id)}" aria-pressed="${sites.includes(s.id) || projects.includes(key)}" ${projects.includes(key) ? 'disabled' : ''}>${esc(s.name)}</button>`).join('')}</div>`)).join('')}
+    ${groups.map(([key, pm, list]) => group(pm.name, `<div class="chips">${list.map((s) => `<button type="button" data-action="asToggle" data-list="as-sites" data-id="${esc(s.id)}" title="${esc(subgroupName(s))}" aria-pressed="${sites.includes(s.id) || projects.includes(key)}" ${projects.includes(key) ? 'disabled' : ''}>${esc(s.name)}</button>`).join('')}</div>`)).join('')}
     ${office.length ? group('Office', `<div class="chips">${office.map((s) => `<button type="button" data-action="asToggle" data-list="as-sites" data-id="${esc(s.id)}" aria-pressed="${sites.includes(s.id)}">${esc(s.name)}</button>`).join('')}</div>`) : ''}
     <button type="button" class="btn primary wide" style="margin-top:16px" data-action="asSave" data-id="${esc(uid)}">Save</button>`;
 };
