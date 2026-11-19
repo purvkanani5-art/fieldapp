@@ -125,8 +125,8 @@ Views.admin = (arg) => {
   if (arg === 'audit') return adminAudit();
   const admin = isAdmin(), mgr = KL.user.role === 'manager';
   const people = ['users.add', 'users.edit', 'users.deactivate', 'users.pin', 'users.role'].some(can);
-  return `${topbar('Administration', '#hr')}<div class="card flush">
-    ${people ? lrow({ href: '#admin/users', icon: 'user', tone: 'green', title: 'Users & PINs', sub: 'Add staff, roles, sites, reset a PIN' }) : ''}
+  return `${topbar('Administration', '#settings')}<div class="card flush">
+    ${people ? lrow({ href: '#admin/users', icon: 'user', tone: 'green', title: 'Users & PINs', sub: 'Add staff, designations, sites, reset a PIN' }) : ''}
     ${can('sites.edit') ? lrow({ href: '#admin/sites', icon: 'pin', tone: 'blue', title: 'Sites & geofences', sub: 'Location, allowed radius' }) : ''}
     ${can('sites.edit') ? lrow({ href: '#admin/items', icon: 'box', tone: 'amber', title: 'Register items', sub: 'Diesel, biomass, outputs per site, low-stock alerts' }) : ''}
     ${can('sites.edit') ? lrow({ href: '#admin/templates', icon: 'doc', title: 'Document templates', sub: 'Text and fields of the documents farmers sign' }) : ''}
@@ -142,6 +142,9 @@ function adminUsers() {
 }
 const deptName = (key) => (KL.boot.departments || []).find((d) => d.key === key)?.name || '';
 Actions.userEdit = async (el) => {
+  // adding and editing use the one-page employee form; without "Edit employee details" only the PIN reset is offered
+  if (!el.dataset.id && can('users.add')) { KL.ui.efInit = null; location.hash = '#empnew'; return; }
+  if (el.dataset.id && can('users.edit')) { KL.ui.efInit = null; location.hash = `#empedit/${el.dataset.id}`; return; }
   const users = KL.cache['admin:users'];
   const u = el.dataset.id ? users.rows.find((x) => x.id === el.dataset.id) : null;
   if (u && !can('users.edit')) {
@@ -161,7 +164,7 @@ Actions.userEdit = async (el) => {
         { key: 'office', label: 'Reporting office', type: 'select', options: offices.map((o) => `${o.code} · ${o.name}`), value: `${offices[0].code} · ${offices[0].name}` }]),
     { key: 'name', label: 'Full name', value: u?.name || '' },
     { key: 'department', label: u ? 'Department' : 'Department (blank = from the project)', type: 'select', options: u ? deptOpts : ['From the project', ...deptOpts.slice(1)], value: u ? deptName(u.dept) || '(none)' : 'From the project' },
-    ...(!u || can('users.role') ? [{ key: 'roleName', label: 'Role (Settings > Lists > Roles)', type: 'select', options: roleOpts.map((r) => r.name), value: roleOpts.some((r) => r.name === u?.designation) ? u.designation : (roleOpts.find((r) => r.level === (u?.role || 'field')) || roleOpts[0] || {}).name }] : []),
+    ...(!u || can('users.role') ? [{ key: 'roleName', label: 'Designation (Settings > Lists > Designations)', type: 'select', options: roleOpts.map((r) => r.name), value: roleOpts.some((r) => r.name === u?.designation) ? u.designation : (roleOpts.find((r) => r.level === (u?.role || 'field')) || roleOpts[0] || {}).name }] : []),
     { key: 'phone', label: 'Mobile', type: 'tel', value: u?.phone || '' }, { key: 'email', label: 'Email (if any, for Microsoft sign-in later)', type: 'email', value: u?.email || '' },
     ...(!u || can('users.assign') ? [{ key: 'sites', label: 'Sites (comma-separated names, blank = all)', value: (u?.sites || []).map(siteName).join(', '), placeholder: siteOpts.join(', ') }] : []),
     ...(u ? (can('users.deactivate') ? [{ key: 'active', label: 'Status', type: 'select', options: ['active', 'inactive'], value: u.active ? 'active' : 'inactive' }] : []) : [{ key: 'pin', label: 'Starting PIN (4–6 digits, employee changes it)', value: '1234', inputmode: 'numeric' }]),
@@ -189,33 +192,10 @@ async function resetPinFlow(u) {
 function adminSites() {
   return `${topbar('Sites & geofences', '#admin', '<button type="button" class="btn small primary" data-action="siteEdit">+ Add</button>')}
     <div class="card flush">${KL.boot.sites.map((s) => lrow({ action: 'siteEdit', data: { id: s.id }, icon: PROJECT_ICON[s.project_type] || 'pin', title: s.name, sub: `${esc(s.project_type)} · ${s.lat.toFixed(5)}, ${s.lng.toFixed(5)} · radius ${s.radius_m} m${s.address ? ` · ${esc(s.address)}` : ''}` })).join('')}</div>
-    <p class="hint" style="margin-top:8px">To set a centre, stand at the middle of the site, open it here and choose "Set to where I am standing now". The app takes a careful GPS reading (up to 30 seconds). Radius is how far from the centre a check-in still counts.</p>`;
+    <p class="hint" style="margin-top:8px">Open a site to move its centre on the map, change the radius or the check-in rule, and choose its team. At the site, "Use where I am standing" takes a careful GPS reading.</p>`;
 }
-Actions.siteEdit = async (el) => {
-  const s = el.dataset.id ? KL.boot.sites.find((x) => x.id === el.dataset.id) : null;
-  const g = KL.ui.gps;
-  const HERE = 'Set to where I am standing now', TYPED = 'Use the numbers below';
-  const v = await modal({ title: s ? `Edit ${s.name}` : 'New site', fields: [
-    { key: 'centre', label: 'Site centre', type: 'select', options: [TYPED, HERE], value: s ? TYPED : HERE },
-    { key: 'name', label: 'Name', value: s?.name || '' }, { key: 'project_type', label: 'Project', type: 'select', options: [...(KL.boot.projectList || []).filter((p) => p.key !== 'management').map((p) => p.key), 'office'], value: s?.project_type || 'biochar' },
-    { key: 'subtype', label: 'Biochar type (biochar sites only)', type: 'select', options: ['kiln', 'plant', ''], value: s?.subtype || 'kiln' },
-    { key: 'strict', label: 'Check-in rule', type: 'select', options: ['Allow exceptions', 'Strict'], value: s?.strict ? 'Strict' : 'Allow exceptions' },
-    { key: 'lat', label: `Latitude${g ? ' (your location is ' + g.lat.toFixed(5) + ')' : ''}`, value: s?.lat ?? g?.lat?.toFixed(6) ?? '', inputmode: 'decimal' }, { key: 'lng', label: 'Longitude', value: s?.lng ?? g?.lng?.toFixed(6) ?? '', inputmode: 'decimal' },
-    { key: 'radius_m', label: 'Allowed radius (m)', value: s?.radius_m ?? 150, inputmode: 'numeric' }, { key: 'address', label: 'Address', value: s?.address || '' },
-    ...(s ? [{ key: 'active', label: 'Status', type: 'select', options: ['active', 'inactive'], value: s.active ? 'active' : 'inactive' }] : []),
-  ], confirmText: 'Save' });
-  if (!v) return;
-  if (v.centre === HERE) {
-    toast('Taking a careful GPS reading. Stand still in the open (up to 30 seconds)…');
-    const fix = await measureHere();
-    if (!fix) return toast('Could not get a location. Allow location for this app and try again in the open.', 'error');
-    if (fix.accuracy > 25 && !(await modal({ title: `GPS is only ±${Math.round(fix.accuracy)} m here`, message: 'The centre could be off by that much. Use it anyway, or cancel and try again in the open, away from roofs and walls.', confirmText: 'Use it' }))) return;
-    v.lat = fix.lat.toFixed(6); v.lng = fix.lng.toFixed(6);
-    toast(`Centre set at ±${Math.round(fix.accuracy)} m`);
-  }
-  delete v.centre;
-  try { await api('/api/admin/sites', { json: { ...v, subtype: v.project_type === 'biochar' ? v.subtype : '', strict: v.strict === 'Strict', id: s?.id, active: s ? v.active === 'active' : true } }); await reloadBoot(); toast('Saved'); render(); } catch (e) { toast(e.message, 'error'); }
-};
+/** Sites open the one-page site form (map, geofence, check-in rule, team). */
+Actions.siteEdit = (el) => { KL.ui.sfInit = null; KL.ui.sfProject = ''; location.hash = el.dataset.id ? `#siteedit/${el.dataset.id}` : '#sitenew'; };
 function adminItems() {
   const bySite = {};
   for (const it of KL.boot.items) (bySite[it.site_id] ||= []).push(it);

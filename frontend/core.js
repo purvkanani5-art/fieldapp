@@ -23,7 +23,7 @@ const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const isStaff = () => KL.user && ['admin', 'manager', 'hr'].includes(KL.user.role);
 const isAdmin = () => KL.user && KL.user.role === 'admin';
-/** What the person's role may do (Settings > Roles & permissions); the director may do everything. */
+/** What the person's designation may do (Settings > Designations & access); the director may do everything. */
 const can = (k) => Boolean(KL.user) && (KL.user.role === 'admin' || (KL.user.perms || []).includes(k));
 const todayISO = () => {
   const d = new Date();

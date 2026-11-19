@@ -65,27 +65,38 @@ def role_perms(db: Db) -> dict:
     return db.setting("role_perms", {}) or {}
 
 
-def defaults_for(level: str) -> list[str]:
-    return KEYS if level == "admin" else [k for k, _, _, lv in PERMS if level in lv]
+def defaults_for(level: str, db: Db | None = None) -> list[str]:
+    """Starting ticks of an access level: built-in ones from PERMS, a custom level its own list."""
+    if level == "admin":
+        return list(KEYS)
+    if level in lists.LEVELS or db is None:
+        return [k for k, _, _, lv in PERMS if level in lv]
+    info = lists.level_info(db, level)
+    return [] if info["app"] == "field" else [k for k in KEYS if k in (info.get("perms") or [])]
+
+
+def is_field_level(db: Db, level: str) -> bool:
+    return lists.level_info(db, level)["app"] == "field"
 
 
 def for_role(db: Db, name: str, level: str) -> list[str]:
     if level == "admin":
         return list(KEYS)
-    if level == "field":
+    if is_field_level(db, level):
         return []  # the simple phone app has no office tools
     saved = role_perms(db).get(name)
-    return [k for k in KEYS if k in saved] if saved is not None else defaults_for(level)
+    return [k for k in KEYS if k in saved] if saved is not None else defaults_for(level, db)
 
 
 def for_user(db: Db, u: dict) -> list[str]:
     if u["role"] == "admin":
         return list(KEYS)
+    level = u.get("level") or u["role"]  # a custom access level, else the built-in one
     known = {r["name"]: r["level"] for r in lists.roles(db)}
     name = u.get("designation") or ""
-    if known.get(name) == u["role"]:  # the role's own ticks; a stray designation falls back to the level
-        return for_role(db, name, u["role"])
-    return defaults_for(u["role"])
+    if known.get(name) == level:  # the designation's own ticks; a stray designation falls back to the level
+        return for_role(db, name, level)
+    return [] if is_field_level(db, level) else defaults_for(level, db)
 
 
 def can(u: dict, key: str) -> bool:
@@ -95,7 +106,7 @@ def can(u: dict, key: str) -> bool:
 def need(u: dict, key: str) -> None:
     if not can(u, key):
         label = next((p[1] for p in PERMS if p[0] == key), key)
-        raise HTTPException(403, f"Your role may not do this: {label}")
+        raise HTTPException(403, f"Your designation may not do this: {label}")
 
 
 # ------------------------------------------------------------------ departments
@@ -198,8 +209,10 @@ def overview(db: Db) -> dict:
             for s in steps]})
     return {"perms": [{"key": k, "label": lb, "group": g} for k, lb, g, _ in PERMS], "groups": GROUPS,
             "roles": [{"name": r["name"], "level": r["level"], "perms": for_role(db, r["name"], r["level"]), "locked": r["level"] == "admin",
+                       "field": is_field_level(db, r["level"]),
                        "people": db.one("SELECT COUNT(*) AS n FROM users WHERE designation = ? AND active = 1", r["name"])["n"]} for r in rs],
-            "rules": out_rules, "approvers": specs, "levels": lists.LEVELS}
+            "rules": out_rules, "approvers": specs, "levels": lists.levels(db),
+            "levelInfo": [{**lists.level_info(db, k), "defaults": defaults_for(k, db), "roles": sum(1 for r in rs if r["level"] == k)} for k in lists.levels(db)]}
 
 
 # ------------------------------------------------------------------ API
@@ -226,8 +239,8 @@ def router(user_dep, db_dep) -> APIRouter:
             raise HTTPException(404, "Unknown role or permission")
         if role["level"] == "admin":
             raise HTTPException(409, "Director-level roles always have every permission")
-        if role["level"] == "field":
-            raise HTTPException(409, "Field-staff roles use the simple phone app. Set the access level to Manager or HR to give office tools")
+        if is_field_level(db, role["level"]):
+            raise HTTPException(409, "Field-app designations use the simple phone app. Give the designation an office access level to give office tools")
         cur = set(for_role(db, role["name"], role["level"]))
         on = bool(payload.get("on"))
         (cur.add if on else cur.discard)(key)
@@ -243,8 +256,8 @@ def router(user_dep, db_dep) -> APIRouter:
         rs = lists.roles(db)
         role = next((x for x in rs if x["name"] == payload.get("role")), None)
         level = payload.get("level")
-        if not role or level not in lists.LEVELS:
-            raise HTTPException(404, "Unknown role or access level")
+        if not role or level not in lists.levels(db):
+            raise HTTPException(404, "Unknown designation or access level")
         if role["level"] == level:
             return {"ok": True}
         holders = db.all("SELECT id, role FROM users WHERE designation = ?", role["name"])
@@ -258,10 +271,70 @@ def router(user_dep, db_dep) -> APIRouter:
         rp = role_perms(db)
         if role["name"] in rp:  # new level, fresh defaults
             db.set_setting("role_perms", {k: v for k, v in rp.items() if k != role["name"]})
+        base, custom = lists.base_role(db, level), ("" if level in lists.LEVELS else level)
         for h in holders:
-            db.update("users", h["id"], {"role": level})
+            db.update("users", h["id"], {"role": base, "level": custom})
         db.audit(user["id"], "role_level", "role", role["name"], f"{role['level']} -> {level} ({len(holders)} people)")
         return {"ok": True, "moved": len(holders)}
+
+    # -------------------------------------------------------------- the director's own access levels
+
+    def level_payload(payload: dict) -> dict:
+        name = re.sub(r"\s+", " ", str(payload.get("name", ""))).strip()[:40]
+        if len(name) < 2:
+            raise HTTPException(422, "Give the access level a name")
+        app = payload.get("app") if payload.get("app") in ("office", "field") else "office"
+        sees = payload.get("sees") if payload.get("sees") in ("team", "company") else "team"
+        ticks = [k for k in KEYS if k in (payload.get("perms") or [])]  # kept while the level is on the field app
+        return {"name": name, "app": app, "sees": sees, "perms": ticks}
+
+    @r.post("/levels/add")
+    def level_add(payload: dict, user: user_dep, db: db_dep):
+        director(user)
+        lv = level_payload(payload)
+        cur = lists.custom_levels(db)
+        if any(n.lower() == lv["name"].lower() for n in lists.levels(db).values()):
+            raise HTTPException(409, f"{lv['name']} already exists")
+        key = "lv_" + (re.sub(r"[^a-z0-9]+", "_", lv["name"].lower()).strip("_")[:24] or "level")
+        while key in lists.levels(db):
+            key += "_"
+        db.set_setting("access_levels", [*cur, {"key": key, **lv}])
+        db.audit(user["id"], "level_add", "level", key, lv["name"])
+        return {"ok": True, "key": key}
+
+    @r.post("/levels/edit")
+    def level_edit(payload: dict, user: user_dep, db: db_dep):
+        """Rename a custom level, change what it sees, its app or its starting ticks; its people follow."""
+        director(user)
+        key = payload.get("key")
+        cur = lists.custom_levels(db)
+        old = next((x for x in cur if x["key"] == key), None)
+        if not old:
+            raise HTTPException(404, "Only access levels you added can be changed")
+        lv = level_payload({**old, **payload})
+        if any(n.lower() == lv["name"].lower() for k, n in lists.levels(db).items() if k != key):
+            raise HTTPException(409, f"{lv['name']} already exists")
+        db.set_setting("access_levels", [{"key": key, **lv} if x["key"] == key else x for x in cur])
+        if lv["app"] != old.get("app"):  # office <-> field: move everyone holding a designation of this level
+            names = [r["name"] for r in lists.roles(db) if r["level"] == key]
+            for n in names:
+                db.run("UPDATE users SET role = ? WHERE designation = ?", lists.base_role(db, key), n)
+        db.audit(user["id"], "level_edit", "level", key, f"{old['name']} -> {lv['name']} · {lv['app']} · {lv['sees']}")
+        return {"ok": True}
+
+    @r.post("/levels/delete")
+    def level_delete(payload: dict, user: user_dep, db: db_dep):
+        director(user)
+        key = payload.get("key")
+        cur = lists.custom_levels(db)
+        if not any(x["key"] == key for x in cur):
+            raise HTTPException(404, "Only access levels you added can be deleted")
+        used = [r["name"] for r in lists.roles(db) if r["level"] == key]
+        if used:
+            raise HTTPException(409, f"In use by {', '.join(used)}. Move those designations to another level first")
+        db.set_setting("access_levels", [x for x in cur if x["key"] != key])
+        db.audit(user["id"], "level_delete", "level", key, "")
+        return {"ok": True}
 
     @r.post("/rules")
     def set_rules(payload: dict, user: user_dep, db: db_dep):

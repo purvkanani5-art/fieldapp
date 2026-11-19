@@ -90,7 +90,7 @@ Views.hub = (group) => {
     if (!isStaff()) return hubOne(g);
     const kd = kinds();
     const key = ['hr', 'money'].includes(g) ? 'hr' : 'ops';
-    const head = `<h1 class="large">${HUB_TITLE[key]}</h1>`;
+    const head = `<div class="row between" style="align-items:center"><h1 class="large">${HUB_TITLE[key]}</h1>${kd && !kd.error ? `<button type="button" class="btn small primary" data-action="newMore">${ic('plus')} New</button>` : ''}</div>`;
     if (kd === null) return `${head}${spinner()}`;
     if (kd.error) return `${head}${errorBox(kd.error)}`;
     const groups = key === 'hr' ? ['hr', 'money'] : ['ops', 'carbon', 'supply'];
@@ -439,7 +439,7 @@ function requestApprovals() {
 /* ---------------------------------------------------------------- people */
 Views.people = () => {
   const p = data('hr:people', () => api('/api/hr/people'));
-  const head = topbar('Employee directory', '#hr', can('users.add') ? `<a class="btn small primary" href="#admin/users">${ic('plus')} Add employee</a>` : '');
+  const head = topbar('Employee directory', '#hr', can('users.add') ? `<a class="btn small primary" href="#empnew">${ic('plus')} Add employee</a>` : '');
   if (p === null) return `${head}${spinner()}`;
   if (p.error) return `${head}${errorBox(p.error)}`;
   const siteNames = (u) => (u.sites || []).map(siteName).filter((n) => n !== 'Unassigned');
@@ -447,13 +447,13 @@ Views.people = () => {
   return `${head}
     ${dataTable({ id: 'people', rows: p.rows, placeholder: 'Search name, ID, role or site', search: (u) => `${u.name} ${u.employee_id} ${u.designation} ${siteNames(u).join(' ')}`,
       rowHref: (u) => `#person/${u.id}`, pageSize: 25,
-      filters: [{ key: 'role', label: 'Role', options: Object.entries(ROLE_TEXT), match: (u, v) => u.role === v },
+      filters: [{ key: 'role', label: 'Access level', options: Object.entries(ROLE_TEXT), match: (u, v) => u.role === v },
         { key: 'project', label: 'Project', options: Object.entries({ biochar: 'Biochar', gasifier: 'Gasifier', agroforestry: 'Agroforestry' }), match: (u, v) => (u.projects || []).includes(v) || (u.sites || []).some((sid) => siteById(sid)?.project_type === v) },
         { key: 'emp', label: 'Employment', options: employments.map((e) => [e, e]), match: (u, v) => u.employment === v },
         { key: 'status', label: 'Status', options: [['active', 'Active'], ['left', 'Left']], match: (u, v) => (v === 'active' ? u.active : !u.active) }],
       columns: [
         { key: 'name', label: 'Name', render: (u) => `<span class="dt-cell-main">${avatar(u.name, 'sm')}<span>${esc(u.name)}${u.active ? '' : ' (left)'}<small>${esc(u.employee_id)}</small></span></span>` },
-        { key: 'designation', label: 'Role', render: (u) => `${esc(u.designation || ROLE_TEXT[u.role])}${u.app_access ? '' : ` ${tag('No phone')}`}` },
+        { key: 'designation', label: 'Designation', render: (u) => `${esc(u.designation || ROLE_TEXT[u.role])}${u.app_access ? '' : ` ${tag('No phone')}`}` },
         { key: 'sites', label: 'Works at', phone: false, value: (u) => siteNames(u).join(', '), render: (u) => esc(siteNames(u).join(', ') || '–') },
         { key: 'manager_name', label: 'Reports to', phone: false, render: (u) => esc(u.manager_name || '–') },
         { key: 'employment', label: 'Employment', phone: false, render: (u) => esc(u.employment || '–') },
@@ -500,7 +500,7 @@ Views.person = (id) => {
     training: `${group('Training & certificates', p.trainings.length ? `<div class="card flush">${p.trainings.map((a) => lrow({ href: `#rec/training/${a.id}`, icon: 'shield', tone: 'green', title: a.data.title, sub: `${esc(a.data.provider || '')}${a.data.valid_until ? ` · valid to ${esc(fmtDate(a.data.valid_until, false))}` : ''}`, right: a.data.valid_until && a.data.valid_until < todayISO() ? tag('expired', 'bad') : '' })).join('')}</div>` : '<div class="card"><p class="hint">None yet.</p></div>')}`,
     goals: `${group('Goals', p.goals.length ? `<div class="card stack">${p.goals.map((g) => `<a href="#rec/goal/${esc(g.id)}" style="text-decoration:none;color:inherit"><div class="row between"><b>${esc(g.data.title)}</b>${stag(g.status)}</div><div class="progress" style="margin-top:8px"><i style="width:${Number(g.data.progress) || 0}%"></i></div><small class="muted">${esc(g.data.progress || 0)}% · due ${esc(fmtDate(g.data.due, false))}</small></a>`).join('')}</div>` : '<div class="card"><p class="hint">No goals set.</p></div>')}`,
   };
-  return `${topbar(u.name, back, p.canEdit ? `<a class="btn small" href="#personedit/${esc(u.id)}">${ic('pen')} Edit</a>` : '')}
+  return `${topbar(u.name, back, p.canEdit ? `<a class="btn small" href="#empedit/${esc(u.id)}">${ic('pen')} Edit</a>` : '')}
     <div class="card profile">${avatar(u.name, 'xl')}<div style="min-width:0"><b>${esc(u.name)}</b><span>${esc(u.designation || '')} · ${esc(u.employee_id)}</span><span class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap">${tag(ROLE_TEXT[u.role] || u.role, 'ok')}${u.manager_name ? tag(`reports to ${u.manager_name}`, 'info') : ''}${p.profile.employment ? tag(p.profile.employment) : ''}</span></div></div>
     ${u.reports.length ? `<p class="hint" style="margin:10px 4px 0">Team: ${u.reports.map((x) => esc(x.name)).join(', ')}</p>` : ''}
     <nav class="tabs" role="tablist" aria-label="Employee record">${PF_TABS.map(([k, l]) => `<button type="button" role="tab" data-action="pfTab" data-tab="${k}" aria-selected="${tab === k}">${l}</button>`).join('')}</nav>
@@ -593,7 +593,7 @@ Views.map = () => {
   const m = data('map', () => api('/api/map'));
   if (m && !m.error) KL.afterRender.push(() => drawMap(m));
   const n = m && !m.error ? m : { sites: [], plots: [], pins: [], people: [] };
-  return `${topbar('Map', isStaff() ? '#home' : '#work')}
+  return `${topbar('Map', isStaff() ? '#home' : '#work', isStaff() ? `${can('sites.edit') ? `<a class="btn small primary" href="#sitenew">${ic('plus')} Site</a>` : ''}<a class="btn small" href="#farmers">${ic('plus')} Farmer</a>` : '')}
     <div class="chips" style="margin-bottom:10px">${tag(`${n.sites.length} sites`, 'ok')}${tag(`${n.plots.length} farm plots`, 'info')}${tag(`${n.pins.filter((p) => p.kind === 'application').length} biochar applications`, 'violet')}${tag(`${n.pins.filter((p) => p.kind === 'incident').length} incidents`, 'bad')}${isStaff() ? tag(`${n.people.length} people on site`, 'warn') : ''}</div>
     ${n.sites.length ? `<div class="chips" style="margin-bottom:10px"><button type="button" data-action="mapAll">${ic('map')} All</button>${n.sites.map((x) => `<button type="button" data-action="mapGo" data-lat="${x.lat}" data-lng="${x.lng}" data-zoom="${x.project_type === 'agroforestry' ? 12 : 16}">${esc(x.name.split(',')[0])}</button>`).join('')}</div>` : ''}
     <div id="kl-map" class="map-box">${m === null ? spinner() : m.error ? errorBox(m.error) : ''}</div>
@@ -651,7 +651,7 @@ Views.hrsettings = () => {
     setF('hs-leave', JSON.stringify(kd.leavePolicy, null, 1)); setF('hs-hours', JSON.stringify(kd.workHours, null, 1)); setF('hs-ret', JSON.stringify(kd.retention, null, 1));
   }
   return `${topbar('HR settings', '#hub/hr')}
-    ${group('Approval rules', `<div class="card flush">${lrow(isAdmin() ? { href: '#settings/roles', icon: 'shield', tone: 'green', title: 'Who approves what', sub: 'Settings > Roles & permissions: approvers and limits for leave, travel, expenses and more' } : { icon: 'shield', title: 'Who approves what', sub: 'The director sets approvers and limits in Settings > Roles & permissions', chev: false })}</div>`)}
+    ${group('Approval rules', `<div class="card flush">${lrow(isAdmin() ? { href: '#settings/roles', icon: 'shield', tone: 'green', title: 'Who approves what', sub: 'Settings > Designations & access: approvers and limits for leave, travel, expenses and more' } : { icon: 'shield', title: 'Who approves what', sub: 'The director sets approvers and limits in Settings > Roles & permissions', chev: false })}</div>`)}
     ${group('Leave policy and work hours', `<div class="card stack">${field('Leave policy', textarea('hs-leave', F('hs-leave')))}${field('Work hours, grace and weekly off (0 = Monday … 6 = Sunday)', textarea('hs-hours', F('hs-hours')), { help: 'gps_accuracy_m: how accurate the GPS must be before check-in (metres, 50 suits most sites).' })}${field('Data retention (years)', textarea('hs-ret', F('hs-ret')))}</div>`)}
     <button type="button" class="btn primary wide" style="margin-top:14px" data-action="hsSave">Save settings</button>
     ${group('For reviewers', reviewerNote())}

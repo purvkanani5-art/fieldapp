@@ -1,8 +1,8 @@
 /* Kshetralekha service worker: the app shell is cached so the app opens with no signal; API calls always go
    to the network (the app's own outbox handles offline submissions). Bump CACHE_VERSION on every deploy. */
-const CACHE_VERSION = 'kl-v20';
+const CACHE_VERSION = 'kl-v21';
 const PYODIDE_CACHE = 'kl-pyodide-314.0.7'; // the Python runtime from the CDN, kept across app versions
-const SHELL = ['./', './index.html', './styles.css', './i18n.js', './i18n.gu.js', './i18n.hi.js', './core.js', './views-field.js', './views-me.js', './views-staff.js', './views-planner.js', './views-modules.js', './views-sites.js', './views-hrops.js', './views-home.js', './views-fieldapp.js', './views-lists.js', './views-perms.js', './app.js', './manifest.webmanifest', './icon.svg', './logo.png',
+const SHELL = ['./', './index.html', './styles.css', './i18n.js', './i18n.gu.js', './i18n.hi.js', './core.js', './views-field.js', './views-me.js', './views-staff.js', './views-planner.js', './views-modules.js', './views-sites.js', './views-hrops.js', './views-home.js', './views-fieldapp.js', './views-lists.js', './views-forms.js', './views-perms.js', './app.js', './manifest.webmanifest', './icon.svg', './logo.png',
   './icon-192.png', './apple-touch-icon.png', './fonts/plex-sans-latin.woff2', './fonts/plex-sans-latin-ext.woff2', './fonts/noto-sans-gujarati.woff2', './fonts/noto-sans-devanagari.woff2', './local/pyhost.js'];
 
 self.addEventListener('install', (e) => {

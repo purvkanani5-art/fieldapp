@@ -1101,3 +1101,20 @@ main.is-top .page-head .back, main.is-top .page-head .crumbs { display: none; }
 .pm-chips { display: flex; gap: 4px; flex-wrap: wrap; }
 .pm-chip { border: 1px solid var(--border); background: transparent; color: var(--text-2); border-radius: 999px; padding: 2px 9px; font-size: 12px; cursor: pointer; min-height: 28px; }
 .pm-chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+/* ---- quick add (2026-11-19): office "+" in the tab bar and sidebar, home shortcuts, site form ---- */
+.staff-tabbar .fa-plus { flex: 0 0 60px; width: 52px; height: 52px; margin: -16px 2px 0; }
+.staff-tabbar .fa-plus svg.ic { width: 26px; height: 26px; }
+.side-new { margin: 10px 12px 0; justify-content: center; }
+body.side-mini .side-new span { display: none; }
+body.side-mini .side-new { margin: 10px 8px 0; padding: 8px; }
+.quick-add { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 16px; }
+.quick-add .btn { min-height: 40px; }
+.radio-row { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; cursor: pointer; }
+.radio-row input { margin-top: 3px; accent-color: var(--accent); width: 18px; height: 18px; flex: none; }
+.radio-row:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.pm-lv .lc-name { flex-wrap: wrap; }
+.pm-lv-ticks { margin-top: 6px; width: 100%; }
+#sf-map { border-radius: 12px; overflow: hidden; }
+@media (max-width: 380px) { .staff-tabbar a span { font-size: 11px; } .staff-tabbar .fa-plus { flex-basis: 52px; width: 46px; height: 46px; } }
+#sf-map, #kl-map { position: relative; z-index: 0; } /* keep the map's own layers under the sticky header and sheets */

@@ -3,10 +3,11 @@
 
 const canLists = () => isAdmin() || can('settings.lists');
 const LIST_GROUP_TITLE = { people: 'People', money: 'Money', ops: 'Operations' };
+const RENAMABLE = new Set(['roles', 'offices', 'departments']);
 
-/** Tabs at the top of Settings: General · Lists (director, roles with "Edit lists") · Roles & permissions (director). */
+/** Tabs at the top of Settings: General · Lists (director, designations with "Edit lists") · Designations & access (director). */
 function settingsTabs(active) {
-  const tabs = [['settings', 'General'], ...(canLists() ? [['settings/lists', 'Lists']] : []), ...(isAdmin() ? [['settings/roles', 'Roles & permissions']] : [])];
+  const tabs = [['settings', 'General'], ...(canLists() ? [['settings/lists', 'Lists']] : []), ...(isAdmin() ? [['settings/roles', 'Designations & access']] : [])];
   if (tabs.length < 2) return '';
   return `<nav class="tabs" aria-label="Settings">${tabs.map(([h, l]) => `<a href="#${h}" class="${h === active ? 'on' : ''}" ${h === active ? 'aria-current="page"' : ''}>${l}</a>`).join('')}</nav>`;
 }
@@ -26,14 +27,15 @@ function listRowText(L, it) {
 function listCard(L, extra) {
   const rows = L.items.map((it) => {
     const name = it.name || it.value;
-    const right = it.builtin ? tag('built in', '')
+    const del = it.builtin ? tag('built in', '')
       : it.used ? `<span class="lc-used" title="In use, so it cannot be deleted">${tag(`in use · ${it.used}`, '')}</span>`
         : `<button type="button" class="btn ghost icon-only lc-del" data-action="listDel" data-list="${esc(L.key)}" data-value="${esc(it.value)}" data-name="${esc(name)}" aria-label="Delete ${esc(name)}" title="Delete">${ic('trash')}</button>`;
-    return `<div class="lc-row"><span class="lc-name">${listRowText(L, it)}</span>${right}</div>`;
+    const ren = RENAMABLE.has(L.key) ? `<button type="button" class="btn ghost icon-only" data-action="listRename" data-list="${esc(L.key)}" data-value="${esc(it.value)}" data-name="${esc(name)}" aria-label="Rename ${esc(name)}" title="Rename">${ic('pen')}</button>` : '';
+    return `<div class="lc-row"><span class="lc-name">${listRowText(L, it)}</span><span class="row" style="gap:4px;flex:none">${ren}${del}</span></div>`;
   }).join('');
   const id = (f) => `la-${L.key}-${f}`;
   const levels = extra.levels || {};
-  const inputs = L.key === 'roles' ? `<input class="input" id="${id('value')}" placeholder="New role, e.g. Kiln operator" /><select class="input" id="${id('level')}">${Object.entries(levels).filter(([k]) => k !== 'admin' || KL.user.role === 'admin').map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select>`
+  const inputs = L.key === 'roles' ? `<input class="input" id="${id('value')}" placeholder="New designation, e.g. District Coordinator" /><select class="input" id="${id('level')}">${Object.entries(levels).filter(([k]) => k !== 'admin' || KL.user.role === 'admin').map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select>`
     : L.key === 'offices' ? `<input class="input lc-short notr" id="${id('value')}" inputmode="numeric" maxlength="2" placeholder="${esc(nextOfficeNo(L))}" value="${esc(nextOfficeNo(L))}" aria-label="Office number" /><input class="input" id="${id('name')}" placeholder="Office name, e.g. Rajkot" />`
       : L.key === 'projects' ? `<input class="input lc-short notr" id="${id('code')}" maxlength="3" placeholder="SOL" aria-label="3-letter code" style="text-transform:uppercase" /><input class="input" id="${id('value')}" placeholder="Project name, e.g. Solar" /><select class="input lc-icon" id="${id('icon')}" aria-label="Icon">${(extra.icons || []).map((i) => `<option value="${i}">${i[0].toUpperCase()}${i.slice(1)}</option>`).join('')}</select>`
         : L.key === 'vehicles' ? `<input class="input" id="${id('value')}" placeholder="Vehicle, e.g. Tractor" /><input class="input lc-short" id="${id('rate')}" inputmode="decimal" placeholder="₹ / km" aria-label="Rate per km" />`
@@ -79,6 +81,15 @@ Actions.deptProj = async (el) => {
   try {
     await api('/api/admin/lists/departments/project', { json: { value: el.dataset.value, project: el.dataset.project, on } });
     invalidate('admin:lists'); await reloadBoot(); toast(on ? 'Added to the department' : 'Taken out'); render();
+  } catch (e) { toast(e.message, 'error'); }
+};
+Actions.listRename = async (el) => {
+  const what = { roles: 'Everyone with this designation, its ticks and its approval steps follow the new name.', offices: 'The office number (and so every employee code) stays the same.', departments: 'Its people, projects and approval rules stay linked.' }[el.dataset.list] || '';
+  const v = await modal({ title: `Rename ${el.dataset.name}`, message: what, fields: [{ key: 'name', label: 'New name', value: el.dataset.name }], confirmText: 'Rename' });
+  if (!v || !v.name || v.name === el.dataset.name) return;
+  try {
+    await api(`/api/admin/lists/${el.dataset.list}/rename`, { json: { value: el.dataset.value, name: v.name } });
+    invalidate('admin:lists', 'admin:perms', 'admin:users', 'hr'); await reloadBoot(); await refreshMe(); toast('Renamed'); render();
   } catch (e) { toast(e.message, 'error'); }
 };
 Actions.listDel = async (el) => {

@@ -61,7 +61,8 @@ MIGRATIONS = [
     "ALTER TABLE sites ADD COLUMN subtype TEXT DEFAULT ''",
     "ALTER TABLE users ADD COLUMN department TEXT DEFAULT ''",
     "ALTER TABLE approval_steps ADD COLUMN subject_id TEXT",
-    "ALTER TABLE leaves ADD COLUMN half TEXT DEFAULT ''",  # '' full days, 'first' / 'second' half of one day
+    "ALTER TABLE leaves ADD COLUMN half TEXT DEFAULT ''",
+    "ALTER TABLE users ADD COLUMN level TEXT DEFAULT ''",  # a custom access level (Settings > Designations & access); role holds its base  # '' full days, 'first' / 'second' half of one day
     "CREATE TABLE IF NOT EXISTS user_projects (user_id TEXT NOT NULL, project TEXT NOT NULL, PRIMARY KEY (user_id, project))",
 ]
 
@@ -651,12 +652,13 @@ def close_missed_checkouts(db: Db) -> int:
 # ------------------------------------------------------------------ employee record (pay, bank and salary are in Zoho Payroll)
 
 
-SENSITIVE = {"pan", "aadhaar_last4", "uan", "esic"}
+SENSITIVE = {"pan", "aadhaar_last4", "uan", "esic", "bank_account"}
 PROFILE_FIELDS = [
     F("dob", "Date of birth", "date"), F("gender", "Gender", "select", options=["Female", "Male", "Other"]), F("blood_group", "Blood group"),
     F("address", "Address", "textarea"), F("emergency_name", "Emergency contact"), F("emergency_phone", "Emergency phone"),
     F("joining_date", "Joining date", "date"), F("employment", "Employment", "select", options=["Permanent", "Probation", "Contract", "Daily wage"]),
     F("pan", "PAN"), F("aadhaar_last4", "Aadhaar (last 4)"), F("uan", "UAN (PF)"), F("esic", "ESIC number"),
+    F("bank_name", "Bank name"), F("bank_account", "Bank account number"), F("bank_ifsc", "IFSC"),
     F("opening_casual", "Opening casual leave", "number"), F("opening_sick", "Opening sick leave", "number"), F("opening_earned", "Opening earned leave", "number"),
 ]
 
@@ -1236,7 +1238,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
             uid = user["id"]
         if uid != user["id"] and not is_staff(user):
             raise HTTPException(403, "Not allowed")
-        u = db.one("SELECT id, employee_id, name, role, designation, phone, email, manager_id, created_at, COALESCE(app_access, 1) AS app_access, COALESCE(supervisor, 0) AS supervisor FROM users WHERE id = ?", uid)
+        u = db.one("SELECT id, employee_id, name, role, designation, phone, email, manager_id, created_at, active, department, level, COALESCE(app_access, 1) AS app_access, COALESCE(supervisor, 0) AS supervisor FROM users WHERE id = ?", uid)
         if not u:
             raise HTTPException(404, "Not found")
         p = profile_data(db, uid)
@@ -1260,11 +1262,13 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
     def save_profile(uid: str, payload: dict, user: user_dep, db: db_dep):
         import perms
 
-        perms.need(user, "users.edit")
         if not db.one("SELECT 1 FROM users WHERE id = ?", uid):
             raise HTTPException(404, "Not found")
+        if not (perms.can(user, "users.edit") or (perms.can(user, "users.add") and not db.one("SELECT 1 FROM records WHERE kind = 'profile' AND user_id = ?", uid))):
+            perms.need(user, "users.edit")  # adding an employee includes their first profile
         keys = {f["key"] for f in PROFILE_FIELDS}
-        data = {k: str(v)[:300] for k, v in (payload.get("profile") or {}).items() if k in keys}
+        # a masked value shown to someone without HR access ("•••• 42") is never saved back over the real one
+        data = {k: str(v)[:300] for k, v in (payload.get("profile") or {}).items() if k in keys and not (k in SENSITIVE and str(v).startswith("•••• "))}
         old = db.one("SELECT id, data FROM records WHERE kind = 'profile' AND user_id = ?", uid)
         import hrops
 

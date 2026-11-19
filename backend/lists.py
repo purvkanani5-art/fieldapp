@@ -10,7 +10,31 @@ from fastapi import APIRouter, HTTPException
 import modules
 from db import Db
 
-LEVELS = {"field": "Field staff", "manager": "Manager", "hr": "HR", "admin": "Director"}
+LEVELS = {"field": "Field staff", "manager": "Manager", "hr": "HR", "admin": "Director"}  # built in; users.role is one of these
+
+
+def custom_levels(db: Db) -> list[dict]:
+    """Access levels the director added (Settings > Designations & access), e.g. Finance & Accounts:
+    {key, name, app: office | field, sees: team | company, perms: [starting ticks]}."""
+    return db.setting("access_levels", []) or []
+
+
+def levels(db: Db) -> dict[str, str]:
+    return {**LEVELS, **{lv["key"]: lv["name"] for lv in custom_levels(db)}}
+
+
+def level_info(db: Db, key: str) -> dict:
+    if key in LEVELS:
+        return {"key": key, "name": LEVELS[key], "app": "field" if key == "field" else "office", "sees": "company" if key in ("admin", "hr") else "team", "builtin": True}
+    lv = next((x for x in custom_levels(db) if x["key"] == key), None)
+    return {**lv, "builtin": False} if lv else {"key": key, "name": key, "app": "field", "sees": "team", "builtin": False, "missing": True}
+
+
+def base_role(db: Db, level: str) -> str:
+    """users.role for a level: a custom office level works as Manager (its own ticks and reach), a field one as Field staff."""
+    if level in LEVELS:
+        return level
+    return "manager" if level_info(db, level)["app"] == "office" else "field"
 
 # record-form option lists: key -> label, group, the (kind, field) pairs that use it
 FORM_LISTS = {
@@ -131,7 +155,7 @@ def all_lists(db: Db) -> list[dict]:
 
     travel = db.setting("travel", {"vehicles": {}}) or {"vehicles": {}}
     out = [
-        {"key": "roles", "label": "Roles", "group": "people", "who": ["admin", "hr"], "hint": "The access level decides what the person can see",
+        {"key": "roles", "label": "Designations", "group": "people", "who": ["admin", "hr"], "hint": "Job titles. Each has an access level that decides what the person can see and do",
          "items": items("roles", [{"value": r["name"], "level": r["level"]} for r in roles(db)])},
         {"key": "offices", "label": "Reporting offices", "group": "people", "who": ["admin", "hr"], "hint": "The 2-digit number is the middle of the employee code: BIO01001",
          "items": items("offices", [{"value": o["code"], "name": o["name"]} for o in db.setting("offices", []) or []])},
@@ -166,7 +190,8 @@ def allowed(user: dict, lst: dict) -> bool:
 
 def boot_extra(db: Db) -> dict:
     """What every screen needs: roles, projects with codes, departments, translations of added items."""
-    return {"roles": roles(db), "projectList": projects(db), "departments": _departments(db), "listTr": db.setting("list_tr", {}) or {}}
+    return {"roles": roles(db), "projectList": projects(db), "departments": _departments(db), "listTr": db.setting("list_tr", {}) or {},
+            "levels": [level_info(db, k) for k in levels(db)]}
 
 
 def router(user_dep, db_dep) -> APIRouter:
@@ -192,7 +217,7 @@ def router(user_dep, db_dep) -> APIRouter:
         out = [x for x in all_lists(db) if allowed(user, x)]
         if not out:
             raise HTTPException(403, "Your role may not edit lists")
-        return {"lists": out, "groups": GROUPS, "levels": LEVELS, "icons": ICONS}
+        return {"lists": out, "groups": GROUPS, "levels": levels(db), "icons": ICONS}
 
     @r.post("/departments/project")
     def dept_project(payload: dict, user: user_dep, db: db_dep):
@@ -247,7 +272,7 @@ def router(user_dep, db_dep) -> APIRouter:
                 raise HTTPException(422, "Type a name")
             if key == "roles":
                 level = payload.get("level")
-                if level not in LEVELS:
+                if level not in levels(db):
                     raise HTTPException(422, "Choose the access level")
                 if level == "admin" and user["role"] != "admin":
                     raise HTTPException(403, "Only the director can add a director-level role")
@@ -280,6 +305,56 @@ def router(user_dep, db_dep) -> APIRouter:
             save_tr(db, value, payload)
         sync(db)
         db.audit(user["id"], "list_add", "list", key, value or str(payload.get("value", "")))
+        return {"ok": True}
+
+    @r.post("/{key}/rename")
+    def rename(key: str, payload: dict, user: user_dep, db: db_dep):
+        """Change only the name: departments and offices keep their key / number, a designation moves its people,
+        ticks and approval steps to the new name."""
+        lst = find(db, user, key)
+        value = str(payload.get("value", ""))
+        new = re.sub(r"\s+", " ", str(payload.get("name", ""))).strip()[:60]
+        item = next((i for i in lst["items"] if i["value"] == value), None)
+        if not item:
+            raise HTTPException(404, "Not found")
+        if len(new) < 2:
+            raise HTTPException(422, "Type the new name")
+        old = item.get("name") or value
+        if new == old:
+            return {"ok": True}
+        if key == "departments":
+            ds = _departments(db)
+            if any(d["name"].lower() == new.lower() and d["key"] != value for d in ds):
+                raise HTTPException(409, f"{new} already exists")
+            db.set_setting("departments", [{**d, "name": new} if d["key"] == value else d for d in ds])
+        elif key == "offices":
+            offs = db.setting("offices", []) or []
+            if any(o["name"].lower() == new.lower() and o["code"] != value for o in offs):
+                raise HTTPException(409, f"{new} already exists")
+            db.set_setting("offices", [{**o, "name": new} if o["code"] == value else o for o in offs])
+        elif key == "roles":
+            rs = roles(db)
+            if any(x["name"].lower() == new.lower() for x in rs if x["name"] != value):
+                raise HTTPException(409, f"{new} already exists")
+            db.set_setting("roles", [{**x, "name": new} if x["name"] == value else x for x in rs])
+            db.run("UPDATE users SET designation = ? WHERE designation = ?", new, value)
+            rp = db.setting("role_perms", {}) or {}
+            if value in rp:
+                db.set_setting("role_perms", {(new if k == value else k): v for k, v in rp.items()})
+            rules = modules.setting(db, "approval_chains")
+            db.set_setting("approval_chains", {k: [{**s, "role": f"role:{new}"} if s.get("role") == f"role:{value}" else s for s in steps] for k, steps in rules.items()})
+            db.run("UPDATE approval_steps SET role = ? WHERE role = ?", f"role:{new}", f"role:{value}")
+        else:
+            raise HTTPException(409, "This list cannot be renamed; add a new item instead")
+        tr = db.setting("list_tr", {}) or {}
+        if old in tr:  # the Gujarati / Hindi names follow
+            tr[new] = tr.pop(old)
+            db.set_setting("list_tr", tr)
+        sync(db)
+        db.audit(user["id"], "list_rename", "list", key, f"{old} -> {new}")
+        import hrops
+
+        hrops.log_change(db, user["id"], "list", key, None, lst["label"], old, new, "renamed")
         return {"ok": True}
 
     @r.post("/{key}/delete")

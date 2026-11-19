@@ -118,7 +118,7 @@ def resolve_access(db: Db, u: dict) -> dict:
     direct = [r["site_id"] for r in db.all("SELECT site_id FROM user_sites WHERE user_id = ?", u["id"])]
     projects = [r["project"] for r in db.all("SELECT project FROM user_projects WHERE user_id = ?", u["id"])]
     every = db.all("SELECT id, project_type FROM sites")
-    u["all_sites"] = u["role"] in ALL_ACCESS
+    u["all_sites"] = u["role"] in ALL_ACCESS or bool(u.get("level") and lists.level_info(db, u["level"]).get("sees") == "company")
     u["sites"] = [s["id"] for s in every] if u["all_sites"] else sorted(set(direct) | {s["id"] for s in every if s["project_type"] in projects})
     u["direct_sites"] = direct
     u["projects"] = projects
@@ -133,7 +133,7 @@ def site_allowed(user: dict, site_id: str) -> bool:
 
 def public_user(u: dict) -> dict:
     return {k: u.get(k) for k in ("id", "employee_id", "name", "role", "designation", "phone", "email", "active", "must_change_pin", "sites", "created_at", "manager_id", "consent_at",
-                                  "all_sites", "projects", "direct_sites", "supervisor", "app_access", "perms", "dept", "department")}
+                                  "all_sites", "projects", "direct_sites", "supervisor", "app_access", "perms", "dept", "department", "level")}
 
 
 def parse_float(v, name: str, required: bool = True) -> float | None:
@@ -463,6 +463,8 @@ async def checkout(user: UserDep, db: DbDep, lat: Annotated[str, Form()], lng: A
     site = db.one("SELECT * FROM sites WHERE id = ?", att["site_id"])
     la, ln, acc = parse_float(lat, "Latitude"), parse_float(lng, "Longitude"), parse_float(accuracy, "Accuracy", False)
     inside, dist = within_fence(la, ln, acc, site)
+    if not inside and int(site.get("strict") or 0) >= 2:
+        raise HTTPException(422, f"{site['name']} allows check-out only inside its boundary. You are {dist:,.0f} m away; move closer.")
     if not inside and not (override or "").strip():
         return JSONResponse(status_code=422, content={"detail": f"You are {dist:,.0f} m from {site['name']}. Check out at the site, or give a reason for checking out from here.",
                                                       "distance": round(dist), "outside": True})
@@ -1119,8 +1121,8 @@ def admin_next_employee_code(project: str, office: str, user: UserDep, db: DbDep
 @app.get("/api/admin/users")
 def admin_users(user: UserDep, db: DbDep):
     if not any(perms.can(user, k) for k in ("users.add", "users.edit", "users.deactivate", "users.pin", "users.role")):
-        raise HTTPException(403, "Your role may not manage employees")
-    rows = db.all("SELECT id, employee_id, name, role, designation, phone, email, active, must_change_pin, created_at, COALESCE(department, '') AS department FROM users ORDER BY employee_id")
+        raise HTTPException(403, "Your designation may not manage employees")
+    rows = db.all("SELECT id, employee_id, name, role, designation, phone, email, active, must_change_pin, created_at, COALESCE(department, '') AS department, COALESCE(level, '') AS level FROM users ORDER BY employee_id")
     sites = db.all("SELECT user_id, site_id FROM user_sites")
     for r in rows:
         r["sites"] = [s["site_id"] for s in sites if s["user_id"] == r["id"]]
@@ -1139,13 +1141,15 @@ def admin_user_save(payload: dict, user: UserDep, db: DbDep):
     name = str(payload.get("name", "")).strip()
     role = payload.get("role", "field")
     designation = str(payload.get("designation", ""))[:80]
-    if payload.get("roleName"):  # a role from Settings > Lists: its access level becomes the role
+    level = ""
+    if payload.get("roleName"):  # a designation from Settings > Lists: its access level decides the role
         r = next((x for x in lists.roles(db) if x["name"] == payload["roleName"]), None)
         if not r:
-            raise HTTPException(422, "Choose a role from the list")
-        role, designation = r["level"], r["name"]
+            raise HTTPException(422, "Choose a designation from the list")
+        role, designation = lists.base_role(db, r["level"]), r["name"]
+        level = "" if r["level"] in lists.LEVELS else r["level"]
     if not emp or len(name) < 2 or role not in ("admin", "manager", "hr", "field"):
-        raise HTTPException(422, "Employee ID, name and a valid role are required")
+        raise HTTPException(422, "Employee code, name and a designation are required")
     if role == "admin" and user["role"] != "admin":
         raise HTTPException(403, "Only an admin can create admins")
     dept = str(payload.get("department") or "")
@@ -1154,7 +1158,7 @@ def admin_user_save(payload: dict, user: UserDep, db: DbDep):
     if dept and not any(d["key"] == dept for d in perms.departments(db)):
         raise HTTPException(422, "Choose a department from the list")
     row = {"employee_id": emp, "name": name, "role": role, "designation": designation, "phone": str(payload.get("phone", ""))[:20],
-           "email": str(payload.get("email", ""))[:120], "active": 1 if payload.get("active", True) else 0, "department": dept}
+           "email": str(payload.get("email", ""))[:120], "active": 1 if payload.get("active", True) else 0, "department": dept, "level": level}
     uid = payload.get("id")
     if uid:
         prev = db.one("SELECT * FROM users WHERE id = ?", uid)
@@ -1162,7 +1166,9 @@ def admin_user_save(payload: dict, user: UserDep, db: DbDep):
             raise HTTPException(404, "User not found")
         if prev["role"] == "admin" and user["role"] != "admin":
             raise HTTPException(403, "Only the director edits a director")
-        if (prev["role"], prev["designation"] or "") != (role, designation):
+        if not payload.get("roleName"):  # designation not sent: keep its custom access level
+            level = row["level"] = prev.get("level") or ""
+        if (prev["role"], prev["designation"] or "", prev.get("level") or "") != (role, designation, level):
             perms.need(user, "users.role")
             if prev["id"] == user["id"] and prev["role"] == "admin" and role != "admin":
                 raise HTTPException(409, "You cannot take the director role away from yourself")
@@ -1211,14 +1217,36 @@ def admin_site_save(payload: dict, user: UserDep, db: DbDep):
         raise HTTPException(422, "Site name is required")
     row = {"name": name, "project_type": str(payload.get("project_type", "other"))[:30], "lat": parse_float(payload.get("lat"), "Latitude"), "lng": parse_float(payload.get("lng"), "Longitude"),
            "radius_m": int(parse_float(payload.get("radius_m", 150), "Radius") or 150), "address": str(payload.get("address", ""))[:200], "active": 1 if payload.get("active", True) else 0,
-           "subtype": str(payload.get("subtype", ""))[:20], "strict": 1 if payload.get("strict") in (True, 1, "1", "yes", "Strict") else 0}
+           "subtype": str(payload.get("subtype", ""))[:20], "strict": site_rule(payload.get("strict"))}
+    if not 10 <= row["radius_m"] <= 20000:
+        raise HTTPException(422, "Radius must be between 10 m and 20 km")
+    if not (-90 <= row["lat"] <= 90 and -180 <= row["lng"] <= 180):
+        raise HTTPException(422, "Latitude or longitude is out of range")
+    if row["project_type"] != "office" and row["project_type"] not in lists.project_codes(db):
+        raise HTTPException(422, "Choose the project")
     sid = payload.get("id")
     if sid:
         db.update("sites", sid, row)
     else:
         sid = db.insert("sites", row)
+    if isinstance(payload.get("team"), list):  # the people who work at the site, chosen on the site form
+        perms.need(user, "users.assign")
+        want = {str(x) for x in payload["team"]}
+        have = {r["user_id"] for r in db.all("SELECT user_id FROM user_sites WHERE site_id = ?", sid)}
+        for uid in want - have:
+            if db.one("SELECT 1 FROM users WHERE id = ?", uid):
+                db.insert("user_sites", {"user_id": uid, "site_id": sid})
+        for uid in have - want:
+            db.run("DELETE FROM user_sites WHERE user_id = ? AND site_id = ?", uid, sid)
     db.audit(user["id"], "site_save", "site", sid, name)
     return {"id": sid}
+
+
+def site_rule(v) -> int:
+    """0 allow exceptions, 1 only inside for check-in, 2 only inside for check-in and check-out."""
+    if v in (2, "2", "both", "Both"):
+        return 2
+    return 1 if v in (True, 1, "1", "yes", "Strict", "checkin") else 0
 
 
 @app.post("/api/admin/items")

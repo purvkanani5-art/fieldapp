@@ -12,8 +12,8 @@ const SECTIONS = [
   { key: 'reports', icon: 'chart', label: 'Reports', tabs: [['reports', 'Reports', 'reports.view'], ['dashboard', 'Dashboard', 'reports.view']] },
 ];
 const SECTION_OF = { home: 'home', approvals: 'inbox', inbox: 'inbox',
-  sites: 'ops', site: 'ops', mysite: 'ops', planner: 'ops', tasks: 'ops', carbon: 'ops', map: 'ops', registers: 'ops', farmers: 'ops', sign: 'ops', muster: 'ops', work: 'ops',
-  people: 'people', person: 'people', personedit: 'people', assign: 'people', attsum: 'people', team: 'people', monthend: 'people', hrreg: 'people', changes: 'people',
+  sites: 'ops', site: 'ops', sitenew: 'ops', siteedit: 'ops', mysite: 'ops', planner: 'ops', tasks: 'ops', carbon: 'ops', map: 'ops', registers: 'ops', farmers: 'ops', sign: 'ops', muster: 'ops', work: 'ops',
+  people: 'people', person: 'people', personedit: 'people', empnew: 'people', empedit: 'people', assign: 'people', attsum: 'people', team: 'people', monthend: 'people', hrreg: 'people', changes: 'people',
   notices: 'people', notice: 'people', noticenew: 'people', surveys: 'people', survey: 'people', surveynew: 'people', hrdesk: 'people', poshdesk: 'people',
   reports: 'reports', dashboard: 'reports',
   me: 'me', leaves: 'me', trips: 'me', attendance: 'me', updates: 'me', feedback: 'me',
@@ -51,7 +51,7 @@ const TAB_OF = { attendance: 'work', trips: 'work', registers: 'work', farmers: 
   people: 'manage', personedit: 'manage', reports: 'manage', hrsettings: 'manage', messages: 'manage', privacy: 'me', security: 'me',
   notices: 'me', notice: 'me', surveys: 'me', survey: 'me', changes: 'me', poshdesk: 'me' };
 const FIELD_ONLY = new Set(['requests']);
-const STAFF_ROUTES = new Set(['manage', 'dashboard', 'team', 'hrdesk', 'admin', 'people', 'personedit', 'reports', 'hrsettings', 'messages', 'hr', 'assign', 'monthend', 'hrreg', 'noticenew']);
+const STAFF_ROUTES = new Set(['manage', 'dashboard', 'team', 'hrdesk', 'admin', 'people', 'personedit', 'empnew', 'empedit', 'sitenew', 'siteedit', 'reports', 'hrsettings', 'messages', 'hr', 'assign', 'monthend', 'hrreg', 'noticenew']);
 const NEEDS_GPS = new Set(['attendance', 'trips', 'registers', 'sign', 'farmers']);
 
 const SECTION_LABEL = {'home': 'Home', 'sites': 'Sites', 'mysite': 'My site', 'planner': 'Planner', 'tasks': 'My tasks', 'hr': 'People', 'me': 'Me', 'inbox': 'Inbox', 'manage': 'Manage', 'ops': 'Operations', 'people': 'People', 'reports': 'Reports', 'settings': 'Settings'};
@@ -87,7 +87,9 @@ function badgeFor(k) {
 function tabBar(active) {
   if (isStaff()) {
     const n = (KL.me?.pendingApprovals || 0) + (KL.me?.unread || 0);
-    return `<nav class="tabbar" aria-label="Main">${shownSections().map((s) => `<a href="${sectionHref(s.key)}" class="${active === s.key ? 'on' : ''}" ${active === s.key ? 'aria-current="page"' : ''}>${ic(s.icon)}<span>${s.label}</span>${s.key === 'inbox' && n ? `<span class="badge">${n}</span>` : ''}</a>`).join('')}</nav>`;
+    const items = shownSections().map((s) => `<a href="${sectionHref(s.key)}" class="${active === s.key ? 'on' : ''}" ${active === s.key ? 'aria-current="page"' : ''}>${ic(s.icon)}<span>${s.label}</span>${s.key === 'inbox' && n ? `<span class="badge">${n}</span>` : ''}</a>`);
+    items.splice(2, 0, `<button type="button" class="fa-plus" data-action="newOpen" aria-label="Add something new">${ic('plus')}</button>`);
+    return `<nav class="tabbar staff-tabbar" aria-label="Main">${items.join('')}</nav>`;
   }
   const tabs = fieldTabs();
   return `<nav class="tabbar ${isStaff() ? '' : 'fa-tabbar'}" aria-label="Main">${tabs.map(([k, icon, label]) => (k === '+' ? `<button type="button" class="fa-plus" data-action="plusOpen" aria-label="Add something new">${ic('plus')}</button>` : `<a href="#${k}" class="${active === k ? 'on' : ''}" ${active === k ? 'aria-current="page"' : ''}>${ic(icon)}<span>${label}</span>${badgeFor(k)}</a>`)).join('')}</nav>`;
@@ -131,6 +133,7 @@ function sideNav(active) {
   return `<aside class="side" aria-label="Main navigation">
     <div class="side-top"><a class="brand" href="#home"><img src="./icon.svg" alt="" /><span><b>Kshetralekha</b><small>${esc(KL.boot?.company?.short || 'Sajeevan')}</small></span></a>
       <button type="button" class="btn ghost icon-only side-toggle" data-action="sideToggle" aria-label="Collapse the menu" title="Collapse the menu">${ic('back')}</button></div>
+    ${isStaff() ? `<button type="button" class="btn primary side-new" data-action="newOpen" title="Add something new">${ic('plus')}<span>New</span></button>` : ''}
     <nav class="side-nav">${navGroups().map(([title, items]) => `<div class="nav-group">${title ? `<div class="label">${esc(title)}</div>` : ''}${items.map(link).join('')}${title === 'Operations' ? tree.map(([p, list]) => `<div class="nav-tree"><span class="tree-label">${ic(p.icon)}<span>${esc(p.name)}</span></span>${list.map((s) => `<a class="nav sub ${cur.startsWith(`site/${s.id}`) ? 'on' : ''}" href="#site/${esc(s.id)}" title="${esc(s.name)}"><span>${esc(s.name)}</span></a>`).join('')}</div>`).join('') : ''}</div>`).join('')}</nav>
     <div class="side-foot">
       <a class="me-chip ${cur === 'me' ? 'on' : ''}" href="#me">${avatar(u.name, 'sm')}<span><b>${esc(u.name)}</b><small>${esc(u.designation || ROLE_TEXT[u.role] || u.role)}</small></span></a>
@@ -281,7 +284,8 @@ function render() {
   if (STAFF_ROUTES.has(view) && !isStaff()) view = 'home';
   if (FIELD_ONLY.has(view) && isStaff()) view = 'me';
   if (view === 'hrdesk' && !['admin', 'hr'].includes(KL.user.role)) view = 'manage';
-  if (['surveynew', 'hrsettings', 'personedit'].includes(view) && !['admin', 'hr'].includes(KL.user.role)) view = isStaff() ? 'manage' : 'home';
+  if (view === 'personedit') { location.replace(`#empedit/${arg}`); return; }
+  if (['surveynew', 'hrsettings'].includes(view) && !['admin', 'hr'].includes(KL.user.role)) view = isStaff() ? 'manage' : 'home';
   if (NEEDS_GPS.has(view)) locate();
   const entering = KL.lastRoute !== location.hash;
   KL.lastRoute = location.hash;

@@ -15,8 +15,9 @@ const subtypeText = (s) => (s.project_type === 'biochar' ? projectsMeta().biocha
 /* ---------------------------------------------------------------- all my projects and sites */
 Views.sites = () => {
   const sites = mySites();
-  if (!sites.length) return `${topbar('Sites', '#home')}${emptyState('pin', 'No site assigned to you', 'You can use HR, the Planner and your inbox. HR adds you to a site or project when you work at one.')}`;
-  return `${topbar('Sites', '#home', isStaff() ? '' : `<a class="btn small" href="#map">${ic('map')} Map</a>`)}
+  const add = isStaff() && can('sites.edit') ? `<a class="btn small primary" href="#sitenew" data-action="siteNewFor" data-project="">${ic('plus')} Add site</a>` : '';
+  if (!sites.length) return `${topbar('Sites', '#home', add)}${emptyState('pin', 'No site assigned to you', 'You can use HR, the Planner and your inbox. HR adds you to a site or project when you work at one.')}`;
+  return `${topbar('Sites', '#home', isStaff() ? add : `<a class="btn small" href="#map">${ic('map')} Map</a>`)}
     <p class="sub">${KL.user.all_sites ? 'Every project and its sites' : KL.user.projects?.length ? `Projects you manage: ${KL.user.projects.map((pk) => esc(projectsMeta()[pk]?.name || pk)).join(', ')}` : 'The sites you work at'}</p>
     <div class="pj-panels">${projectGroups(sites)}</div>`;
 };
@@ -34,14 +35,14 @@ Views.site = (arg) => {
   KL.ui.siteBack = `#site/${id}/${tab}`;
   const sum = data(`site:${id}`, () => api(`/api/sites/${id}/summary`));
   const p = projectsMeta()[s.project_type] || {};
-  const head = `<div class="site-head pj-${esc(s.project_type)}"><span class="pj-ic">${ic(p.icon || 'pin')}</span><div class="tx"><b>${esc(p.name || '')}${subtypeText(s) ? ` · ${esc(subtypeText(s))}` : ''}</b><small>${esc(s.address || '')} · ${s.radius_m} m fence${s.strict ? ' · strict' : ''}</small></div>
+  const head = `<div class="site-head pj-${esc(s.project_type)}"><span class="pj-ic">${ic(p.icon || 'pin')}</span><div class="tx"><b>${esc(p.name || '')}${subtypeText(s) ? ` · ${esc(subtypeText(s))}` : ''}</b><small>${esc(s.address || '')} · ${s.radius_m} m fence${s.strict >= 2 ? ' · check-in and check-out inside only' : s.strict ? ' · check-in inside only' : ''}</small></div>
     ${sum && !sum.error && sum.onSite.length ? `<span class="avatars" title="On site now">${sum.onSite.slice(0, 4).map((x) => avatar(x.name, 'sm')).join('')}</span>` : ''}</div>`;
   const bar = `<nav class="site-tabs">${tabs.map(([k, icon, label]) => `<a href="#site/${esc(id)}/${k}" class="${tab === k ? 'on' : ''}">${ic(icon)}<span>${esc(label)}</span></a>`).join('')}</nav>`;
   let body;
   if (sum === null) body = spinner();
   else if (sum.error) body = errorBox(sum.error);
   else body = (SITE_BODY[tab] || SITE_BODY.overview)(s, sum);
-  return `${topbar(s.name, back)}${head}${bar}<div class="site-body">${body}</div>`;
+  return `${topbar(s.name, back, isStaff() && can('sites.edit') ? `<a class="btn small" href="#siteedit/${esc(s.id)}">${ic('pen')} Edit</a>` : '')}${head}${bar}<div class="site-body">${body}</div>`;
 };
 
 /* compact list of one register's records at this site, with a New button */
@@ -136,7 +137,7 @@ const SITE_BODY = {
     return `${recMini('sapling', s, { title: 'Saplings planted on farms', limit: 6, newLabel: 'Plant' })}${recMini('survival', s, { title: 'Survival checks', limit: 6, newLabel: 'Check' })}`;
   },
   team(s, sum) {
-    const hr = ['admin', 'hr'].includes(KL.user.role);
+    const hr = can('users.assign'); // whoever may assign people adds them here
     const ids = new Set(sum.members.map((m) => m.id));
     const addable = KL.boot.people.filter((p) => !ids.has(p.id));
     const canMuster = isStaff() || (KL.user.supervisor && (KL.user.direct_sites || []).includes(s.id));

@@ -237,6 +237,26 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
    typing and taps are not lost. Site editor: "Set to where I am standing now" takes a careful 30 s reading.
    Fake-GPS detection needs the native Android app (later). Tests: kl_halfday_check.py, kl-halfday-ui.mjs.
 
+30. **Easy workflows (2026-11-19)**: owner: "make it simple", "+" everywhere, every employee detail at creation,
+   geofence for every project, fewer steps for HR / director / co-founder. frontend/views-forms.js:
+   office "+ New" (centre of the phone tab bar, top of the sidebar; tiles filtered by permission, "More…" lists
+   every record kind), quickAdd() row on the three home dashboards, "+" on Sites (and each project panel), both
+   Records hubs, Directory (straight to the form) and Map. One-page employee form #empnew / #empedit/<id>
+   (personedit redirects): job (code preview, designation and office can be added inline, reports to, site chips),
+   personal, employment, IDs and bank (bank_name / bank_account / bank_ifsc in PROFILE_FIELDS; bank_account is
+   SENSITIVE), documents (uploaded after save to /api/hr/documents; masked Aadhaar only). Saves = /api/admin/users,
+   then /api/hr/profile (users.add may write a first profile), then documents. Masked values ("•••• 42") are never
+   saved back. One-page site form #sitenew / #siteedit/<id> with a Leaflet map (tap / drag / "where I am standing"),
+   radius slider, check-in rule sites.strict 0 exceptions / 1 check-in only inside / 2 check-in and check-out only
+   inside (checkout enforces 2), team chips (payload `team`, needs users.assign). Circle only (polygon later).
+   "Role" is now "Designation" in every screen (the list key stays `roles`; users.designation). Custom access levels
+   (setting access_levels [{key lv_*, name, app office|field, sees team|company, perms}]): users.role holds the base
+   (office -> manager, field -> field), users.level the custom key; all_sites when sees = company; a never-ticked
+   designation starts from the level's perms. Settings > Designations & access has an Access levels card.
+   POST /api/admin/lists/{roles|offices|departments}/rename (designation rename moves users, role_perms, rules and
+   open approval steps). Note: an employee with no site cannot check in anywhere (blank is NOT "all sites").
+   Tests: kl_workflows_check.py, kl-workflows-ui.mjs (36).
+
 ## Testing
 - `D:\PersonalBooks\.cache\kl-e2e.mjs` (2026-11-14): resets the demo, then manager assigns a photo-proof task →
   worker gets inbox item, ticks checklist, completes with sample photo → manager inbox "Task done" with note and

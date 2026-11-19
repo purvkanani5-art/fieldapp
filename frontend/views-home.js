@@ -8,7 +8,7 @@ function dashHead(sub = '') {
   const now = new Date();
   const greet = now.getHours() < 12 ? 'Good morning' : now.getHours() < 17 ? 'Good afternoon' : 'Good evening';
   return `<header class="dash-head topbar hero"><div class="ph-crumbs"><nav class="crumbs" aria-label="Breadcrumb"><span aria-current="page">Home</span></nav>${syncChip()}</div>
-    <div><h1>${esc(greet)}, ${esc(firstName(u.name))}</h1><p class="meta">${esc(now.toLocaleDateString(appLocale(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))} · ${esc(u.designation || ROLE_TEXT[u.role] || u.role)}${sub ? ` · ${sub}` : ''}</p></div></header>`;
+    <div><h1>${esc(greet)}, ${esc(firstName(u.name))}</h1><p class="meta">${esc(now.toLocaleDateString(appLocale(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))} · ${esc(u.designation || ROLE_TEXT[u.role] || u.role)}${sub ? ` · ${sub}` : ''}</p></div></header>${quickAdd()}`;
 }
 const lastMonth = () => prevMonth();
 

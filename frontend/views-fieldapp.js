@@ -177,8 +177,8 @@ function fieldSite(s) {
 function projectGroups(sites, hrefFor = (s) => `#site/${s.id}`) {
   const groups = Object.entries(projectsMeta()).map(([key, p]) => [key, p, sites.filter((s) => s.project_type === key)]).filter(([, , list]) => list.length);
   return groups.map(([key, p, list]) => `<section class="pj-panel pj-${esc(key)}" aria-label="${esc(p.name)}">
-      <header class="pj-panel-head"><span class="pj-ic">${ic(p.icon)}</span><b>${esc(p.name)}</b><span class="pj-count">${list.length} site${list.length === 1 ? '' : 's'}</span></header>
-      ${list.map((s) => `<a class="site-card" href="${esc(hrefFor(s))}"><span class="tx"><b>${esc(s.name)}</b><small>${esc([subtypeText(s), s.address].filter(Boolean).join(' · '))}</small></span>${s.strict ? tag('Strict', 'bad') : ''}<span class="chev">${ic('chevron')}</span></a>`).join('')}
+      <header class="pj-panel-head"><span class="pj-ic">${ic(p.icon)}</span><b>${esc(p.name)}</b><span class="pj-count">${list.length} site${list.length === 1 ? '' : 's'}</span>${isStaff() && can('sites.edit') ? `<a class="btn small ghost icon-only" href="#sitenew" data-action="siteNewFor" data-project="${esc(key)}" aria-label="Add a ${esc(p.name)} site" title="Add a ${esc(p.name)} site">${ic('plus')}</a>` : ''}</header>
+      ${list.map((s) => `<a class="site-card" href="${esc(hrefFor(s))}"><span class="tx"><b>${esc(s.name)}</b><small>${esc([subtypeText(s), s.address].filter(Boolean).join(' · '))}</small></span>${s.strict ? tag(s.strict >= 2 ? 'Fence in & out' : 'Fence at check-in', 'bad') : ''}<span class="chev">${ic('chevron')}</span></a>`).join('')}
     </section>`).join('');
 }
 
