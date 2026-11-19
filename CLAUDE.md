@@ -335,6 +335,20 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
    Storage (owner asked 2026-11-19): database = container disk + Litestream to Azure Storage (7 days, continuous) +
    nightly gzip copy to the SharePoint "Backups" library (30 kept); files = SharePoint only (no separate backup yet;
    offered a nightly copy to Azure Storage, not built).
+33. **Who signs which policy (2026-11-19, v0.6.1)**. Owner: "upload everything. there are some policies meant for
+   everyone. there are some only for biochar project workers, office workers, field workers in agroforestry, etc. so,
+   allow me a option to assign who has to sign it or it is a general policy in the settings", and upload as reading
+   only first. A policy's audience is Everyone or {"type": "groups", "items": [...]} of projects (Office counts),
+   sub-groups ("project:key") and sites (policies.clean_audience / in_audience / audience_text; old single
+   audiences still read). Someone is in a project / sub-group when they work at one of its sites or are assigned to
+   the whole project. Signing: "General, for reading only" or "Must accept and sign"; new policies start as reading
+   only. POST /api/policies/bulk (multipart files + version): each PDF a reading-only policy for everyone, titled from
+   the file name without "(EN-GU-HI)" / "revised"; same name already there = skipped. POST /api/policies/{id}/who
+   {audience, must_ack} changes it in place (asks the people when it becomes must-sign). Screens: Policies list
+   grouped Must sign / General / Archived, "Upload several" (#policybulk), "Who and how" card on each policy,
+   Settings > Administration > Company policies. The owner's 32 policies (Word, EN-GU-HI in one file) were turned
+   into PDFs in OneDrive "Company Policies\PDF 2026.1" (older "PDF" folder left as it was; "Gender Equality ...
+   Copy.docx" skipped as a duplicate); the owner uploads them on live. Test: kl-policies2-ui.mjs.
 
 ## Testing
 - `D:\PersonalBooks\.cache\kl-e2e.mjs` (2026-11-14): resets the demo, then manager assigns a photo-proof task →

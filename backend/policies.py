@@ -1,6 +1,13 @@
 """Company policies everyone must accept (2026-11-19, owner: "every employee must acknowledge relevant company
 policies and sign a declaration when onboarded and starts working").
 
+2026-11-19 later: "some policies are meant for everyone, some only for biochar project workers, office workers, field
+workers in agroforestry" - a policy is for everyone or for any mix of projects (Office counts as one), sub-groups and
+sites ({"type": "groups", "items": [{"type": "project"|"subgroup"|"site", "value": ...}]}; a sub-group value is
+"project:key"). Someone belongs to a project or sub-group when they work at one of its sites or are assigned to the
+whole project. HR can upload many PDFs at once: each becomes a "for reading only" policy for everyone, named after
+its file, so nobody is locked out until HR switches signing on for it.
+
 HR uploads each policy as a PDF (optionally a Gujarati and a Hindi copy) and says who must accept it, with the same
 audience choice as the notice board (everyone, a project, a site). Anyone with a required policy they have not accepted
 in its current version sees only the "Before you start" screen: they open each policy, tick that they read and accept
@@ -11,6 +18,7 @@ and one policy_ack record per policy (with the version), so a new version asks a
 import base64
 import hashlib
 import json
+import re
 from collections.abc import Callable
 from datetime import datetime
 from typing import Any
@@ -19,6 +27,8 @@ from fastapi import APIRouter, HTTPException, Request
 from starlette.datastructures import UploadFile as FormFile
 
 import hrops
+import lists
+import modules
 import pdfgen
 from db import Db, now_iso
 
@@ -36,12 +46,98 @@ def _data(p: dict) -> dict:
     return d
 
 
+def _items(aud: dict) -> list[dict]:
+    t = aud.get("type", "all")
+    if t == "groups":
+        return [x for x in aud.get("items") or [] if isinstance(x, dict)]
+    return [] if t == "all" else [{"type": t, "value": aud.get("value")}]
+
+
+def clean_audience(db: Db, aud: Any) -> dict:
+    """Everyone, or a checked list of projects / sub-groups / sites."""
+    if not isinstance(aud, dict) or aud.get("type", "all") == "all":
+        return {"type": "all"}
+    out, seen = [], set()
+    subs = lists.subgroups(db)
+    for x in _items(aud):
+        t, v = x.get("type"), str(x.get("value") or "")
+        ok = (t == "project" and (v in modules.PROJECTS or v == "office")) \
+            or (t == "subgroup" and ":" in v and any(g["key"] == v.split(":", 1)[1] for g in subs.get(v.split(":", 1)[0], []))) \
+            or (t == "site" and bool(db.one("SELECT 1 FROM sites WHERE id = ?", v)))
+        if not ok:
+            raise HTTPException(422, "Choose who it is for again (something in the list no longer exists)")
+        if (t, v) not in seen:
+            seen.add((t, v))
+            out.append({"type": t, "value": v})
+    return {"type": "groups", "items": out} if out else {"type": "all"}
+
+
+def in_audience(db: Db, uid: str, aud: dict) -> bool:
+    items = _items(aud)
+    if not items:
+        return True
+    projects = hrops.user_projects_of(db, uid)
+    for x in items:
+        t, v = x["type"], str(x.get("value") or "")
+        if t == "project" and v in projects:
+            return True
+        if t == "site" and hrops.in_audience(db, uid, {"type": "site", "value": v}):
+            return True
+        if t == "subgroup" and ":" in v:
+            proj, key = v.split(":", 1)
+            if db.one("SELECT 1 FROM user_sites us JOIN sites s ON s.id = us.site_id WHERE us.user_id = ? AND s.project_type = ? AND s.subtype = ?", uid, proj, key) \
+                    or db.one("SELECT 1 FROM user_projects WHERE user_id = ? AND project = ?", uid, proj):
+                return True
+    return False
+
+
+def audience_users(db: Db, aud: dict) -> list[dict]:
+    return [u for u in db.all("SELECT id, name, role, designation FROM users WHERE active = 1 AND COALESCE(app_access, 1) = 1 ORDER BY name") if in_audience(db, u["id"], aud)]
+
+
+def audience_text(db: Db, aud: dict) -> str:
+    items = _items(aud)
+    if not items:
+        return "Everyone"
+    names = []
+    subs = lists.subgroups(db)
+    for x in items:
+        t, v = x["type"], str(x.get("value") or "")
+        if t == "project":
+            names.append("Office" if v == "office" else modules.PROJECTS.get(v, {}).get("name", v))
+        elif t == "subgroup":
+            proj, key = v.split(":", 1)
+            g = next((g["name"] for g in subs.get(proj, []) if g["key"] == key), key)
+            names.append(f"{modules.PROJECTS.get(proj, {}).get('name', proj)} · {g}")
+        else:
+            s = db.one("SELECT name FROM sites WHERE id = ?", v)
+            names.append(s["name"] if s else "a site")
+    return ", ".join(names)
+
+
+def title_from_file(name: str) -> str:
+    """'Code of Conduct and Business Ethics (EN-GU-HI) revised.pdf' -> 'Code of Conduct and Business Ethics'."""
+    t = re.sub(r"\.pdf$", "", name.strip(), flags=re.I)
+    t = re.sub(r"\s*\((EN|GU|HI)(-(EN|GU|HI))*\)", "", t, flags=re.I)
+    t = re.sub(r"[\s\-_]*(revised|final|copy)$", "", t, flags=re.I)
+    return re.sub(r"\s+", " ", t).strip(" -_")[:120]
+
+
+def _ask(db: Db, rid: str, d: dict) -> None:
+    """Tell everyone a must-sign policy is for that they need to accept it."""
+    if d.get("must_ack", "Yes") != "Yes":
+        return
+    for x in audience_users(db, d["audience"]):
+        if not accepted(db, x["id"], {"id": rid, "d": d}):
+            db.notify(x["id"], f"Please read and accept: {d.get('title')}", "Open the app to read it and sign.", "#home")
+
+
 def required_for(db: Db, uid: str) -> list[dict]:
     """Policies this person must accept, newest version only (archived ones and "No" ones are not required)."""
     out = []
     for p in db.all("SELECT * FROM records WHERE kind = 'policy' AND status NOT IN ('archived', 'withdrawn') ORDER BY created_at"):
         d = _data(p)
-        if d.get("must_ack", "Yes") != "No" and hrops.in_audience(db, uid, d["audience"]):
+        if d.get("must_ack", "Yes") != "No" and in_audience(db, uid, d["audience"]):
             out.append({**p, "d": d})
     return out
 
@@ -136,9 +232,9 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
         rows = []
         for p in db.all("SELECT * FROM records WHERE kind = 'policy' AND status <> 'withdrawn' ORDER BY status = 'archived', created_at DESC"):
             p = {**p, "d": _data(p)}
-            people = hrops.audience_users(db, p["d"]["audience"])
+            people = audience_users(db, p["d"]["audience"])
             done = sum(1 for x in people if accepted(db, x["id"], p))
-            rows.append({**_out(p), "audienceText": hrops.audience_text(db, p["d"]["audience"]), "total": len(people), "done": done})
+            rows.append({**_out(p), "audienceText": audience_text(db, p["d"]["audience"]), "total": len(people), "done": done})
         return {"rows": rows, "declaration": declaration(db)}
 
     @r.get("/{pid}")
@@ -149,10 +245,10 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
             raise HTTPException(404, "Policy not found")
         p = {**p, "d": _data(p)}
         people = []
-        for x in hrops.audience_users(db, p["d"]["audience"]):
+        for x in audience_users(db, p["d"]["audience"]):
             a = accepted(db, x["id"], p)
             people.append({**x, "accepted_at": a["created_at"] if a else None, "declaration": json.loads(a["data"]).get("declaration") if a else None})
-        return {**_out(p), "audienceText": hrops.audience_text(db, p["d"]["audience"]), "people": people}
+        return {**_out(p), "audienceText": audience_text(db, p["d"]["audience"]), "people": people}
 
     @r.post("")
     async def save(request: Request, user: user_dep, db: db_dep):
@@ -168,9 +264,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
         title = str(body.get("title", d.get("title", ""))).strip()[:120]
         if len(title) < 3:
             raise HTTPException(422, "Give the policy a name")
-        aud = body.get("audience") or d.get("audience") or {"type": "all"}
-        if aud.get("type") not in ("all", "project", "site"):
-            raise HTTPException(422, "Choose who must accept it")
+        aud = clean_audience(db, body.get("audience") or d.get("audience") or {"type": "all"})
         files = dict(d.get("files") or {})
         for lang in ("en", "gu", "hi"):
             up = form.get(f"file_{lang}")
@@ -188,12 +282,58 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
         else:
             rid = db.insert("records", {"kind": "policy", "title": title, "status": "open", "data": json.dumps(new), "file_id": files.get("en"),
                                         "created_by": user["id"], "created_at": now_iso(), "updated_at": now_iso()})
-        if new["must_ack"] == "Yes":
-            for x in hrops.audience_users(db, aud):
-                if not accepted(db, x["id"], {"id": rid, "d": new}):
-                    db.notify(x["id"], f"Please read and accept: {title}", "Open the app to read it and sign.", "#home")
+        _ask(db, rid, new)
         db.audit(user["id"], "policy_saved", "policy", rid, f"{title} {new['version']}".strip())
         return {"id": rid}
+
+    @r.post("/bulk")
+    async def bulk(request: Request, user: user_dep, db: db_dep):
+        """Many PDFs at once: each one a "for reading only" policy for everyone, named after its file. A policy with
+        the same name already there is skipped (so uploading the folder again does not make copies)."""
+        hr_only(user)
+        form = await request.form()
+        version = str(form.get("version") or "").strip()[:30]
+        have = {str(json.loads(p["data"] or "{}").get("title") or p["title"]).strip().lower()
+                for p in db.all("SELECT title, data FROM records WHERE kind = 'policy' AND status <> 'withdrawn'")}
+        added, skipped = [], []
+        for up in form.getlist("files"):
+            if not (isinstance(up, FormFile) and up.filename):
+                continue
+            title = title_from_file(up.filename)
+            if not (up.content_type == "application/pdf" or up.filename.lower().endswith(".pdf")):
+                skipped.append({"name": up.filename, "why": "not a PDF"})
+                continue
+            if len(title) < 3 or title.lower() in have:
+                skipped.append({"name": up.filename, "why": "already there" if title.lower() in have else "no name"})
+                continue
+            fid = await save_upload(db, up, "Policies", "policy", user, name=f"{title} {version} en.pdf".replace("  ", " "))
+            d = {"title": title, "version": version, "body": "", "audience": {"type": "all"}, "must_ack": "No", "files": {"en": fid}}
+            rid = db.insert("records", {"kind": "policy", "title": title, "status": "open", "data": json.dumps(d), "file_id": fid,
+                                        "created_by": user["id"], "created_at": now_iso(), "updated_at": now_iso()})
+            db.audit(user["id"], "policy_saved", "policy", rid, f"{title} {version}".strip())
+            have.add(title.lower())
+            added.append({"id": rid, "title": title})
+        if not added and not skipped:
+            raise HTTPException(422, "Choose the policy PDFs")
+        return {"added": added, "skipped": skipped}
+
+    @r.post("/{pid}/who")
+    def who(pid: str, payload: dict, user: user_dep, db: db_dep):
+        """Change who a policy is for and whether they must sign it, without touching the file or version."""
+        hr_only(user)
+        p = db.one("SELECT * FROM records WHERE id = ? AND kind = 'policy'", pid)
+        if not p:
+            raise HTTPException(404, "Policy not found")
+        d = _data(p)
+        if "audience" in payload:
+            d["audience"] = clean_audience(db, payload["audience"])
+        if "must_ack" in payload:
+            d["must_ack"] = "No" if payload["must_ack"] in ("No", False) else "Yes"
+        db.update("records", pid, {"data": json.dumps(d), "updated_at": now_iso()})
+        if p["status"] != "archived":
+            _ask(db, pid, d)
+        db.audit(user["id"], "policy_who", "policy", pid, f"{audience_text(db, d['audience'])} · {'must sign' if d.get('must_ack', 'Yes') == 'Yes' else 'reading only'}")
+        return {"ok": True, "audienceText": audience_text(db, d["audience"]), "total": len(audience_users(db, d["audience"]))}
 
     @r.post("/{pid}/archive")
     def archive(pid: str, payload: dict, user: user_dep, db: db_dep):
@@ -211,7 +351,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
             raise HTTPException(404, "Policy not found")
         p = {**p, "d": _data(p)}
         n = 0
-        for x in hrops.audience_users(db, p["d"]["audience"]):
+        for x in audience_users(db, p["d"]["audience"]):
             if not accepted(db, x["id"], p):
                 db.notify(x["id"], f"Reminder: please accept {p['d'].get('title')}", "Open the app to read it and sign.", "#home")
                 n += 1

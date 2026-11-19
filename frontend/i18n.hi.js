@@ -2656,5 +2656,19 @@ window.I18N_DATA.hi = {
 "When HR adds one for you, you are asked to read and accept it.": "जब HR आपके लिए कोई जोड़ेगा, तो आपसे पढ़ने और स्वीकार करने को कहा जाएगा।",
 "Who must accept it": "किसे स्वीकार करनी चाहिए",
 "Your signed declaration is saved in your documents.": "आपकी हस्ताक्षरित घोषणा आपके दस्तावेज़ों में सहेजी गई है।",
-"{x} are switched off": "{x} बंद हैं"
+"{x} are switched off": "{x} बंद हैं",
+"Upload several": "एक साथ कई अपलोड करें",
+"Who and how": "किसके लिए और कैसे",
+"Signing": "हस्ताक्षर",
+"General, for reading only": "सामान्य, केवल पढ़ने के लिए",
+"Who it is for": "किसके लिए है",
+"Particular sites": "विशेष साइटें",
+"Pick one or more. Someone counts when they work at a site in it, or are assigned to the whole project.": "एक या अधिक चुनें. जो इसकी किसी साइट पर काम करता है या पूरे प्रोजेक्ट में लगाया गया है, वह गिना जाता है.",
+"Upload policies": "नीतियाँ अपलोड करें",
+"Version for all of them": "सभी के लिए संस्करण",
+"Choose PDFs": "PDF चुनें",
+"Upload, who must sign each one": "अपलोड, हर एक पर किसे हस्ताक्षर करना है",
+"Ask them to sign?": "उनसे हस्ताक्षर करवाएँ?",
+"Everyone this policy is for will have to open it and sign before they can use the app.": "यह नीति जिनके लिए है, उन सभी को ऐप इस्तेमाल करने से पहले इसे खोलकर हस्ताक्षर करना होगा.",
+"Go to the policies": "नीतियों पर जाएँ"
 };

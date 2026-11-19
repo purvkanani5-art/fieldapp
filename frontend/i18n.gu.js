@@ -2656,5 +2656,19 @@ window.I18N_DATA.gu = {
 "When HR adds one for you, you are asked to read and accept it.": "HR તમારા માટે ઉમેરે ત્યારે તમને વાંચવા અને સ્વીકારવા કહેવાશે.",
 "Who must accept it": "કોણે સ્વીકારવી જોઈએ",
 "Your signed declaration is saved in your documents.": "તમારું સહી કરેલું જાહેરનામું તમારા દસ્તાવેજમાં સાચવ્યું છે.",
-"{x} are switched off": "{x} બંધ છે"
+"{x} are switched off": "{x} બંધ છે",
+"Upload several": "એકસાથે ઘણી અપલોડ કરો",
+"Who and how": "કોના માટે અને કેવી રીતે",
+"Signing": "સહી",
+"General, for reading only": "સામાન્ય, ફક્ત વાંચવા માટે",
+"Who it is for": "કોના માટે છે",
+"Particular sites": "ચોક્કસ સાઇટ",
+"Pick one or more. Someone counts when they work at a site in it, or are assigned to the whole project.": "એક કે વધુ પસંદ કરો. જે તેની કોઈ સાઇટ પર કામ કરે છે અથવા આખા પ્રોજેક્ટમાં સોંપાયેલ છે તે ગણાય છે.",
+"Upload policies": "નીતિઓ અપલોડ કરો",
+"Version for all of them": "બધા માટે આવૃત્તિ",
+"Choose PDFs": "PDF પસંદ કરો",
+"Upload, who must sign each one": "અપલોડ, દરેક પર કોણે સહી કરવી",
+"Ask them to sign?": "તેમને સહી કરવા કહેવું?",
+"Everyone this policy is for will have to open it and sign before they can use the app.": "આ નીતિ જેમના માટે છે તે બધાએ એપ વાપરતા પહેલાં તે ખોલીને સહી કરવી પડશે.",
+"Go to the policies": "નીતિઓ પર જાઓ"
 };

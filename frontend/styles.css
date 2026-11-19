@@ -1360,3 +1360,11 @@ input.sw:focus-visible { outline: 3px solid var(--accent-tint); outline-offset: 
 .pol-tick.off { opacity: .6; }
 .pol-decl { border-left: 4px solid var(--accent); padding: 8px 12px; background: var(--accent-tint); border-radius: 0 12px 12px 0; }
 .pol-decl p { margin: 4px 0 0; line-height: 1.5; }
+
+/* Policies: who it is for (projects, sub-groups, sites), several PDFs at once */
+.aud-pick { gap: 8px; }
+.aud-proj { padding: 6px 0; border-top: 1px solid var(--border); }
+.aud-proj .chips button:first-child { font-weight: 600; }
+.aud-sites summary { cursor: pointer; padding: 6px 0; font-weight: 600; color: var(--muted); }
+.aud-sites .chips { margin-top: 6px; }
+.pb-list { display: grid; gap: 6px; max-height: 40vh; overflow-y: auto; font-size: 14px; }

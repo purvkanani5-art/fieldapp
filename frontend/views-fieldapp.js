@@ -238,6 +238,7 @@ Views.settings = () => {
     ${isStaff() ? group('Administration', `<div class="fa-list">
       <a class="fa-row" href="#security"><span class="fa-ic">${ic('shield')}</span><span class="fa-tx"><b>Two-step sign-in</b><span>Authenticator code after the PIN</span></span><span class="chev">${ic('chevron')}</span></a>
       <a class="fa-row" href="#admin"><span class="fa-ic">${ic('cog')}</span><span class="fa-tx"><b>Administration</b><span>Users, sites, registers, templates, company</span></span><span class="chev">${ic('chevron')}</span></a>
+      ${['admin', 'hr'].includes(u.role) ? `<a class="fa-row" href="#policies"><span class="fa-ic">${ic('doc')}</span><span class="fa-tx"><b>Company policies</b><span>Upload, who must sign each one</span></span><span class="chev">${ic('chevron')}</span></a>` : ''}
       ${['admin', 'hr'].includes(u.role) ? `<a class="fa-row" href="#hrsettings"><span class="fa-ic">${ic('cog')}</span><span class="fa-tx"><b>HR settings</b><span>Leave policy, work hours</span></span><span class="chev">${ic('chevron')}</span></a>` : ''}
     </div>`) : ''}
     ${failedItems()}
