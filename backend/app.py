@@ -9,7 +9,8 @@ import mimetypes
 import os
 import re
 import sys
-from datetime import UTC, datetime
+import threading
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated
 
@@ -36,7 +37,7 @@ import lists  # noqa: E402
 import perms  # noqa: E402
 import planner  # noqa: E402
 
-APP_VERSION = "0.6.2"
+APP_VERSION = "0.6.3"
 DEMO = os.environ.get("KL_DEMO", "1") == "1"  # prototype: demo accounts, person switch, reset
 FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
 
@@ -1204,8 +1205,24 @@ def admin_users(user: UserDep, db: DbDep):
     return {"rows": rows}
 
 
+_NEW_USER_LOCK = threading.Lock()  # new employees one at a time: the code is the next free number
+
+
 @app.post("/api/admin/users")
 def admin_user_save(payload: dict, user: UserDep, db: DbDep):
+    if payload.get("id"):
+        return _admin_user_save(payload, user, db)
+    with _NEW_USER_LOCK:
+        # the same person added again within a minute (a double tap, or a phone resending) is the first one, not a twin
+        cutoff = (datetime.now(UTC) - timedelta(seconds=60)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        name = re.sub(r"\s+", " ", str(payload.get("name", ""))).strip()[:80]
+        twin = db.one("SELECT id, employee_id FROM users WHERE name = ? AND created_at >= ? ORDER BY created_at DESC LIMIT 1", name, cutoff)
+        if twin and db.one("SELECT 1 FROM audit WHERE user_id = ? AND action = 'user_save' AND entity_id = ?", user["id"], twin["id"]):
+            return {"id": twin["id"], "employeeId": twin["employee_id"]}
+        return _admin_user_save(payload, user, db)
+
+
+def _admin_user_save(payload: dict, user: dict, db: Db):
     perms.need(user, "users.edit" if payload.get("id") else "users.add")
     if payload.get("id"):
         emp = str(payload.get("employee_id", "")).strip().upper()

@@ -1398,3 +1398,9 @@ body.side-mini .side .brand .side-icon { display: block; width: 32px; height: 32
 .demo-people { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .demo-people button { min-width: 0; }
 @media (max-width: 380px) { .demo-people { grid-template-columns: minmax(0, 1fr); } }
+
+/* Sheets: pull down to close; a close button on sheets without Cancel / OK (the "+" sheet) */
+:is(#modal, #sheet) .sheet { touch-action: pan-y; will-change: transform; }
+#modal .sheet { position: relative; }
+#modal .sheet-x { position: absolute; top: 10px; right: 10px; }
+#modal .sheet-x + h2 { padding-right: 44px; }

@@ -62,10 +62,31 @@ function toast(msg, kind = 'ok') {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => (el.hidden = true), kind === 'error' ? 4200 : 2600);
 }
+/** Pull a bottom sheet down to close it (owner 2026-11-20: the "+" sheet could not be swiped away). Starts only when the
+    sheet is scrolled to its top, follows the finger, and closes past 90 px or on a quick flick; otherwise springs back. */
+function sheetSwipe(sheet, close) {
+  let y0 = null; let dy = 0; let t0 = 0;
+  sheet.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1 || sheet.scrollTop > 0 || e.target.closest('input, textarea, select, .chips, .tabs')) { y0 = null; return; }
+    y0 = e.touches[0].clientY; dy = 0; t0 = Date.now(); sheet.style.transition = 'none';
+  }, { passive: true });
+  sheet.addEventListener('touchmove', (e) => {
+    if (y0 === null) return;
+    dy = Math.max(0, e.touches[0].clientY - y0);
+    if (dy > 0) { sheet.style.transform = `translateY(${dy}px)`; if (e.cancelable) e.preventDefault(); }
+  }, { passive: false });
+  sheet.addEventListener('touchend', () => {
+    if (y0 === null) return;
+    const fast = dy > 30 && dy / Math.max(1, Date.now() - t0) > 0.6;
+    y0 = null;
+    sheet.style.transition = 'transform 180ms cubic-bezier(.2, 0, 0, 1)';
+    if (dy > 90 || fast) { sheet.style.transform = 'translateY(100%)'; setTimeout(close, 170); } else sheet.style.transform = '';
+  });
+}
 function modal({ title, message = '', html = '', fields = [], confirmText = 'OK', cancelText = 'Cancel', danger = false, wide = false, noButtons = false }) {
   const m = $('#modal');
   return new Promise((resolve) => {
-    m.innerHTML = `<div class="sheet ${wide ? 'wide' : ''}" role="dialog" aria-modal="true"><div class="grab"></div><h2>${esc(title)}</h2>${message ? `<p class="muted">${esc(message)}</p>` : ''}${html}
+    m.innerHTML = `<div class="sheet ${wide ? 'wide' : ''}" role="dialog" aria-modal="true"><div class="grab"></div>${noButtons ? `<button type="button" class="btn ghost icon-only sheet-x" data-modal="cancel" aria-label="Close" title="Close">${ic('x')}</button>` : ''}<h2>${esc(title)}</h2>${message ? `<p class="muted">${esc(message)}</p>` : ''}${html}
       <div class="stack">${fields
         .map((f) => `<label class="field"><span>${esc(f.label)}</span>${f.type === 'textarea' ? `<textarea id="m-${f.key}" class="input" placeholder="${esc(f.placeholder || '')}">${esc(f.value || '')}</textarea>` : f.type === 'select' ? `<select id="m-${f.key}" class="select">${(f.options || []).map((o) => `<option value="${esc(o)}" ${o === f.value ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>` : `<input id="m-${f.key}" class="input" type="${esc(f.type || 'text')}" inputmode="${esc(f.inputmode || '')}" value="${esc(f.value ?? '')}" placeholder="${esc(f.placeholder || '')}" />`}</label>`)
         .join('')}</div>
@@ -73,6 +94,7 @@ function modal({ title, message = '', html = '', fields = [], confirmText = 'OK'
     m.hidden = false;
     const finish = (v) => { m.hidden = true; m.innerHTML = ''; m.onclick = null; KL.closeModal = null; resolve(v); };
     KL.closeModal = finish;
+    sheetSwipe(m.querySelector('.sheet'), () => finish(null));
     setTimeout(() => { const first = m.querySelector('input, textarea, select'); if (first && fields.length) first.focus(); }, 60);
     m.onclick = (e) => {
       const b = e.target.closest('[data-modal]');

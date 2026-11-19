@@ -372,3 +372,9 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
    The Sajeevan company logo (logo.png) stays as "An app of" and in the Me footer. App colours and fonts unchanged.
    Owner: "it is a fully functional app now": the Me footer reads "Kshetralekha v<version> · <company>"; "For
    reviewers" shows only in the demo; HR settings no longer say "prototype".
+35. **Sheets close with a pull down; no twin employees (2026-11-20, v0.6.3)**. Owner: the "+" sheet "can't close it with
+   swipe down without choosing anything": core.js sheetSwipe() on every modal sheet (starts at the sheet's top, follows
+   the finger, closes past 90 px or on a flick, else springs back) plus a close button on sheets without Cancel / OK.
+   Adding employees is serialised (_NEW_USER_LOCK) and the same name added again by the same person within 60 s returns
+   the first one (three quick taps made two employees). Test: kl-swipe-ui.mjs. The owner's own code change to
+   ADM05001 is done by them in People > Edit (works; not done by Claude: live database access was refused).
