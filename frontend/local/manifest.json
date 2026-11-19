@@ -9,6 +9,7 @@
   "geo.py",
   "hrops.py",
   "lists.py",
+  "mapsearch.py",
   "modules.py",
   "pdfgen.py",
   "brand_mark.py",

@@ -2670,5 +2670,19 @@ window.I18N_DATA.hi = {
 "Upload, who must sign each one": "अपलोड, हर एक पर किसे हस्ताक्षर करना है",
 "Ask them to sign?": "उनसे हस्ताक्षर करवाएँ?",
 "Everyone this policy is for will have to open it and sign before they can use the app.": "यह नीति जिनके लिए है, उन सभी को ऐप इस्तेमाल करने से पहले इसे खोलकर हस्ताक्षर करना होगा.",
-"Go to the policies": "नीतियों पर जाएँ"
+"Go to the policies": "नीतियों पर जाएँ",
+"Area": "क्षेत्र",
+"Taluka": "तालुका",
+"District": "ज़िला",
+"State": "राज्य",
+"Address or landmark": "पता या पहचान स्थल",
+"Satellite": "सैटेलाइट",
+"Open in Google Maps": "Google Maps में खोलें",
+"Plus code": "प्लस कोड",
+"Make a site here": "यहाँ साइट बनाएँ",
+"Looking up the area…": "क्षेत्र ढूँढ रहे हैं…",
+"Filled in from the map when the centre is set. Correct anything that is wrong.": "केंद्र तय होते ही नक्शे से भरता है. कुछ गलत हो तो सुधारें.",
+"Filled in from the map. Correct anything that is wrong.": "नक्शे से भरा. कुछ गलत हो तो सुधारें.",
+"Search, paste a Google Maps link or a plus code, tap the map, or stand at the middle of the site and use your location. The circle is where check-in counts.": "खोजें, Google Maps लिंक या प्लस कोड पेस्ट करें, नक्शे पर टैप करें, या साइट के बीच खड़े होकर अपनी लोकेशन लें. घेरे के अंदर चेक-इन गिना जाता है.",
+"The map is still loading. Try again in a moment.": "नक्शा अभी लोड हो रहा है. थोड़ी देर में फिर कोशिश करें."
 };

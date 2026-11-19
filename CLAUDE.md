@@ -378,3 +378,17 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
    Adding employees is serialised (_NEW_USER_LOCK) and the same name added again by the same person within 60 s returns
    the first one (three quick taps made two employees). Test: kl-swipe-ui.mjs. The owner's own code change to
    ADM05001 is done by them in People > Edit (works; not done by Claude: live database access was refused).
+36. **Map search, plus codes, area of a site (2026-11-20, v0.6.4)**. Owner: "google maps like search ... with plus codes",
+   "it opens the coordinates or location from google maps link", "it gets taluka, district and state from the location
+   link", "auto identify what enters box". Free services now; the owner moves to Google Maps (key, Places, Geocoding)
+   with the Android app, so keep the seam: frontend/places.js (placeFind, placeArea, addBaseLayers, mapSearchBar /
+   bindMapSearch) is the only place that talks to a map service. One box works out: Google Maps link (short
+   maps.app.goo.gl opened by POST /api/geo/link, Google hosts only; full links read on the phone: !3d!4d pin, q= /
+   query= / ll=, /place/ text, @ centre, consent page), coordinates (decimal or DMS), full plus code, short plus code
+   with a town (OSM search) or near the map's view, else an OpenStreetMap place search (choices). Plus codes: Open
+   Location Code in places.js (olcEncode/olcDecode/olcRecover; matches Google's example 8FVC9G8F+6X). Server
+   backend/mapsearch.py (NOT geo.py, which is the geofence maths): /api/geo/search and /reverse via Nominatim (1 req/s,
+   named User-Agent, cached); the in-browser demo asks Nominatim itself. Sites gained village, taluka, district, state
+   (filled when the centre moves, editable; " Taluka" suffix dropped). Map / Satellite switch (Esri World Imagery,
+   remembered per phone) on both maps; site form shows the plus code with Copy; site page shows area, plus code, Copy,
+   Open in Google Maps; Map page search drops a pin with "Make a site here". Test: kl-maps-ui.mjs (uses the internet).

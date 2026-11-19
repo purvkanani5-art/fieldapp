@@ -21,7 +21,7 @@ function siteHub(s, { back = '', field = false } = {}) {
   const office = !field;
   const head = field ? fieldBar(s.name)
     : topbar(s.name, back || '#sites', can('sites.edit') ? `<a class="btn small" href="#siteedit/${esc(s.id)}">${ic('pen')} Edit</a>` : '');
-  const kicker = `<div class="hub-head">${field && back ? `<a class="fa-back" href="${back}">${ic('back')}<span>All my sites</span></a>` : ''}<span class="tag ${tone === 'earth' ? 'violet' : ''} hub-kick hk-${tone}">${esc(p.name || s.project_type)}${subtypeText(s) ? ` · ${esc(subtypeText(s))}` : ''}</span><p class="sub">${esc(fenceText(s))}</p></div>`;
+  const kicker = `<div class="hub-head">${field && back ? `<a class="fa-back" href="${back}">${ic('back')}<span>All my sites</span></a>` : ''}<span class="tag ${tone === 'earth' ? 'violet' : ''} hub-kick hk-${tone}">${esc(p.name || s.project_type)}${subtypeText(s) ? ` · ${esc(subtypeText(s))}` : ''}</span><p class="sub">${esc(fenceText(s))}</p>${office ? siteWhere(s) : ''}</div>`;
   if (sum === null) return `${head}${kicker}${spinner()}`;
   if (sum.error) return `${head}${kicker}${errorBox(sum.error)}`;
   const st = sum.stats || {};

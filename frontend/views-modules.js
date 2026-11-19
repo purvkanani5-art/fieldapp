@@ -602,6 +602,7 @@ Views.map = () => {
   return `${topbar('Map', isStaff() ? '#home' : '#work', isStaff() ? `${can('sites.edit') ? `<a class="btn small primary" href="#sitenew">${ic('plus')} Site</a>` : ''}<a class="btn small" href="#farmers">${ic('plus')} Farmer</a>` : '')}
     <div class="chips" style="margin-bottom:10px">${tag(`${n.sites.length} sites`, 'ok')}${tag(`${n.plots.length} farm plots`, 'info')}${tag(`${n.pins.filter((p) => p.kind === 'application').length} biochar applications`, 'violet')}${tag(`${n.pins.filter((p) => p.kind === 'incident').length} incidents`, 'bad')}${isStaff() ? tag(`${n.people.length} people on site`, 'warn') : ''}</div>
     ${n.sites.length ? `<div class="chips" style="margin-bottom:10px"><button type="button" data-action="mapAll">${ic('map')} All</button>${n.sites.map((x) => `<button type="button" data-action="mapGo" data-lat="${x.lat}" data-lng="${x.lng}" data-zoom="${x.project_type === 'agroforestry' ? 12 : 16}">${esc(x.name.split(',')[0])}</button>`).join('')}</div>` : ''}
+    ${mapSearchBar('klm')}
     <div id="kl-map" class="map-box">${m === null ? spinner() : m.error ? errorBox(m.error) : ''}</div>
     <p class="hint" style="margin-top:8px">Circles are site boundaries (geofences). Green shapes are farm plots from their KML files. Tap anything for details.</p>`;
 };
@@ -612,7 +613,14 @@ async function drawMap(m) {
   try { await loadLeaflet(); } catch (e) { box.innerHTML = errorBox(e.message); return; }
   if (!document.body.contains(box)) return;
   const map = L.map(box, { zoomControl: true });
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+  addBaseLayers(map);
+  let found = null;
+  bindMapSearch('klm', { near: () => map.getCenter(), pick: (p) => {
+    if (found) map.removeLayer(found);
+    const code = olcEncode(p.lat, p.lng);
+    found = L.marker([p.lat, p.lng]).addTo(map).bindPopup(`<b>${esc(p.name || p.label || 'Found')}</b><br><span class="mono">${esc(code)}</span><br><a href="${esc(googleMapsUrl(p.lat, p.lng))}" target="_blank" rel="noopener">Open in Google Maps</a>${can('sites.edit') ? `<br><a href="#sitenew" data-action="siteHereNew" data-lat="${p.lat}" data-lng="${p.lng}">Make a site here</a>` : ''}`).openPopup();
+    map.setView([p.lat, p.lng], p.exact ? 17 : 14);
+  } });
   const bounds = [];
   for (const s of m.sites) {
     L.circle([s.lat, s.lng], { radius: s.radius_m, color: s.project_type === 'biochar' ? '#7a5230' : s.project_type === 'gasifier' ? '#2f64b0' : '#1e7a4c', weight: 2, fillOpacity: 0.15 }).addTo(map).bindPopup(`<b>${esc(s.name)}</b><br>${esc(s.project_type)} · ${s.radius_m} m fence`);
@@ -826,3 +834,9 @@ for (const L of ['gu', 'hi']) window.I18N_DATA[L] = { ...I18N[L], ...(window.I18
 Actions.lang = (el) => { try { localStorage.setItem('kl.lang', el.dataset.lang); } catch { /* private */ } document.documentElement.lang = el.dataset.lang; KL.closeModal?.(null); render(); };
 Actions.mapGo = (el) => { if (KL.leafletMap) KL.leafletMap.flyTo([Number(el.dataset.lat), Number(el.dataset.lng)], Number(el.dataset.zoom), { duration: 0.8 }); };
 Actions.mapAll = () => { if (KL.leafletMap && KL.leafletBounds.length) KL.leafletMap.flyToBounds(KL.leafletBounds, { padding: [30, 30], duration: 0.8 }); };
+
+/** From a place found on the Map page: a new site with its centre already there. */
+Actions.siteHereNew = (el) => {
+  KL.ui.sfInit = null; KL.ui.sfProject = ''; location.hash = '#sitenew';
+  setTimeout(() => { if (typeof setSiteCentre === 'function') setSiteCentre(Number(el.dataset.lat), Number(el.dataset.lng)); }, 600);
+};

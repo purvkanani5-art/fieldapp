@@ -31,13 +31,14 @@ import demo  # noqa: E402
 import demo_modules  # noqa: E402
 import committees  # noqa: E402
 import policies  # noqa: E402
+import mapsearch  # noqa: E402
 import hrops  # noqa: E402
 import modules  # noqa: E402
 import lists  # noqa: E402
 import perms  # noqa: E402
 import planner  # noqa: E402
 
-APP_VERSION = "0.6.3"
+APP_VERSION = "0.6.4"
 DEMO = os.environ.get("KL_DEMO", "1") == "1"  # prototype: demo accounts, person switch, reset
 FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
 
@@ -249,6 +250,7 @@ app.include_router(perms.router(UserDep, DbDep))
 app.include_router(planner.make_router(UserDep, DbDep, save_upload=save_upload, is_staff=is_staff))
 app.include_router(committees.make_router(UserDep, DbDep))
 app.include_router(policies.make_router(UserDep, DbDep, save_upload=save_upload, save_bytes=save_bytes))
+app.include_router(mapsearch.make_router(UserDep))
 app.include_router(hrops.make_router(UserDep, DbDep, save_upload=save_upload, is_staff=is_staff, site_allowed=site_allowed, demo=DEMO))
 app.include_router(modules.make_router(UserDep, DbDep, save_upload=save_upload, save_bytes=save_bytes, is_staff=is_staff, site_allowed=site_allowed, demo=DEMO))
 
@@ -1315,7 +1317,9 @@ def admin_site_save(payload: dict, user: UserDep, db: DbDep):
         raise HTTPException(422, "Site name is required")
     row = {"name": name, "project_type": str(payload.get("project_type", "other"))[:30], "lat": parse_float(payload.get("lat"), "Latitude"), "lng": parse_float(payload.get("lng"), "Longitude"),
            "radius_m": int(parse_float(payload.get("radius_m", 150), "Radius") or 150), "address": str(payload.get("address", ""))[:200], "active": 1 if payload.get("active", True) else 0,
-           "subtype": str(payload.get("subtype", ""))[:20], "strict": site_rule(payload.get("strict"))}
+           "subtype": str(payload.get("subtype", ""))[:20], "strict": site_rule(payload.get("strict")),
+           # the site's area, filled from the map (owner 2026-11-20), correctable by hand
+           **{k: " ".join(str(payload.get(k) or "").split())[:80] for k in ("village", "taluka", "district", "state")}}
     if not 10 <= row["radius_m"] <= 20000:
         raise HTTPException(422, "Radius must be between 10 m and 20 km")
     if not (-90 <= row["lat"] <= 90 and -180 <= row["lng"] <= 180):

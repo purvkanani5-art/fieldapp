@@ -246,6 +246,32 @@ Actions.copyText = async (el) => { try { await navigator.clipboard.writeText(el.
 /* ---------------------------------------------------------------- one page for a site, with its geofence */
 const SITE_RULES = [['0', 'Allow exceptions', 'Outside the circle, people give a reason and the manager decides'], ['1', 'Enforce at check-in', 'Check-in only inside the circle; check-out may be an exception'], ['2', 'Enforce at check-in and check-out', 'Both only inside the circle']];
 const sf = (k) => `sf-${k}`;
+const SITE_AREA = ['village', 'taluka', 'district', 'state'];
+/** The plus code of the site's centre, under the coordinates. */
+function sfPlusLine() {
+  const lat = Number(F(sf('lat'))), lng = Number(F(sf('lng')));
+  if (!F(sf('lat')) || !Number.isFinite(lat) || !Number.isFinite(lng)) return 'Plus code: set the centre first';
+  const code = olcEncode(lat, lng);
+  return `Plus code <b class="notr mono">${esc(code)}</b> <button type="button" class="btn small ghost" data-action="copyText" data-text="${esc(code)}">${ic('clip')} Copy</button>`;
+}
+/** After the centre moves: the plus code at once, the village / taluka / district / state from the map a moment later. */
+let sfAreaTimer = null;
+function sfCentreMoved(lat, lng) {
+  const p = $('#sf-plus');
+  if (p) p.innerHTML = sfPlusLine();
+  clearTimeout(sfAreaTimer);
+  const note = (t) => { KL.ui.sfAreaNote = t; const n = $('#sf-area-note'); if (n) n.textContent = t; };
+  note('Looking up the area…');
+  const key = KL.ui.sfInit;
+  sfAreaTimer = setTimeout(async () => {
+    try {
+      const r = await placeArea(lat, lng);
+      if (KL.ui.sfInit !== key) return;
+      for (const k of SITE_AREA) { setF(sf(k), r.area[k] || ''); const el = $(`#${sf(k)}`); if (el) el.value = r.area[k] || ''; }
+      note(r.area.taluka ? 'Filled in from the map. Correct anything that is wrong.' : 'Filled in from the map; the taluka was not found for this spot, so type it.');
+    } catch (e) { note(`Could not look up the area (${e.message}). Type it.`); }
+  }, 700);
+}
 function siteForm(id) {
   const all = id && !KL.boot.sites.some((x) => x.id === id) ? data('admin:sites', () => api('/api/admin/sites')) : null; // closed sites are not in boot
   if (id && all === null && !KL.boot.sites.some((x) => x.id === id)) return `${topbar('Site', '#admin/sites')}${spinner()}`;
@@ -258,7 +284,7 @@ function siteForm(id) {
   if (KL.ui.sfInit !== initKey) {
     KL.ui.sfInit = initKey;
     for (const k of Object.keys(KL.ui.forms)) if (k.startsWith('sf-')) delete KL.ui.forms[k];
-    if (s) { setF(sf('name'), s.name); setF(sf('project'), s.project_type); setF(sf('subtype'), s.subtype || ''); setF(sf('address'), s.address || ''); setF(sf('lat'), String(s.lat)); setF(sf('lng'), String(s.lng)); setF(sf('radius'), String(s.radius_m)); setF(sf('rule'), String(s.strict || 0)); setF(sf('active'), s.active === 0 ? 'inactive' : 'active'); }
+    if (s) { setF(sf('name'), s.name); setF(sf('project'), s.project_type); setF(sf('subtype'), s.subtype || ''); setF(sf('address'), s.address || ''); for (const k of SITE_AREA) setF(sf(k), s[k] || ''); setF(sf('lat'), String(s.lat)); setF(sf('lng'), String(s.lng)); setF(sf('radius'), String(s.radius_m)); setF(sf('rule'), String(s.strict || 0)); setF(sf('active'), s.active === 0 ? 'inactive' : 'active'); }
     else { setF(sf('project'), KL.ui.sfProject || (KL.boot.projectList || [])[0]?.key || 'biochar'); setF(sf('radius'), '200'); setF(sf('rule'), '0'); }
     KL.ui.sfTeam0 = s ? null : ''; // null: the team is still loading (nothing about it is sent until it has)
     if (s && can('users.assign')) loadSiteTeam(s.id);
@@ -267,20 +293,24 @@ function siteForm(id) {
   const proj = F(sf('project'));
   const rule = F(sf('rule'), '0');
   KL.afterRender.push(drawSiteMap);
+  bindMapSearch('sfm', { near: () => (siteMap ? siteMap.map.getCenter() : null), pick: (p) => { setSiteCentre(p.lat, p.lng); toast(p.exact ? `Centre set: ${p.label}` : `Centre set at ${p.name}. Drag the pin onto the exact spot.`); } });
   const people = KL.boot.people;
   const team = new Set(String(F(sf('team'), '')).split(',').filter(Boolean));
   return `${topbar(title, back)}
     <div class="card stack">
       ${field('Site name', input(sf('name'), F(sf('name')), { placeholder: 'e.g. Deesa plantation, Banaskantha' }), { required: true })}
       <div class="grid2">${field('Project', select(sf('project'), proj, [...projs.map((p) => [p.key, p.name]), ['office', 'Office']]), { required: true })}
-        ${subgroupsOf(proj).length ? field('Sub-group', select(sf('subtype'), F(sf('subtype'), ''), subgroupsOf(proj).map((g) => [g.key, g.name]), { blank: 'Choose' }), { required: true }) : field('Address or village', input(sf('address'), F(sf('address')), { placeholder: 'optional' }))}</div>
-      ${subgroupsOf(proj).length ? field('Address or village', input(sf('address'), F(sf('address')), { placeholder: 'optional' })) : ''}
+        ${subgroupsOf(proj).length ? field('Sub-group', select(sf('subtype'), F(sf('subtype'), ''), subgroupsOf(proj).map((g) => [g.key, g.name]), { blank: 'Choose' }), { required: true }) : field('Address or landmark', input(sf('address'), F(sf('address')), { placeholder: 'optional' }))}</div>
+      ${subgroupsOf(proj).length ? field('Address or landmark', input(sf('address'), F(sf('address')), { placeholder: 'optional' })) : ''}
     </div>
     ${group('Geofence', `<div class="card stack">
-      <p class="hint">Tap the map to put the centre there, or stand at the middle of the site and use your location. The circle is where check-in counts.</p>
+      <p class="hint">Search, paste a Google Maps link or a plus code, tap the map, or stand at the middle of the site and use your location. The circle is where check-in counts.</p>
+      ${mapSearchBar('sfm')}
       <div class="btns" style="flex-wrap:wrap"><button type="button" class="btn" data-action="sfHere">${ic('compass')} Use where I am standing</button></div>
-      <div id="sf-map" class="map-box" style="height:300px"></div>
+      <div id="sf-map" class="map-box" style="height:320px"></div>
       <div class="grid2">${field('Latitude', `<input id="sf-lat" class="input notr" inputmode="decimal" value="${esc(F(sf('lat')))}" data-input="sfCoord" data-key="sf-lat" placeholder="e.g. 24.25810" />`)}${field('Longitude', `<input id="sf-lng" class="input notr" inputmode="decimal" value="${esc(F(sf('lng')))}" data-input="sfCoord" data-key="sf-lng" placeholder="e.g. 72.19230" />`)}</div>
+      <p class="hint sf-plus" id="sf-plus">${sfPlusLine()}</p>
+      ${fieldGroup('Area', `<div class="grid2">${field('Village / town', input(sf('village'), F(sf('village'))))}${field('Taluka', input(sf('taluka'), F(sf('taluka'))))}${field('District', input(sf('district'), F(sf('district'))))}${field('State', input(sf('state'), F(sf('state'))))}</div><p class="hint" id="sf-area-note">${esc(KL.ui.sfAreaNote || 'Filled in from the map when the centre is set. Correct anything that is wrong.')}</p>`)}
       ${fieldGroup('Allowed radius', `<div class="row" style="gap:10px;align-items:center"><input type="range" id="sf-radius-range" min="25" max="2000" step="25" value="${esc(F(sf('radius'), '200'))}" data-input="sfRadius" style="flex:1" aria-label="Radius" /><input id="sf-radius" class="input lc-short notr" inputmode="numeric" value="${esc(F(sf('radius'), '200'))}" data-input="sfRadius" aria-label="Radius in metres" style="width:90px" /><span>m</span></div>`, { help: '150–300 m suits most sites; more for big plantations.' })}
       ${fieldGroup('Check-in rule', `<div class="stack" style="gap:6px" role="radiogroup">${SITE_RULES.map(([v, l, h]) => `<label class="radio-row"><input type="radio" name="sf-rule" value="${v}" ${rule === v ? 'checked' : ''} data-change="sfRule" /><span><b>${esc(l)}</b><small class="muted" style="display:block">${esc(h)}</small></span></label>`).join('')}</div>`)}
     </div>`)}
@@ -313,7 +343,7 @@ async function drawSiteMap() {
   const lat = Number(F(sf('lat'))), lng = Number(F(sf('lng')));
   const has = Number.isFinite(lat) && Number.isFinite(lng) && (lat || lng);
   const map = L.map(box, { zoomControl: true });
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+  addBaseLayers(map);
   const others = KL.boot.sites.filter((x) => x.id !== KL.ui.sfInit);
   for (const o of others) L.circle([o.lat, o.lng], { radius: o.radius_m, color: '#888', weight: 1, fillOpacity: 0.05 }).addTo(map).bindTooltip(esc(o.name));
   const centre = has ? [lat, lng] : others.length ? [others[0].lat, others[0].lng] : [23.0, 72.0];
@@ -327,6 +357,7 @@ async function drawSiteMap() {
 }
 function setSiteCentre(lat, lng, move = true) {
   setF(sf('lat'), lat.toFixed(6)); setF(sf('lng'), lng.toFixed(6));
+  sfCentreMoved(lat, lng);
   const a = $('#sf-lat'), b = $('#sf-lng');
   if (a) a.value = lat.toFixed(6);
   if (b) b.value = lng.toFixed(6);
@@ -335,7 +366,10 @@ function setSiteCentre(lat, lng, move = true) {
 Inputs.sfCoord = (el) => {
   setF(el.dataset.key, el.value);
   const lat = Number(F(sf('lat'))), lng = Number(F(sf('lng')));
-  if (siteMap && Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && (lat || lng)) { siteMap.marker.setLatLng([lat, lng]); siteMap.circle.setLatLng([lat, lng]); siteMap.map.setView([lat, lng], 16); }
+  if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && (lat || lng)) {
+    if (siteMap) { siteMap.marker.setLatLng([lat, lng]); siteMap.circle.setLatLng([lat, lng]); siteMap.map.setView([lat, lng], 16); }
+    sfCentreMoved(lat, lng);
+  }
 };
 Inputs.sfRadius = (el) => {
   const r = Math.max(10, Math.min(20000, Number(el.value) || 0));
@@ -370,7 +404,7 @@ Actions.siteSave = async (el) => {
   if (!v('subtype') && subgroupsOf(v('project')).length) return toast('Choose the sub-group', 'error');
   const radius = Number(v('radius'));
   if (!(radius >= 10 && radius <= 20000)) return toast('Radius must be between 10 m and 20 km', 'error');
-  const body = { id, name: v('name'), project_type: v('project'), subtype: subgroupsOf(v('project')).length ? v('subtype') : '', address: v('address'), lat, lng, radius_m: Math.round(radius), strict: Number(v('rule') || 0), active: id ? v('active') !== 'inactive' : true };
+  const body = { id, name: v('name'), project_type: v('project'), subtype: subgroupsOf(v('project')).length ? v('subtype') : '', address: v('address'), ...Object.fromEntries(SITE_AREA.map((k) => [k, v(k)])), lat, lng, radius_m: Math.round(radius), strict: Number(v('rule') || 0), active: id ? v('active') !== 'inactive' : true };
   if (can('users.assign') && KL.ui.sfTeam0 !== null) {
     const was = new Set(String(KL.ui.sfTeam0 || '').split(',').filter(Boolean)), now = new Set(String(F(sf('team'), '')).split(',').filter(Boolean));
     body.teamAdd = [...now].filter((x) => !was.has(x)); body.teamRemove = [...was].filter((x) => !now.has(x));

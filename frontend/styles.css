@@ -1404,3 +1404,18 @@ body.side-mini .side .brand .side-icon { display: block; width: 32px; height: 32
 #modal .sheet { position: relative; }
 #modal .sheet-x { position: absolute; top: 10px; right: 10px; }
 #modal .sheet-x + h2 { padding-right: 44px; }
+
+/* Map search (places.js): one box for places, plus codes, coordinates and Google Maps links; Map / Satellite; a site's place */
+.map-find { margin-bottom: 10px; }
+.map-find .input { flex: 1; min-width: 0; }
+.map-find-res { display: grid; gap: 6px; margin-top: 6px; }
+.map-find-res:empty { display: none; }
+.map-find-res .err { color: var(--bad, #b42318); }
+.map-find-row { display: grid; text-align: left; gap: 2px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--text); font: inherit; cursor: pointer; }
+.map-find-row span { color: var(--muted); font-size: 13px; }
+.map-layer-btn { background: #fff; color: #1e1f1c; border: 0; border-radius: 8px; padding: 8px 12px; font: 600 13px/1 var(--font); box-shadow: 0 1px 4px rgba(0,0,0,.3); cursor: pointer; }
+.sf-plus { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0; }
+.site-where { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 8px; font-size: 13.5px; color: var(--text-2); }
+.site-where .sw-area { display: inline-flex; align-items: center; gap: 4px; }
+.site-where .sw-area svg { width: 16px; height: 16px; }
+.site-where .sw-btns { display: flex; gap: 6px; flex-wrap: wrap; }

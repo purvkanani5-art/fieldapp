@@ -63,7 +63,11 @@ MIGRATIONS = [
     "ALTER TABLE approval_steps ADD COLUMN subject_id TEXT",
     "ALTER TABLE leaves ADD COLUMN half TEXT DEFAULT ''",
     "ALTER TABLE users ADD COLUMN photo_id TEXT",
-    "ALTER TABLE users ADD COLUMN level TEXT DEFAULT ''",  # a custom access level (Settings > Designations & access); role holds its base  # '' full days, 'first' / 'second' half of one day
+    "ALTER TABLE users ADD COLUMN level TEXT DEFAULT ''",
+    "ALTER TABLE sites ADD COLUMN village TEXT DEFAULT ''",
+    "ALTER TABLE sites ADD COLUMN taluka TEXT DEFAULT ''",
+    "ALTER TABLE sites ADD COLUMN district TEXT DEFAULT ''",
+    "ALTER TABLE sites ADD COLUMN state TEXT DEFAULT ''",  # a custom access level (Settings > Designations & access); role holds its base  # '' full days, 'first' / 'second' half of one day
     "CREATE TABLE IF NOT EXISTS user_projects (user_id TEXT NOT NULL, project TEXT NOT NULL, PRIMARY KEY (user_id, project))",
 ]
 
