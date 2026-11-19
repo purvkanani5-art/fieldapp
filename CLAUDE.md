@@ -309,7 +309,8 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
    old rows oldest first; it runs after every init (app start, demo reset). Shown as refLine() on approval cards,
    Requests, record lists (searchable) and details, leave, trips, check-ins, daily updates, tasks, cases, the
    committee email and the record CSV ("reference" column). Tests: kl_refs_check.py.
-   Email status 2026-11-19: Mail.Send is NOT yet granted (adding it needs the owner in Azure); KL_MAIL is not set.
+   Email status 2026-11-19: owner granted Mail.Send (application) and an access policy for the four shared
+   mailboxes; KL_MAIL=on on the container; all four test emails received.
 
 
 ## Testing
