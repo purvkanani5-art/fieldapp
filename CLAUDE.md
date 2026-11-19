@@ -310,7 +310,8 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
    Requests, record lists (searchable) and details, leave, trips, check-ins, daily updates, tasks, cases, the
    committee email and the record CSV ("reference" column). Tests: kl_refs_check.py.
    Email status 2026-11-19: owner granted Mail.Send (application) and an access policy for the four shared
-   mailboxes; KL_MAIL=on on the container; all four test emails received.
+   mailboxes (mail-enabled security group "Kshetralekha Mail", RestrictAccess; checked Granted / Denied); KL_MAIL=on;
+   all four test emails received, also after the lock-down. A new committee mailbox must be added to that group.
 
 
 ## Testing
