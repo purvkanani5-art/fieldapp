@@ -65,6 +65,9 @@ MIGRATIONS = [
     "ALTER TABLE users ADD COLUMN photo_id TEXT",
     "ALTER TABLE users ADD COLUMN level TEXT DEFAULT ''",
     "ALTER TABLE sites ADD COLUMN locality TEXT DEFAULT ''",
+    "ALTER TABLE movements ADD COLUMN device TEXT DEFAULT ''",
+    "ALTER TABLE users ADD COLUMN wfh INTEGER DEFAULT 0",
+    "ALTER TABLE sites ADD COLUMN fenced INTEGER DEFAULT 1",
     "ALTER TABLE sites ADD COLUMN village TEXT DEFAULT ''",
     "ALTER TABLE sites ADD COLUMN taluka TEXT DEFAULT ''",
     "ALTER TABLE sites ADD COLUMN district TEXT DEFAULT ''",
@@ -189,7 +192,7 @@ KINDS: dict[str, dict] = {
     "equipment": {"label": "Equipment", "one": "Equipment", "group": "ops", "icon": "cog", "create": "staff", "scope": "site", "title": "name",
                   "statuses": ["working", "needs service", "breakdown"],
                   "fields": [F("name", "Name", required=True), F("type", "Type", "select", options=["Kiln", "Gasifier", "Generator", "Loader", "Shredder", "Pump", "Vehicle", "Other"]),
-                             F("site", "Site", "site", required=True), F("serial", "Serial no"), F("service_days", "Service every (days)", "number"), F("last_service", "Last service", "date")]},
+                             F("site", "Site", "site", required=True), F("serial", "Maker's serial no"), F("service_days", "Service every (days)", "number"), F("last_service", "Last service", "date")]},
     "maintenance": {"label": "Maintenance log", "one": "Maintenance entry", "group": "ops", "icon": "cog", "create": "all", "scope": "site", "title": "type", "photo": "Photo",
                     "fields": [F("equipment", "Equipment", "ref", ref="equipment", required=True), F("date", "Date", "date", required=True),
                                F("type", "Type", "select", options=["Preventive service", "Breakdown repair", "Inspection"], required=True), F("description", "Work done", "textarea", required=True),
@@ -507,17 +510,56 @@ def leave_len(db: Db, lv: dict) -> float:
 HALVES = {"first": "first half", "second": "second half"}
 
 
+def employment_window(db: Db, user_id: str) -> tuple[date | None, date | None]:
+    """First and last day of employment (owner 2026-11-20: a new joiner showed absent before joining and a year of leave).
+    Joining: the profile's joining date; else the earlier of the day the account was made and the first day worked."""
+    prof = profile_data(db, user_id)
+    join = None
+    try:
+        join = date.fromisoformat(str(prof.get("joining_date") or "")[:10])
+    except ValueError:
+        u = db.one("SELECT created_at FROM users WHERE id = ?", user_id)
+        cands = [to_local(u["created_at"]).date()] if u and u.get("created_at") else []
+        first = db.one("SELECT MIN(checkin_at) AS t FROM attendance WHERE user_id = ?", user_id)
+        if first and first["t"]:
+            cands.append(to_local(first["t"]).date())
+        mus = db.one("SELECT MIN(s.date) AS d FROM muster_lines l JOIN muster_sheets s ON s.id = l.sheet_id WHERE l.user_id = ?", user_id)
+        if mus and mus["d"]:
+            cands.append(date.fromisoformat(mus["d"]))
+        join = min(cands) if cands else None
+    last = None
+    for x in db.all("SELECT data FROM records WHERE kind = 'exit' AND status <> 'withdrawn'"):
+        d = json.loads(x["data"] or "{}")
+        if d.get("person") == user_id and d.get("last_day"):
+            try:
+                last = date.fromisoformat(str(d["last_day"])[:10])
+            except ValueError:
+                pass
+    return join, last
+
+
+def employed_on(db: Db, user_id: str, day: date | None = None) -> bool:
+    """Working here on that day (joined, not yet left): today's head counts and reminders skip the rest."""
+    day = day or local_today()
+    join, last = employment_window(db, user_id)
+    return not (join and day < join) and not (last and day > last)
+
+
 def leave_balances(db: Db, user_id: str, year: int | None = None) -> list[dict]:
     year = year or local_today().year
     policy = setting(db, "leave_policy")
     today = local_today()
     months = 12 if year < today.year else today.month
     prof = profile_data(db, user_id)
+    join, _ = employment_window(db, user_id)
+    start_month = 1 if not join or join.year < year else (13 if join.year > year else join.month)  # credit starts the month they joined
+    months_in = max(0, months - (start_month - 1))
+    year_share = max(0, 12 - (start_month - 1)) / 12
     out = []
     for typ, p in policy.items():
         per = num(p.get("per_year"))
         acc = p.get("accrual", "yearly")
-        accrued = per if acc == "yearly" else round(per * months / 12, 1) if acc == "monthly" else 0.0
+        accrued = round(per * year_share * 2) / 2 if acc == "yearly" else round(per * months_in / 12, 1) if acc == "monthly" else 0.0
         opening = num(prof.get(f"opening_{typ.lower()}"))
         used = pending = 0.0
         for lv in db.all("SELECT * FROM leaves WHERE user_id = ? AND type = ? AND substr(from_date, 1, 4) = ? AND status IN ('approved', 'pending')", user_id, typ, str(year)):
@@ -574,13 +616,26 @@ def attendance_month(db: Db, user_id: str, month: str) -> dict:
     for r in db.all("SELECT data FROM records WHERE kind = 'regularisation' AND user_id = ? AND status = 'approved'", user_id):
         dd = json.loads(r["data"])
         reg[dd.get("date", "")] = dd
-    days, totals = [], {"P": 0, "H": 0, "L": 0, "A": 0, "WO": 0, "HO": 0, "MC": 0, "late": 0, "ot_hours": 0.0, "hours": 0.0, "unpaid": 0}
+    days, totals = [], {"P": 0, "H": 0, "L": 0, "A": 0, "WO": 0, "HO": 0, "MC": 0, "NE": 0, "late": 0, "ot_hours": 0.0, "hours": 0.0, "unpaid": 0}
+    join, left = employment_window(db, user_id)
     d = first
     while d <= last:
         key = d.isoformat()
         rec = {"date": key, "code": "", "in": "", "out": "", "hours": 0.0, "late": False, "ot": 0.0, "note": "", "leave_days": 0.0, "leave_type": "", "leave_parts": []}
-        if d > today or (d == today and key not in att and key not in lv and key not in both and key not in reg and key not in mus):
-            rec["code"] = "--"  # the future, or today before the person has checked in
+        if (join and d < join and key not in att and key not in reg and key not in mus) or (left and d > left and key not in att):
+            rec["code"], rec["note"] = "NE", "not joined yet" if join and d < join else "left the company"  # not paid, not absent
+        elif d > today or (d == today and key not in att and key not in lv and key not in both and key not in reg and key not in mus):
+            # the future (or today before checking in): coming holidays, weekly offs and approved leave already show
+            if key in hol:
+                rec["code"], rec["note"] = "HO", hol[key]
+            elif key in lv or key in both:
+                rec["code"], rec["note"] = "L", lv.get(key) or " / ".join(both[key])
+            elif d.weekday() in wh.get("weekly_off", [6]):
+                rec["code"] = "WO"
+            else:
+                rec["code"] = "--"
+            if d >= today and rec["code"] != "--":
+                totals[rec["code"]] -= 1  # counted below: coming days are shown, not counted
         elif key in reg:
             r = reg[key]
             ih, im = _parse_hm(r.get("in_time", "09:00"))
@@ -601,6 +656,9 @@ def attendance_month(db: Db, user_id: str, month: str) -> dict:
                     rec["code"], rec["note"] = "MC", "check-out missed; closed automatically"
             else:
                 rec["code"] = "P" if d == today else "MC"
+            if a.get("flag") == "remote":
+                s_ = db.one("SELECT project_type FROM sites WHERE id = ?", a["site_id"])
+                rec["note"] = (rec["note"] + (" · work from home" if s_ and s_["project_type"] == "office" else " · in the field")).strip(" ·")
             if a.get("status") == "pending":
                 rec["note"] = (rec["note"] + " · exception awaiting approval").strip(" ·")
         elif key in mus and mus[key]["code"] in ("P", "H"):
@@ -941,6 +999,10 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
         elif k.get("photo") == "Receipt" and kind == "expense" and num(data.get("amount")) > 500 and not fid:
             raise HTTPException(422, "A receipt photo is needed for claims over ₹500")
         title = title_for(kind, k, data, db)
+        if kind == "equipment":  # automatic asset number by type (KLN-001); kept when the machine is edited
+            import maintplan
+            data["asset_no"] = (json.loads(old["data"] or "{}").get("asset_no") if old else None) or maintplan.next_asset_no(db, data.get("type"))
+            title = maintplan.equipment_title(data)
         row = {"title": title, "site_id": site_id, "user_id": subject, "data": json.dumps(data), "file_id": fid, "updated_at": now_iso()}
         if lat:
             row.update(lat=num(lat, None), lng=num(lng, None))
@@ -962,6 +1024,8 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
                 ed = json.loads(eq["data"])
                 if data.get("type") == "Preventive service":
                     ed["last_service"] = data.get("date") or local_today().isoformat()
+                    import maintplan
+                    maintplan.serviced(db, eq["id"], actor["id"])  # its Monday task is done
                 db.update("records", eq["id"], {"data": json.dumps(ed), "status": data.get("result") or eq["status"], "updated_at": now_iso()})
         db.audit(actor["id"], f"{kind}_saved", kind, rec_id, title)
         return {"id": rec_id}
@@ -1599,7 +1663,7 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
 
     @r.get("/map")
     def map_data(user: user_dep, db: db_dep):
-        sites = [s for s in db.all("SELECT id, name, project_type, subtype, lat, lng, radius_m FROM sites WHERE active = 1 AND project_type != 'office'") if site_allowed(user, s["id"])]
+        sites = [s for s in db.all("SELECT id, name, project_type, subtype, lat, lng, radius_m FROM sites WHERE active = 1 AND project_type != 'office' AND COALESCE(fenced, 1) = 1") if site_allowed(user, s["id"])]
         ids = {s["id"] for s in sites}
         plots = []
         for p in db.all("SELECT p.*, f.name AS farmer_name, f.village, f.site_id, f.id AS fid FROM plots p JOIN farmers f ON f.id = p.farmer_id WHERE p.kml_file IS NOT NULL"):

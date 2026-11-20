@@ -180,6 +180,10 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
     def save_plan(payload: dict, user: user_dep, db: db_dep):
         staff_only(user)
         name = str(payload.get("name", "")).strip()[:80]
+        if payload.get("siteId"):  # owner 2026-11-20: a site's plan is named after the site
+            s = db.one("SELECT name FROM sites WHERE id = ?", payload["siteId"])
+            if s:
+                name = s["name"][:80]
         if len(name) < 2:
             raise HTTPException(422, "Give the plan a name")
         labels = payload.get("labels")

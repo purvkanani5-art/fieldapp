@@ -415,3 +415,25 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
    chosen tab is brought into view only when a screen is opened, never on a redraw; a tab inside the same page
    (site/<id>/<tab>) has no fade and keeps the page scroll; the loading placeholder shows after 0.25 s. Tests:
    kl-scroll-ui.mjs, kl-small-ui.mjs (every screen at 320 px for four roles: no overflow, no errors).
+39. **Offline sweep (2026-11-20, v0.6.6)** with the mobile-offline-support / mobile-app-debugging checklists: saved items
+   retried every minute while open (a phone can say "online" on a dead link); plain "No signal" messages; phone storage
+   full says so (nothing silently lost); navigator.storage.persist; warning at 40 waiting items or 80% storage; text
+   responses gzip-compressed (_TextGZip in app.py; code 1.3 MB -> 0.35 MB, first open on slow 3G 29 s -> 10 s); the
+   service worker re-validates instead of re-downloading; the Map page frees its previous map. Test: kl-offline-ui.mjs.
+40. **Release 1 of 2026-11-20 (v0.6.6)**. modules.employment_window / employed_on: days before joining (profile joining
+   date, else the account's or first work day) and after an exit record's last day are "NE" (not employed: neither paid
+   nor loss of pay; month-end paid_days = days - NE - LOP); leave credited from the joining month. Coming holidays,
+   weekly offs and approved leave show ahead on the calendar (not counted). Stock: every movement records the person and
+   the signed-in phone (movements.device), history says Received by / Dispatched by / Counted by and who corrected it;
+   CSV has Recorded by / Employee code / Phone; a Count only by the director, a manager or a crew supervisor (can_count).
+   backend/maintplan.py: equipment asset numbers by type (KLN-001...; "Serial no" is now the maker's), Monday 06:00
+   tasks in the site plan's Maintenance bucket for machines due that week or overdue (assigned to the site supervisor,
+   else manager; tasks.source = equipment:<id>), 07:00 reminders (due day, every 3 days overdue), a logged preventive
+   service closes the task; a site's plan is named after the site and follows renames. Sites: Farmer-land / Retro
+   agroforestry and offices may have no location (sites.fenced = 0): check-in from anywhere, attendance flag "remote"
+   (Work from home / In the field); users.wfh lets a person check in to their office from anywhere. Farmer records only
+   on Farmer-land / Retro sites (server refuses others; tabs, tiles and "+" follow). Expense form no longer shows the
+   approval route or the ₹500 receipt hint (rules still apply). Office "+" has Travel. The last employee code is filled
+   in at sign-in. Tests: kl_release1_check.py, kl-release1-ui.mjs. Release 2 (planned, not built): travel plans by day
+   or week, planned road km (OSRM, else straight x 1.3) vs odometer km read from the photo (person types only when unsure),
+   fuel litres / rate read from the bill vs km / mileage, one 15% limit in Settings, flag + notify the director.

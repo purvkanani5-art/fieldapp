@@ -329,12 +329,12 @@ function recForm(k, id) {
   const anon = anonOk && Boolean(F('rec-anon'));
   const stampLines = anon ? [`Anonymous report · ${k.one}`] : [`${KL.user.name} · ${k.one}`];
   return `${topbar(editing ? `Edit ${k.one}` : `New ${k.one.toLowerCase()}`, back)}
-    ${k.approval && !editing ? `<div class="banner info" style="margin-bottom:12px">${ic('users')}<div><b>Goes for approval</b><p>${esc(chainText(k.approval))}</p></div></div>` : ''}
+    ${k.approval && !editing && k.key !== 'expense' ? `<div class="banner info" style="margin-bottom:12px">${ic('users')}<div><b>Goes for approval</b><p>${esc(chainText(k.approval))}</p></div></div>` : ''}
     <div class="card stack">
       ${fields}${answers}
       <div id="preview">${KL.ui.previewFn()}</div>
       ${anonOk ? switchRow('rec-anon', anon, 'Report without my name', 'Your name is not saved with the report or the photo. Nobody can find out who sent it.', 'recAnon') : ''}
-      ${k.photo ? `${needGps ? `${demoRibbon()}${gpsLine()}` : ''}${photoBox(`rec-${k.key}`, editing ? `Replace the ${k.photo.toLowerCase()} (optional)` : `${k.photo}${k.key === 'expense' ? ' (needed over ₹500)' : ''}`, 'environment', stampLines)}` : ''}
+      ${k.photo ? `${needGps ? `${demoRibbon()}${gpsLine()}` : ''}${photoBox(`rec-${k.key}`, editing ? `Replace the ${k.photo.toLowerCase()} (optional)` : `${k.photo}`, 'environment', stampLines)}` : ''}
       <button type="button" class="btn primary wide" data-action="recSave" data-kind="${esc(k.key)}" data-id="${esc(id || '')}">${editing ? 'Save changes' : k.approval ? 'Submit for approval' : 'Save'}</button>
     </div>`;
 }
@@ -536,12 +536,12 @@ Actions.personSave = async (el) => {
 };
 
 /* ---------------------------------------------------------------- attendance summary */
-const CODE_TONE = { P: 'ok', H: 'warn', L: 'info', A: 'bad', WO: '', HO: 'violet', MC: 'warn', '--': '' };
+const CODE_TONE = { P: 'ok', H: 'warn', L: 'info', A: 'bad', WO: '', HO: 'violet', MC: 'warn', NE: '', '--': '' };
 Views.attsum = (uid) => {
   const month = F('as-month', todayISO().slice(0, 7));
   const team = isStaff() && !uid;
   const s = data(`hr:attsum:${uid || (team ? 'team' : 'me')}:${month}`, () => api(`/api/hr/attendance-summary?month=${month}${uid ? `&userId=${uid}` : ''}`));
-  const legend = [['P', 'Present'], ['H', 'Half day'], ['L', 'Leave'], ['A', 'Absent'], ['WO', 'Weekly off'], ['HO', 'Holiday'], ['MC', 'Missed check-out']].map(([c, l]) => `<span class="lg"><i class="c-${c}">${c}</i>${l}</span>`).join('');
+  const legend = [['P', 'Present'], ['H', 'Half day'], ['L', 'Leave'], ['A', 'Absent'], ['WO', 'Weekly off'], ['HO', 'Holiday'], ['MC', 'Missed check-out'], ['NE', 'Not joined / left']].map(([c, l]) => `<span class="lg"><i class="c-${c}">${c}</i>${l}</span>`).join('');
   const lock = isStaff() ? data(`hr:month:${month}`, () => api(`/api/hr/month/${month}`)) : null;
   const lockBanner = lock && !lock.error ? (lock.status === 'locked' ? `<div class="banner" style="margin-bottom:12px">${ic('lock')}<div><b>${esc(lock.label)} is approved and locked</b><p>By ${esc(lock.locked_by)}. Changes to this month are blocked; the Zoho Payroll file is final.</p></div></div>` : lock.over ? `<div class="banner warn" style="margin-bottom:12px">${ic('calendar')}<div><b>${esc(lock.label)} is open</b><p>Managers confirm, then HR approves and locks it. <a href="#monthend/${esc(month)}">Month end</a></p></div></div>` : '') : '';
   const pick = `<div class="row" style="margin-bottom:12px;flex-wrap:wrap;gap:12px"><label class="field" style="max-width:220px"><span>Month</span><input class="input" type="month" value="${esc(month)}" data-change="form" data-key="as-month" /></label></div>${lockBanner}<div class="att-legend" aria-label="Legend">${legend}</div>`;
@@ -613,6 +613,7 @@ async function drawMap(m) {
   box.dataset.drawn = '1';
   try { await loadLeaflet(); } catch (e) { box.innerHTML = errorBox(e.message); return; }
   if (!document.body.contains(box)) return;
+  if (KL.leafletMap) { try { KL.leafletMap.remove(); } catch { /* already gone */ } KL.leafletMap = null; }
   const map = L.map(box, { zoomControl: true });
   addBaseLayers(map);
   let found = null;

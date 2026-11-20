@@ -2714,5 +2714,15 @@ window.I18N_DATA.gu = {
 "Compliance violation": "નિયમ ભંગ",
 "Commitment to a client": "ગ્રાહકને આપેલું વચન",
 "Other serious matter": "બીજી ગંભીર બાબત",
-"Locality": "વિસ્તાર / ફળિયું"
+"Locality": "વિસ્તાર / ફળિયું",
+"Not joined / left": "જોડાયા નથી / છોડી દીધું",
+"Work from home": "ઘરેથી કામ",
+"Works from home": "ઘરેથી કામ કરે છે",
+"No fixed site": "કોઈ નિશ્ચિત સાઇટ નથી",
+"Location (optional)": "સ્થાન (વૈકલ્પિક)",
+"Maker's serial no": "ઉત્પાદકનો સીરીયલ નંબર",
+"Received by": "મેળવનાર",
+"Dispatched by": "મોકલનાર",
+"Counted by": "ગણતરી કરનાર",
+"Maintenance": "જાળવણી"
 };

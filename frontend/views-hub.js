@@ -33,7 +33,7 @@ function siteHub(s, { back = '', field = false } = {}) {
   const rec = (kind, icon, tone_, label, sub) => ({ kind, icon, tone: tone_, label, sub, site: s.id });
   let tiles;
   if (s.project_type === 'agroforestry') {
-    tiles = [{ icon: 'users', tone: 'green', label: 'Farmers & documents', sub: `${st.farmers || 0} farmers`, href: `#site/${s.id}/farmers` }, rec('nursery', 'sprout', 'teal', 'Nursery entry', `${fmtNum(st.inNursery || 0)} in the nursery`),
+    tiles = [...(isFarmerSite(s) ? [{ icon: 'users', tone: 'green', label: 'Farmers & documents', sub: `${st.farmers || 0} farmers`, href: `#site/${s.id}/farmers` }] : []), rec('nursery', 'sprout', 'teal', 'Nursery entry', `${fmtNum(st.inNursery || 0)} in the nursery`),
       rec('sapling', 'tree', 'green', 'Plant saplings', `${fmtNum(st.planted || 0)} planted`), rec('survival', 'leaf', 'violet', 'Survival check', st.survival !== null && st.survival !== undefined ? `${st.survival}% alive` : 'Count living trees')];
     if (sum.items.length) tiles.push(stockTile);
   } else if (s.project_type === 'gasifier') {
@@ -42,7 +42,6 @@ function siteHub(s, { back = '', field = false } = {}) {
     tiles = []; // an office: its people, problems and records; no kilns or stock
   } else {
     tiles = [stockTile, safetyTile, rec('batch', 'flame', 'orange', s.subtype === 'plant' ? 'Plant run' : 'Kiln batch', `${st.batches || 0} this month · ${fmtNum(st.output || 0)} kg`)];
-    if (s.project_type === 'biochar') tiles.push({ icon: 'sprout', tone: 'green', label: 'Farmers', sub: `${st.farmers || 0} farmers`, href: `#site/${s.id}/farmers` });
   }
   tiles.push(rec('incident', 'alert', 'red', 'Report a problem', st.openIncidents ? `${st.openIncidents} open` : 'Injury, fire, breakdown'));
   tiles.push({ icon: 'users', tone: 'blue', label: 'Team', sub: `${sum.onSite.length} on site now`, href: `#site/${s.id}/team` });

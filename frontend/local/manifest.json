@@ -10,6 +10,7 @@
   "geo.py",
   "hrops.py",
   "lists.py",
+  "maintplan.py",
   "mapsearch.py",
   "modules.py",
   "pdfgen.py",

@@ -204,8 +204,9 @@ def export_rows(db: Db, month: str) -> list[dict]:
             for typ, days in d.get("leave_parts") or []:  # (type, 1) for a leave day, (type, 0.5) for each half-day leave
                 leave[typ if typ in leave else "Casual"] += days
         lop = t["A"] + t["unpaid"] + 0.5 * t["H"]
+        ne = t.get("NE", 0)  # days before joining / after leaving: neither paid nor loss of pay
         out.append({"user_id": u["id"], "employee_id": u["employee_id"], "name": u["name"], "designation": u["designation"], "days": days_in,
-                    "paid_days": max(0.0, days_in - lop), "lop_days": lop, "present": t["P"], "half_days": t["H"], "absent": t["A"],
+                    "paid_days": max(0.0, days_in - ne - lop), "lop_days": lop, "not_employed": ne, "present": t["P"], "half_days": t["H"], "absent": t["A"],
                     "weekly_off": t["WO"], "holidays": t["HO"], "leave": leave, "ot_hours": t["ot_hours"], "late": t["late"], "missed_checkout": t["MC"],
                     "advance_recovery": advance_recovery(db, u["id"], month), "by_supervisor": not u["app_access"],
                     "not_yet": sum(1 for d in res["days"] if d["code"] == "--")})
@@ -769,15 +770,17 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, is_staff: 
     @r.post("/hr/flags/{uid}")
     def set_flags(uid: str, payload: dict, user: user_dep, db: db_dep):
         perms.need(user, "users.edit")
-        u = db.one("SELECT id, supervisor, COALESCE(app_access, 1) AS app_access FROM users WHERE id = ?", uid)
+        u = db.one("SELECT id, supervisor, COALESCE(app_access, 1) AS app_access, COALESCE(wfh, 0) AS wfh FROM users WHERE id = ?", uid)
         if not u:
             raise HTTPException(404, "Not found")
         patch = {}
+        if "wfh" in payload:  # may check in to their office from anywhere ("Work from home")
+            patch["wfh"] = 1 if payload["wfh"] else 0
         if "supervisor" in payload:
             patch["supervisor"] = 1 if payload["supervisor"] else 0
         if "appAccess" in payload:
             patch["app_access"] = 1 if payload["appAccess"] else 0
-        log_dict(db, user["id"], "employee", uid, uid, u, patch, {"supervisor": "Crew supervisor", "app_access": "Uses the app"})
+        log_dict(db, user["id"], "employee", uid, uid, u, patch, {"supervisor": "Crew supervisor", "app_access": "Uses the app", "wfh": "Works from home"})
         db.update("users", uid, patch)
         return {"ok": True}
 

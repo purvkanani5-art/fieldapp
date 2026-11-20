@@ -13,7 +13,8 @@ function newTiles() {
     can('hr.notices') && { icon: 'bell', label: 'Notice', href: '#noticenew' },
     can('hr.surveys') && { icon: 'chart', label: 'Survey', href: '#surveynew' },
     hrRole && { icon: 'calendar', label: 'Holiday', href: '#rec/holiday/new' },
-    { icon: 'sprout', label: 'Farmer', href: '#farmers', action: 'farmerAdd' },
+    hasFarmerSite() && { icon: 'sprout', label: 'Farmer', href: '#farmers', action: 'farmerAdd' },
+    { icon: 'bike', label: KL.me?.openTrip ? 'End trip' : 'Travel', href: '#trips' },
     { icon: 'receipt', label: 'Expense', href: '#rec/expense/new' },
     { icon: 'sun', label: 'Leave', href: '#leaves' },
     { icon: 'alert', label: 'Incident', href: '#rec/incident/new' },
@@ -247,6 +248,8 @@ Actions.copyText = async (el) => { try { await navigator.clipboard.writeText(el.
 /* ---------------------------------------------------------------- one page for a site, with its geofence */
 const SITE_RULES = [['0', 'Allow exceptions', 'Outside the circle, people give a reason and the manager decides'], ['1', 'Enforce at check-in', 'Check-in only inside the circle; check-out may be an exception'], ['2', 'Enforce at check-in and check-out', 'Both only inside the circle']];
 const sf = (k) => `sf-${k}`;
+/** Owner 2026-11-20: Farmer-land and Retro agroforestry have no fixed site; an office may have only people working from home. */
+const noFixedPlace = (project, subtype) => project === 'office' || (project === 'agroforestry' && ['farmer', 'retro'].includes(subtype));
 const SITE_AREA = ['locality', 'village', 'taluka', 'district', 'state'];
 /** The plus code of the site's centre, under the coordinates. */
 function sfPlusLine() {
@@ -304,7 +307,8 @@ function siteForm(id) {
         ${subgroupsOf(proj).length ? field('Sub-group', select(sf('subtype'), F(sf('subtype'), ''), subgroupsOf(proj).map((g) => [g.key, g.name]), { blank: 'Choose' }), { required: true }) : field('Address or landmark', input(sf('address'), F(sf('address')), { placeholder: 'optional' }))}</div>
       ${subgroupsOf(proj).length ? field('Address or landmark', input(sf('address'), F(sf('address')), { placeholder: 'optional' })) : ''}
     </div>
-    ${group('Geofence', `<div class="card stack">
+    ${group(noFixedPlace(proj, F(sf('subtype'), '')) ? 'Location (optional)' : 'Geofence', `<div class="card stack">
+      ${noFixedPlace(proj, F(sf('subtype'), '')) ? `<div class="banner info">${ic('compass')}<div><b>${proj === 'office' ? 'An office can be without an address' : 'No fixed site needed'}</b><p>${proj === 'office' ? 'Leave the location empty for staff working from home: they check in from anywhere, marked "Work from home".' : 'Farmer-land and Retro work happens on farmers\' fields: leave the location empty and staff check in from where they are (their GPS is recorded).'} Set a location only if there is a real place to check in at.</p></div></div>` : ''}
       <p class="hint">Search, paste a Google Maps link or a plus code, tap the map, or stand at the middle of the site and use your location. The circle is where check-in counts.</p>
       ${mapSearchBar('sfm')}
       <div class="btns" style="flex-wrap:wrap"><button type="button" class="btn" data-action="sfHere">${ic('compass')} Use where I am standing</button></div>
@@ -401,11 +405,12 @@ Actions.siteSave = async (el) => {
   const v = (k) => String(F(sf(k), '')).trim();
   if (v('name').length < 2) return toast('Type the site name', 'error');
   const lat = Number(v('lat')), lng = Number(v('lng'));
-  if (!v('lat') || !v('lng') || !Number.isFinite(lat) || !Number.isFinite(lng)) return toast('Set the centre: tap the map, use your location or type the coordinates', 'error');
+  const placeless = noFixedPlace(v('project'), v('subtype'));
+  if (!placeless && (!v('lat') || !v('lng') || !Number.isFinite(lat) || !Number.isFinite(lng))) return toast('Set the centre: tap the map, use your location or type the coordinates', 'error');
   if (!v('subtype') && subgroupsOf(v('project')).length) return toast('Choose the sub-group', 'error');
   const radius = Number(v('radius'));
   if (!(radius >= 10 && radius <= 20000)) return toast('Radius must be between 10 m and 20 km', 'error');
-  const body = { id, name: v('name'), project_type: v('project'), subtype: subgroupsOf(v('project')).length ? v('subtype') : '', address: v('address'), ...Object.fromEntries(SITE_AREA.map((k) => [k, v(k)])), lat, lng, radius_m: Math.round(radius), strict: Number(v('rule') || 0), active: id ? v('active') !== 'inactive' : true };
+  const body = { id, name: v('name'), project_type: v('project'), subtype: subgroupsOf(v('project')).length ? v('subtype') : '', address: v('address'), ...Object.fromEntries(SITE_AREA.map((k) => [k, v(k)])), lat: placeless && !v('lat') ? '' : lat, lng: placeless && !v('lng') ? '' : lng, radius_m: Math.round(radius), strict: Number(v('rule') || 0), active: id ? v('active') !== 'inactive' : true };
   if (can('users.assign') && KL.ui.sfTeam0 !== null) {
     const was = new Set(String(KL.ui.sfTeam0 || '').split(',').filter(Boolean)), now = new Set(String(F(sf('team'), '')).split(',').filter(Boolean));
     body.teamAdd = [...now].filter((x) => !was.has(x)); body.teamRemove = [...was].filter((x) => !now.has(x));

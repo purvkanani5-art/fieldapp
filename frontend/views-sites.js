@@ -3,9 +3,9 @@
    project managers see the projects they manage; the director and HR see everything. General HR lives under People. */
 
 const SITE_TABS = {
-  biochar: (s) => [['overview', 'home', 'Overview'], ['stock', 'box', 'Stock'], ['production', 'flame', s.subtype === 'plant' ? 'Plant runs' : 'Kiln batches'], ['farmers', 'sprout', 'Farmers'], ['safety', 'shield', 'Safety'], ['team', 'users', 'Team']],
+  biochar: (s) => [['overview', 'home', 'Overview'], ['stock', 'box', 'Stock'], ['production', 'flame', s.subtype === 'plant' ? 'Plant runs' : 'Kiln batches'], ['safety', 'shield', 'Safety'], ['team', 'users', 'Team']],
   gasifier: () => [['overview', 'home', 'Overview'], ['stock', 'box', 'Stock'], ...(isOff('gas_run') ? [] : [['generation', 'sun', 'Generation']]), ['equipment', 'cog', 'Equipment'], ['safety', 'shield', 'Safety'], ['team', 'users', 'Team']],
-  agroforestry: () => [['overview', 'home', 'Overview'], ['nursery', 'sprout', 'Nursery'], ['plantation', 'tree', 'Plantation'], ['farmers', 'users', 'Farmers'], ['team', 'users', 'Team']],
+  agroforestry: (s) => [['overview', 'home', 'Overview'], ['nursery', 'sprout', 'Nursery'], ['plantation', 'tree', 'Plantation'], ...(isFarmerSite(s) ? [['farmers', 'users', 'Farmers']] : []), ['team', 'users', 'Team']],
   general: () => [['overview', 'home', 'Overview'], ['stock', 'box', 'Stock'], ['safety', 'shield', 'Safety'], ['team', 'users', 'Team']], // projects added in Settings > Lists
 };
 const projectsMeta = () => KL.boot?.projects || {};
@@ -84,9 +84,9 @@ const SITE_BODY = {
       tiles = [[st.kwh, `kWh this month · ${st.runs || 0} runs`, 'ok', 'sun', `ov-kwh-${s.id}`], [st.hours, 'run hours this month', 'blue', 'clock', `ov-h-${s.id}`], [itemBal(sum, ['feed']), 'kg feedstock in stock', '', 'leaf', `ov-fs-${s.id}`],
         [itemBal(sum, ['diesel']), 'L diesel', 'warn', 'fuel', `ov-dz-${s.id}`], [st.down, 'equipment needing attention', st.down ? 'bad' : '', 'cog', `ov-dn-${s.id}`], [st.openIncidents, 'open incidents', st.openIncidents ? 'bad' : '', 'alert', `ov-in-${s.id}`]];
     } else {
-      acts = [['#attendance', 'pin', '', here ? 'Check out' : 'Check in'], ['#rec/nursery/new', 'sprout', 'green', 'Nursery entry', newAct('nursery', 'site', s)], ['#rec/sapling/new', 'tree', 'earth', 'Plant saplings', newAct('sapling', 'site', s)], [`#site/${s.id}/farmers`, 'users', 'blue', 'Farmers']];
+      acts = [['#attendance', 'pin', '', here ? 'Check out' : 'Check in'], ['#rec/nursery/new', 'sprout', 'green', 'Nursery entry', newAct('nursery', 'site', s)], ['#rec/sapling/new', 'tree', 'earth', 'Plant saplings', newAct('sapling', 'site', s)], ...(isFarmerSite(s) ? [[`#site/${s.id}/farmers`, 'users', 'blue', 'Farmers']] : [])];
       tiles = [[st.inNursery, 'saplings in the nursery', 'ok', 'sprout', `ov-nu-${s.id}`], [st.planted, 'planted on farms', 'blue', 'tree', `ov-pl-${s.id}`], [st.survival === null || st.survival === undefined ? null : `${st.survival}%`, 'average survival', st.survival !== null && st.survival < 80 ? 'warn' : 'ok', 'leaf'],
-        [st.farmers, 'farmers', 'violet', 'users', `ov-fa-${s.id}`]];
+        ...(isFarmerSite(s) ? [[st.farmers, 'farmers', 'violet', 'users', `ov-fa-${s.id}`]] : [])];
     }
     return `${actionsGrid(acts)}${tileRow(tiles)}
       ${group('On site now', sum.onSite.length ? `<div class="card flush">${sum.onSite.map((x) => `<div class="lrow-static row">${avatar(x.name)}<span class="tx" style="flex:1"><b>${esc(x.name)}</b><span class="muted" style="font-size:13px;display:block">since ${esc(fmtDate(x.checkin_at).split(', ')[1] || '')} · <span data-since="${esc(x.checkin_at)}">${esc(duration(x.checkin_at))}</span></span></span>${tag('on site', 'ok')}</div>`).join('')}</div>` : '<div class="card"><p class="hint">Nobody is checked in right now.</p></div>')}

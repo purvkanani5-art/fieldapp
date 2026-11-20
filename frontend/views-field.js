@@ -63,7 +63,7 @@ Views.attendance = () => {
       ${site && !site.strict && gpsUsable() && !inside ? field('Request an exception: why are you not inside the site boundary?', textarea('att-reason', F('att-reason'), 'e.g. Working at the far plot, boundary needs widening')) : ''}
       ${site ? `<button type="button" class="btn primary wide" data-action="checkin" ${KL.ui.photos.checkin && gpsUsable() && (inside || !site.strict) ? '' : 'disabled'}>${!gpsUsable() ? gpsWaitText() : inside ? `Check in${weakText()}` : !site.strict ? 'Request check-in exception' : 'Check in'}</button>` : ''}
       ${site && site.strict ? `<p class="hint">${ic('lock')} Strict site. While you are checked in, the app tells your manager if you leave the boundary.</p>` : ''}
-      <p class="hint">Check-in is allowed only within ${site ? site.radius_m : '…'} m of the site. GPS accuracy up to 50 m is allowed on top. The app waits up to 30 seconds for GPS of ±${gpsNeed()} m or better; stand in the open. The selfie is taken live, not from the gallery.</p>
+      <p class="hint">${site && anywhereSite(site) ? `${esc(anywhereText(site))}: check in from anywhere; your location is recorded.` : `Check-in is allowed only within ${site ? site.radius_m : '…'} m of the site.`} GPS accuracy up to 50 m is allowed on top. The app waits up to 30 seconds for GPS of ±${gpsNeed()} m or better; stand in the open. The selfie is taken live, not from the gallery.</p>
     </div>`;
   }
   const rows = hist && !hist.error ? hist.rows : [];
@@ -235,7 +235,7 @@ function registerItemView(siteId, itemId) {
   const reg = data(`registers:${siteId}`, () => api(`/api/registers?siteId=${siteId}`));
   const bal = reg && !reg.error ? reg.items.find((i) => i.id === itemId)?.balance : null;
   const movs = data(`movements:${itemId}`, () => api(`/api/registers/movements?siteId=${siteId}&itemId=${itemId}&limit=60`));
-  const type = F('mov-type', 'in');
+  const type = F('mov-type', 'in') === 'count' && !canCount() ? 'in' : F('mov-type', 'in');
   const qty = Number(F('mov-qty'));
   const labels = { in: item.kind === 'product' ? 'Produced / added' : 'Received (in)', out: item.kind === 'product' ? 'Dispatched / sold (out)' : 'Consumed (out)', count: 'Physical count' };
   KL.ui.previewFn = () => {
@@ -248,7 +248,7 @@ function registerItemView(siteId, itemId) {
   return `${topbar(item.name, `#site/${siteId}/stock`)}
     <p class="sub">${esc(site?.name || '')} · ${item.kind === 'product' ? 'finished product' : 'input'} · ${bal === null || bal === undefined ? '…' : `<b>${fmtNum(bal, 2)} ${esc(item.unit)}</b> in stock`}</p>
     <div class="card stack">
-      <div class="seg">${['in', 'out', 'count'].map((t) => `<button type="button" data-action="movType" data-type="${t}" aria-pressed="${type === t}">${t === 'in' ? 'In' : t === 'out' ? 'Out' : 'Count'}</button>`).join('')}</div>
+      <div class="seg">${['in', 'out', ...(canCount() ? ['count'] : [])].map((t) => `<button type="button" data-action="movType" data-type="${t}" aria-pressed="${type === t}">${t === 'in' ? 'In' : t === 'out' ? 'Out' : 'Count'}</button>`).join('')}</div>
       <p class="hint">${esc(labels[type])}${type === 'count' ? ': the quantity you physically see now; any difference from the book figure is recorded as a variance.' : '.'}</p>
       <div class="grid2">${field(`Quantity (${item.unit})`, input('mov-qty', F('mov-qty'), { type: 'number', inputmode: 'decimal', placeholder: '0', step: '0.01', min: 0 }))}
       ${field('Batch / vehicle / ref (optional)', input('mov-batch', F('mov-batch'), { placeholder: type === 'in' ? 'e.g. Truck GJ03 AB 1234' : 'e.g. Kiln run K-27' }))}</div>
@@ -264,7 +264,7 @@ function registerItemView(siteId, itemId) {
 function movRow(m) {
   const sign = m.type === 'in' ? '+' : m.type === 'out' ? '−' : '=';
   const tone = m.type === 'in' ? 'ok' : m.type === 'out' ? 'warn' : 'info';
-  return `<div class="lrow-static row">${authImg(m.file_id)}<span class="tx" style="flex:1;min-width:0"><b>${sign}${fmtNum(m.qty, 2)} ${esc(m.unit)} ${tag(m.type === 'count' ? 'count' : m.type, tone)}</b><span class="muted" style="font-size:13px;display:block">${esc(fmtDate(m.at))} · ${esc(m.user_name)}${m.batch ? ` · ${esc(m.batch)}` : ''}${m.note ? ` · ${esc(m.note)}` : ''}${m.variance !== null && m.variance !== undefined && Math.abs(m.variance) > 0 ? ` · variance ${m.variance > 0 ? '+' : ''}${fmtNum(m.variance, 2)}` : ''}</span></span><span class="right"><span class="muted" style="font-size:11px">balance</span><br/><b class="mono">${fmtNum(m.balance_after, 2)}</b></span></div>`;
+  return `<div class="lrow-static row">${authImg(m.file_id)}<span class="tx" style="flex:1;min-width:0"><b>${sign}${fmtNum(m.qty, 2)} ${esc(m.unit)} ${tag(m.type === 'count' ? 'count' : m.type, tone)}</b><span class="muted" style="font-size:13px;display:block">${esc(fmtDate(m.at))} · ${m.type === 'in' ? 'Received by' : m.type === 'out' ? 'Dispatched by' : 'Counted by'} ${esc(m.user_name)}${m.device ? ` (${esc(m.device)})` : ''}${m.corrected_by ? ` · corrected by ${esc(m.corrected_by.split(' · ')[0])}` : ''}${m.batch ? ` · ${esc(m.batch)}` : ''}${m.note ? ` · ${esc(m.note)}` : ''}${m.variance !== null && m.variance !== undefined && Math.abs(m.variance) > 0 ? ` · variance ${m.variance > 0 ? '+' : ''}${fmtNum(m.variance, 2)}` : ''}</span></span><span class="right"><span class="muted" style="font-size:11px">balance</span><br/><b class="mono">${fmtNum(m.balance_after, 2)}</b></span></div>`;
 }
 Actions.movType = (el) => { setF('mov-type', el.dataset.type); render(); };
 Actions.movSave = async (el) => {

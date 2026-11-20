@@ -527,8 +527,10 @@ def reset() -> None:
         hrops.init(db)
         ensure_refs(db)
         seed_activity(db)
+        import maintplan
         demo_modules.seed(db)
         hrops.seed(db)
+        maintplan.init(db)  # equipment numbers and site plan names
     finally:
         db.close()
 

@@ -33,13 +33,14 @@ import committees  # noqa: E402
 import policies  # noqa: E402
 import mapsearch  # noqa: E402
 import casetrack  # noqa: E402
+import maintplan  # noqa: E402
 import hrops  # noqa: E402
 import modules  # noqa: E402
 import lists  # noqa: E402
 import perms  # noqa: E402
 import planner  # noqa: E402
 
-APP_VERSION = "0.6.5"
+APP_VERSION = "0.6.6"
 DEMO = os.environ.get("KL_DEMO", "1") == "1"  # prototype: demo accounts, person switch, reset
 FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
 
@@ -57,6 +58,7 @@ planner.init(_db0)
 modules.init(_db0)
 hrops.init(_db0)
 ensure_refs(_db0)
+maintplan.init(_db0)
 if DEMO:
     demo.seed_activity(_db0)
     demo_modules.seed(_db0)
@@ -64,6 +66,26 @@ if DEMO:
 _db0.close()
 
 app = FastAPI(title="Kshetralekha", version=APP_VERSION, docs_url="/api/docs", openapi_url="/api/openapi.json")
+
+
+class _TextGZip:
+    """Compress the app's code and data on the way out (2026-11-20 offline sweep: about 1.3 MB of code went uncompressed,
+    30 s to open on slow 3G). Photos, fonts and PDFs are already compressed and pass through untouched."""
+
+    _skip = re.compile(r"\.(png|jpe?g|webp|gif|ico|woff2?|pdf|zip|gz)$", re.I)
+
+    def __init__(self, app):
+        from starlette.middleware.gzip import GZipMiddleware
+        self.app = app
+        self.gz = GZipMiddleware(app, minimum_size=1024)
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and not scope["path"].startswith("/api/files") and not self._skip.search(scope["path"]):
+            return await self.gz(scope, receive, send)
+        return await self.app(scope, receive, send)
+
+
+app.add_middleware(_TextGZip)
 
 
 # ------------------------------------------------------------------ helpers
@@ -98,6 +120,7 @@ def current_user(request: Request, db: DbDep) -> dict:
     if user.get("must_change_pin") and request.method != "GET" and not request.url.path.startswith(("/api/auth/", "/api/me/consent")):
         raise HTTPException(403, "Set your own PIN first (Me > Change PIN)")
     db.run("UPDATE devices SET last_seen = ? WHERE id = ?", now_iso(), payload["d"])
+    user["device_id"] = payload["d"]
     resolve_access(db, user)
     user.pop("pin_hash", None)
     user.pop("pin_salt", None)
@@ -139,7 +162,7 @@ def site_allowed(user: dict, site_id: str) -> bool:
 
 def public_user(u: dict) -> dict:
     return {k: u.get(k) for k in ("id", "employee_id", "name", "role", "designation", "phone", "email", "active", "must_change_pin", "sites", "created_at", "manager_id", "consent_at",
-                                  "all_sites", "projects", "direct_sites", "supervisor", "app_access", "perms", "dept", "department", "level", "photo_id")}
+                                  "all_sites", "projects", "direct_sites", "supervisor", "app_access", "perms", "dept", "department", "level", "photo_id", "wfh")}
 
 
 def parse_float(v, name: str, required: bool = True) -> float | None:
@@ -313,6 +336,31 @@ if store.remote:
     _retry_files_forever()
 
 
+def _maintenance_clock() -> None:
+    import threading
+    import time
+
+    def loop() -> None:
+        while True:
+            try:
+                d = Db()
+                try:
+                    maintplan.tick(d)
+                finally:
+                    d.close()
+            except Exception as e:  # noqa: BLE001 - try again next round
+                print("maintenance clock:", e, file=sys.stderr)
+            time.sleep(300)
+
+    try:
+        threading.Thread(target=loop, name="maintenance-clock", daemon=True).start()
+    except RuntimeError:  # no threads (the in-browser demo)
+        pass
+
+
+_maintenance_clock()
+
+
 @app.get("/api/demo")
 def demo_info(db: DbDep):
     """The demo accounts, for the sign-in screen's one-tap buttons (prototype only)."""
@@ -429,6 +477,25 @@ def bootstrap(user: UserDep, db: DbDep):
 # ------------------------------------------------------------------ attendance
 
 
+def no_fixed_place(project: str, subtype: str) -> bool:
+    """Owner 2026-11-20: Farmer-land and Retro agroforestry have no fixed site; an office may have staff working from home."""
+    return project == "office" or (project == "agroforestry" and subtype in ("farmer", "retro"))
+
+
+def farmer_site(site: dict | None) -> bool:
+    """Farmer records (farmers, documents, KML, land records) belong only to Farmer-land and Retro sites."""
+    return bool(site) and site["project_type"] == "agroforestry" and site.get("subtype") in ("farmer", "retro")
+
+
+def anywhere(user: dict, site: dict) -> str:
+    """Check-in from wherever the person is: a site with no fixed place, or someone marked "works from home" at an office."""
+    if not int(site.get("fenced", 1) or 0):
+        return "Work from home" if site["project_type"] == "office" else "Field (no fixed site)"
+    if site["project_type"] == "office" and int(user.get("wfh") or 0):
+        return "Work from home"
+    return ""
+
+
 @app.post("/api/attendance/checkin")
 async def checkin(user: UserDep, db: DbDep, siteId: Annotated[str, Form()], lat: Annotated[str, Form()], lng: Annotated[str, Form()],
                   accuracy: Annotated[str | None, Form()] = None, override: Annotated[str | None, Form()] = None,
@@ -442,7 +509,8 @@ async def checkin(user: UserDep, db: DbDep, siteId: Annotated[str, Form()], lat:
     if db.one("SELECT 1 FROM attendance WHERE user_id = ? AND checkout_at IS NULL", user["id"]):
         raise HTTPException(409, "You are already checked in. Check out first.")
     la, ln, acc = parse_float(lat, "Latitude"), parse_float(lng, "Longitude"), parse_float(accuracy, "Accuracy", False)
-    inside, dist = within_fence(la, ln, acc, site)
+    remote = anywhere(user, site)
+    inside, dist = (True, 0.0) if remote else within_fence(la, ln, acc, site)
     if not inside and site.get("strict"):
         raise HTTPException(422, f"{site['name']} allows check-in only inside its boundary (strict site). You are {dist:,.0f} m away; move closer.")
     if not inside and not (override or "").strip():
@@ -454,7 +522,8 @@ async def checkin(user: UserDep, db: DbDep, siteId: Annotated[str, Form()], lat:
     if db.one("SELECT 1 FROM attendance WHERE user_id = ? AND checkout_at IS NULL", user["id"]):  # a second tap while the photo uploaded
         raise HTTPException(409, "You are already checked in. Check out first.")
     aid = db.insert("attendance", {"user_id": user["id"], "site_id": siteId, "checkin_at": takenAt or now_iso(), "checkin_file": fid, "checkin_lat": la, "checkin_lng": ln,
-                                   "checkin_acc": acc, "checkin_dist": round(dist, 1), "status": status, "override_reason": (override or "").strip()})
+                                   "checkin_acc": acc, "checkin_dist": round(dist, 1), "status": status, "override_reason": (override or "").strip(),
+                                   "flag": "remote" if remote else ""})
     db.audit(user["id"], "checkin", "attendance", aid, f"{dist:.0f} m, {status}")
     if status == "pending":
         db.notify_role(("manager", "admin"), f"Check-in exception: {user['name']}", f"{dist:,.0f} m from {site['name']}: {override}", "#approvals", siteId)
@@ -475,7 +544,7 @@ async def checkout(user: UserDep, db: DbDep, lat: Annotated[str, Form()], lng: A
     takenAt = taken_time(takenAt, queued, att["checkin_at"])
     site = db.one("SELECT * FROM sites WHERE id = ?", att["site_id"])
     la, ln, acc = parse_float(lat, "Latitude"), parse_float(lng, "Longitude"), parse_float(accuracy, "Accuracy", False)
-    inside, dist = within_fence(la, ln, acc, site)
+    inside, dist = (True, 0.0) if anywhere(user, site) else within_fence(la, ln, acc, site)
     if not inside and int(site.get("strict") or 0) >= 2:
         raise HTTPException(422, f"{site['name']} allows check-out only inside its boundary. You are {dist:,.0f} m away; move closer.")
     if not inside and not (override or "").strip():
@@ -668,11 +737,21 @@ def registers(user: UserDep, db: DbDep, siteId: str):
     return {"items": items}
 
 
+def can_count(db: Db, user: dict, site_id: str) -> bool:
+    """Owner 2026-11-20: "count can only be done by site manager or supervisor" (and the director)."""
+    if user["role"] == "admin":
+        return True
+    if not site_allowed(user, site_id):
+        return False
+    return user["role"] == "manager" or bool(user.get("supervisor"))
+
+
 @app.get("/api/registers/movements")
 def movements(user: UserDep, db: DbDep, siteId: str, itemId: str | None = None, limit: int = 200):
     if not site_allowed(user, siteId):
         raise HTTPException(403, "Not your site")
-    sql = "SELECT m.*, i.name AS item_name, i.unit, u.name AS user_name FROM movements m JOIN register_items i ON i.id = m.item_id JOIN users u ON u.id = m.user_id WHERE i.site_id = ?"
+    sql = ("SELECT m.*, i.name AS item_name, i.unit, u.name AS user_name, (SELECT ru.name || ' · ' || r.at FROM movements r JOIN users ru ON ru.id = r.user_id "
+           "WHERE r.reverses_id = m.id LIMIT 1) AS corrected_by FROM movements m JOIN register_items i ON i.id = m.item_id JOIN users u ON u.id = m.user_id WHERE i.site_id = ?")
     args = [siteId]
     if itemId:
         sql += " AND m.item_id = ?"
@@ -693,6 +772,8 @@ async def add_movement(user: UserDep, db: DbDep, itemId: Annotated[str, Form()],
         raise HTTPException(403, "Not your site")
     if type not in ("in", "out", "count"):
         raise HTTPException(422, "type must be in, out or count")
+    if type == "count" and not can_count(db, user, item["site_id"]):
+        raise HTTPException(403, "Only the site manager, a site supervisor or the director records a physical count")
     q, la, ln, acc = parse_float(qty, "Quantity"), parse_float(lat, "Latitude"), parse_float(lng, "Longitude"), parse_float(accuracy, "Accuracy", False)
     if q < 0 or (type != "count" and q == 0):
         raise HTTPException(422, "Quantity must be more than zero")
@@ -710,7 +791,8 @@ async def add_movement(user: UserDep, db: DbDep, itemId: Annotated[str, Form()],
     when = takenAt or now_iso()
     fid = await save_upload(db, photo, f"{site_folder(db, item['site_id'])}/Registers/{item['name']}", f"register_{type}", user, lat=la, lng=ln, accuracy=acc,
                             taken_at=when, name=f"{stamp(when)} {type} {q:g} {item['unit']}.jpg")
-    mid = db.insert("movements", {"item_id": itemId, "user_id": user["id"], "type": type, "qty": q, "balance_after": round(new_bal, 3), "batch": batch.strip()[:60],
+    dev = db.one("SELECT name FROM devices WHERE id = ?", user.get("device_id")) if user.get("device_id") else None
+    mid = db.insert("movements", {"item_id": itemId, "user_id": user["id"], "device": (dev["name"] if dev else "")[:60], "type": type, "qty": q, "balance_after": round(new_bal, 3), "batch": batch.strip()[:60],
                                   "note": note.strip()[:300], "file_id": fid, "lat": la, "lng": ln, "at": when, "variance": variance})
     db.audit(user["id"], "movement", "movement", mid, f"{item['name']} {type} {q:g}")
     if item["kind"] == "input" and item["low_stock"] and new_bal < item["low_stock"] <= bal:
@@ -744,6 +826,13 @@ def add_farmer(payload: dict, user: UserDep, db: DbDep):
     name = str(payload.get("name", "")).strip()
     if len(name) < 2:
         raise HTTPException(422, "Farmer name is required")
+    site = db.one("SELECT * FROM sites WHERE id = ?", payload.get("site_id")) if payload.get("site_id") else None
+    if not farmer_site(site):
+        mine = [s for s in db.all("SELECT * FROM sites WHERE active = 1 AND project_type = 'agroforestry' AND subtype IN ('farmer', 'retro') ORDER BY name") if site_allowed(user, s["id"])]
+        if payload.get("site_id") or not mine:
+            raise HTTPException(422, "Farmer records are kept under Farmer-land or Retro agroforestry sites")
+        site = mine[0]
+    payload["site_id"] = site["id"]
     fid = db.insert("farmers", {"name": name, "father_name": str(payload.get("father_name", "")).strip(), "village": str(payload.get("village", "")).strip(),
                                 "taluka": str(payload.get("taluka", "")).strip(), "district": str(payload.get("district", "")).strip(), "phone": str(payload.get("phone", "")).strip(),
                                 "id_last4": str(payload.get("id_last4", "")).strip()[:4], "site_id": payload.get("site_id") or None, "created_by": user["id"], "created_at": now_iso()})
@@ -1093,7 +1182,7 @@ def dashboard(user: UserDep, db: DbDep):
     in_team = (lambda uid: True) if team is None else (lambda uid: uid in team)
     on_site = [a for a in on_site if team is None or a["user_id"] in team]
     today_att = len({r["user_id"] for r in db.all("SELECT user_id FROM attendance WHERE checkin_at >= ?", start_utc) if in_team(r["user_id"])})
-    field_total = sum(1 for r in db.all("SELECT id FROM users WHERE active = 1 AND role = 'field'") if in_team(r["id"]))
+    field_total = sum(1 for r in db.all("SELECT id FROM users WHERE active = 1 AND role = 'field'") if in_team(r["id"]) and modules.employed_on(db, r["id"]))  # not before joining
     stock = []
     for it in [x for x in db.all("SELECT i.*, s.name AS site_name FROM register_items i JOIN sites s ON s.id = i.site_id WHERE i.active = 1 ORDER BY s.name, i.sort") if site_allowed(user, x["site_id"])]:
         bal = item_balance(db, it["id"])
@@ -1161,16 +1250,17 @@ def export_site(site_id: str, user: UserDep, db: DbDep):
     perms.need(user, "reports.export")
     if not site_allowed(user, site_id):
         raise HTTPException(403, "Not your site")
-    rows = db.all("SELECT m.at, i.name AS item, m.type, m.qty, i.unit, m.balance_after, m.batch, m.note, m.lat, m.lng, u.name AS by_user, f.name AS photo, f.sha256 "
+    rows = db.all("SELECT m.at, i.name AS item, m.type, m.qty, i.unit, m.balance_after, m.batch, m.note, m.lat, m.lng, u.name AS by_user, u.employee_id AS by_code, "
+                  "COALESCE(m.device, '') AS device, f.name AS photo, f.sha256 "
                   "FROM movements m JOIN register_items i ON i.id = m.item_id JOIN users u ON u.id = m.user_id LEFT JOIN files f ON f.id = m.file_id WHERE i.site_id = ? ORDER BY m.at", site_id)
     import csv
     import io
 
     out = io.StringIO()
     w = csv.writer(out)
-    w.writerow(["Time (UTC)", "Item", "Type", "Qty", "Unit", "Balance after", "Batch", "Note", "Lat", "Lng", "By", "Photo", "Photo SHA-256"])
+    w.writerow(["Time (UTC)", "Item", "Type", "Qty", "Unit", "Balance after", "Batch", "Note", "Lat", "Lng", "Recorded by", "Employee code", "Phone", "Photo", "Photo SHA-256"])
     for r in rows:
-        w.writerow([r[k] for k in ("at", "item", "type", "qty", "unit", "balance_after", "batch", "note", "lat", "lng", "by_user", "photo", "sha256")])
+        w.writerow([r[k] for k in ("at", "item", "type", "qty", "unit", "balance_after", "batch", "note", "lat", "lng", "by_user", "by_code", "device", "photo", "sha256")])
     return Response(out.getvalue(), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="site-{site_id[:8]}-registers.csv"'})
 
 
@@ -1319,7 +1409,10 @@ def admin_site_save(payload: dict, user: UserDep, db: DbDep):
     name = str(payload.get("name", "")).strip()
     if len(name) < 2:
         raise HTTPException(422, "Site name is required")
-    row = {"name": name, "project_type": str(payload.get("project_type", "other"))[:30], "lat": parse_float(payload.get("lat"), "Latitude"), "lng": parse_float(payload.get("lng"), "Longitude"),
+    ptype, sub = str(payload.get("project_type", "other"))[:30], str(payload.get("subtype", ""))[:20]
+    placeless = no_fixed_place(ptype, sub) and str(payload.get("lat") or "").strip() == "" and str(payload.get("lng") or "").strip() == ""
+    row = {"name": name, "project_type": ptype, "lat": 0.0 if placeless else parse_float(payload.get("lat"), "Latitude"),
+           "lng": 0.0 if placeless else parse_float(payload.get("lng"), "Longitude"), "fenced": 0 if placeless else 1,
            "radius_m": int(parse_float(payload.get("radius_m", 150), "Radius") or 150), "address": str(payload.get("address", ""))[:200], "active": 1 if payload.get("active", True) else 0,
            "subtype": str(payload.get("subtype", ""))[:20], "strict": site_rule(payload.get("strict")),
            # the site's area, filled from the map (owner 2026-11-20), correctable by hand
@@ -1347,6 +1440,7 @@ def admin_site_save(payload: dict, user: UserDep, db: DbDep):
         if not db.one("SELECT 1 FROM sites WHERE id = ?", sid):
             raise HTTPException(404, "Site not found")
         db.update("sites", sid, row)
+        maintplan.rename_site_plans(db, sid, row["name"])  # the site's plan carries its name
     else:
         sid = db.insert("sites", row)
     # only the people the form added or took off change: a team that never loaded cannot empty the site

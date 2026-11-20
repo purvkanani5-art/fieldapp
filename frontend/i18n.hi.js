@@ -2714,5 +2714,15 @@ window.I18N_DATA.hi = {
 "Compliance violation": "नियम उल्लंघन",
 "Commitment to a client": "ग्राहक से किया वादा",
 "Other serious matter": "अन्य गंभीर मामला",
-"Locality": "मोहल्ला / इलाका"
+"Locality": "मोहल्ला / इलाका",
+"Not joined / left": "शामिल नहीं / छोड़ दिया",
+"Work from home": "घर से काम",
+"Works from home": "घर से काम करते हैं",
+"No fixed site": "कोई तय साइट नहीं",
+"Location (optional)": "स्थान (वैकल्पिक)",
+"Maker's serial no": "निर्माता का सीरियल नंबर",
+"Received by": "प्राप्तकर्ता",
+"Dispatched by": "भेजने वाले",
+"Counted by": "गिनती करने वाले",
+"Maintenance": "रखरखाव"
 };

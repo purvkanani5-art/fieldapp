@@ -1433,3 +1433,6 @@ body.side-mini .side .brand .side-icon { display: block; width: 32px; height: 32
 /* No flash on quick loads: the loading placeholder shows only after a quarter of a second (owner 2026-11-20: "screen
    flickers like an old bulb" when a site tab is tapped) */
 .spinner { animation: fade .2s var(--ease) .25s both; }
+
+/* Not employed yet / any more (before joining, after the last day): shown grey, neither present nor absent */
+.c-NE { background: var(--surface-3) !important; color: var(--muted) !important; }

@@ -326,6 +326,7 @@ function personFlags(u) {
   if (!hrRoleNow()) return u.app_access ? '' : `<div class="card"><p class="hint">${ic('users')} No phone: attendance is marked by the site supervisor.</p></div>`;
   return `<div class="card flush">
     <label class="lrow-static row check" style="gap:12px"><input type="checkbox" ${u.app_access ? 'checked' : ''} data-change="personFlag" data-id="${esc(u.id)}" data-flag="appAccess" /><span class="tx"><b>Uses the app</b><span class="muted" style="font-size:13px;display:block">Off for crew without a phone: the site supervisor marks their attendance</span></span></label>
+    <label class="lrow-static row check" style="gap:12px"><input type="checkbox" ${u.wfh ? 'checked' : ''} data-change="personFlag" data-id="${esc(u.id)}" data-flag="wfh" /><span class="tx"><b>Works from home</b><span class="muted" style="font-size:13px;display:block">Checks in to their office from anywhere, marked "Work from home"</span></span></label>
     ${u.role === 'field' ? `<label class="lrow-static row check" style="gap:12px"><input type="checkbox" ${u.supervisor ? 'checked' : ''} data-change="personFlag" data-id="${esc(u.id)}" data-flag="supervisor" /><span class="tx"><b>Crew supervisor</b><span class="muted" style="font-size:13px;display:block">Marks crew attendance at their own sites</span></span></label>` : ''}
   </div>`;
 }

@@ -95,9 +95,9 @@ function siteAddTiles(s) {
   const rec = (kind, icon, label) => ({ icon, label, kind, site: s.id });
   const go = (href, icon, label, extra = {}) => ({ icon, label, href, ...extra });
   const t = [];
-  if (s.project_type === 'biochar') t.push(go(`#site/${s.id}/stock`, 'box', 'Stock in or out'), rec('batch', 'flame', s.subtype === 'plant' ? 'Plant run' : 'Kiln batch'), go('', 'checklist', 'Daily safety check', { check: s.id }), go('#farmers', 'sprout', 'Farmer or signing'));
+  if (s.project_type === 'biochar') t.push(go(`#site/${s.id}/stock`, 'box', 'Stock in or out'), rec('batch', 'flame', s.subtype === 'plant' ? 'Plant run' : 'Kiln batch'), go('', 'checklist', 'Daily safety check', { check: s.id }));
   else if (s.project_type === 'gasifier') t.push(go(`#site/${s.id}/stock`, 'box', 'Stock in or out'), ...(isOff('gas_run') ? [] : [rec('gas_run', 'sun', 'Generation run')]), rec('maintenance', 'cog', 'Equipment service'), go('', 'checklist', 'Daily safety check', { check: s.id }));
-  else if (s.project_type === 'agroforestry') t.push(rec('nursery', 'sprout', 'Nursery entry'), rec('sapling', 'tree', 'Saplings planted'), rec('survival', 'leaf', 'Survival check'), go('#farmers', 'users', 'Farmer or signing'));
+  else if (s.project_type === 'agroforestry') t.push(rec('nursery', 'sprout', 'Nursery entry'), rec('sapling', 'tree', 'Saplings planted'), rec('survival', 'leaf', 'Survival check'), ...(isFarmerSite(s) ? [go('#farmers', 'users', 'Farmer or signing')] : []));
   else t.push(go(`#site/${s.id}/stock`, 'box', 'Stock in or out'), go('', 'checklist', 'Daily safety check', { check: s.id }), go('#updates', 'note', 'Daily update')); // a project added in Settings > Lists
   if (sup) t.push(go(`#muster/${s.id}`, 'users', 'Crew attendance'));
   if (s.project_type !== 'agroforestry') t.push(rec('incident', 'alert', 'Report incident'));

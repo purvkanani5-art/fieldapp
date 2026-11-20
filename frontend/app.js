@@ -190,6 +190,7 @@ async function signIn(employeeId, pin) {
   try {
     const r = await api('/api/auth/login', { json: { employeeId, pin, device: deviceName(), code: l.need2fa ? l.code || '' : undefined } });
     l.pin = ''; l.busy = false; l.need2fa = false; l.code = '';
+    try { localStorage.setItem('kl.lastEmp', String(r.user?.employee_id || employeeId).toUpperCase()); } catch { /* private window */ }
     await signedIn(r);
   } catch (e) {
     l.busy = false; l.error = e.status === 0 ? 'No connection. Connect to the internet to sign in the first time.' : e.message;
@@ -423,6 +424,9 @@ function bindEvents() {
   });
   window.addEventListener('hashchange', () => { if (route().name !== 'sign') KL.sig = null; if (route().name !== 'case') KL.ui.caseOpen = null; KL.ui.trkOpen = null; if (route().name !== 'task' && KL.ui.sheetTask) { KL.ui.sheetTask = null; KL.ui.completing = null; } render(); });
   window.addEventListener('online', () => { Outbox.flush(); render(); });
+  // saved items are retried every minute while the app is open: a phone can say "online" on a dead or captive connection
+  setInterval(() => { if (KL.token && KL.outboxCount && navigator.onLine && document.visibilityState === 'visible') Outbox.flush(); }, 60000);
+  Outbox.keepSafe();
   window.addEventListener('offline', () => render());
   document.addEventListener('visibilitychange', async () => { if (document.visibilityState === 'visible' && KL.token) { await Outbox.flush(); await refreshMe(); render(); } });
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyTheme);

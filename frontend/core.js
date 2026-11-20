@@ -7,7 +7,7 @@ const KL = {
   me: null, // /api/me
   cache: {},
   loading: {},
-  ui: { login: { emp: '', pin: '' }, gps: null, gpsError: '', photos: {}, forms: {} },
+  ui: { login: { emp: (() => { try { return localStorage.getItem('kl.lastEmp') || ''; } catch { return ''; } })(), pin: '' }, gps: null, gpsError: '', photos: {}, forms: {} },
   afterRender: [],
   lastSync: Number(localStorage.getItem('kl.lastSync') || 0),
   tables: {},
@@ -56,6 +56,7 @@ const rupees = (n) => `₹${fmtNum(n, 0)}`;
 let toastTimer = null;
 function toast(msg, kind = 'ok') {
   const el = $('#toast');
+  if (msg === 'offline') msg = navigator.onLine ? 'Could not reach the server. Check the signal and try again.' : 'No signal. Try again when you have signal.';
   el.textContent = msg;
   el.className = kind === 'error' ? 'error' : '';
   el.hidden = false;
@@ -217,6 +218,23 @@ const Outbox = {
     KL.outboxItems = mine.map((x) => ({ id: x.id, label: x.label, path: x.path, createdAt: x.createdAt, failed: x.failed || '' }));
     return mine;
   },
+  /** Ask the browser not to clear this app's data when space is short (the saved items live there). */
+  async keepSafe() {
+    try { if (navigator.storage?.persist && !(await navigator.storage.persisted())) await navigator.storage.persist(); } catch { /* not supported */ }
+  },
+  /** Warn once a day when many items wait or the phone's space for the app is nearly used up. */
+  async checkSpace() {
+    try {
+      const n = KL.outboxCount || 0;
+      const est = navigator.storage?.estimate ? await navigator.storage.estimate() : null;
+      const full = est && est.quota ? est.usage / est.quota : 0;
+      const day = new Date().toISOString().slice(0, 10);
+      if ((n >= 40 || full > 0.8) && localStorage.getItem('kl.spaceWarned') !== day) {
+        localStorage.setItem('kl.spaceWarned', day);
+        toast(full > 0.8 ? 'The phone is nearly out of space for saved items. Get signal soon so they can be sent.' : `${n} items are waiting on this phone. Get signal soon so they can be sent.`, 'error');
+      }
+    } catch { /* estimate not supported */ }
+  },
   flushing: false,
   async flush() {
     if (this.flushing || !navigator.onLine || !KL.token) return;
@@ -259,8 +277,15 @@ async function submitEvidence(path, fields, files, label) {
     return await api(path, { form, clientId });
   } catch (e) {
     if (e.status === 0) {
-      await Outbox.add({ path, fields, files, label, clientId });
+      try {
+        await Outbox.add({ path, fields, files, label, clientId });
+      } catch (err) {
+        const full = /quota|space|storage/i.test(`${err?.name} ${err?.message}`);
+        throw new ApiError(full ? `Phone storage is full, so ${label} could not be kept. Free some space (old photos, videos) and try again.`
+          : `No signal and ${label} could not be kept on this phone. Try again when you have signal.`, 0, null);
+      }
       toast(`No signal: ${label} saved on this phone, sends automatically`);
+      Outbox.checkSpace();
       return { queued: true };
     }
     throw e;
@@ -448,6 +473,7 @@ function queuedList(prefix = '') {
 /** A small map of the geofence with you on it. */
 function geoCard(site) {
   if (!site) return '';
+  if (anywhereSite(site)) return `<div class="banner info">${ic('compass')}<div><b>${esc(anywhereText(site))}</b><p>Check in from where you are. Your location is recorded with the time and photo.</p></div></div>`;
   const g = KL.ui.gps;
   let me = '';
   let legend = `<span>${esc(site.name)}</span>${tag(KL.ui.locating ? 'Locating…' : 'No fix yet', 'warn')}`;
@@ -469,9 +495,18 @@ function demoRibbon() {
   const m = DemoLoc.mode;
   return `<div class="demo-ribbon">${ic('compass')}<span>Prototype location</span><div class="seg">${[['site', 'At site'], ['away', 'Away'], ['real', 'Real GPS']].map(([k, l]) => `<button type="button" data-action="demoLoc" data-mode="${k}" aria-pressed="${m === k}">${l}</button>`).join('')}</div></div>`;
 }
+/** Check in from anywhere: a site with no fixed place (Farmer-land, Retro, an office without an address), or someone working from home at an office. */
+const anywhereSite = (site) => Boolean(site) && (site.fenced === 0 || (site.project_type === 'office' && Boolean(KL.user?.wfh)));
+const anywhereText = (site) => (site?.project_type === 'office' ? 'Work from home' : 'No fixed site');
+/** Farmer records (farmers, documents, KML, land records) belong only to Farmer-land and Retro agroforestry sites. */
+const isFarmerSite = (s) => Boolean(s) && s.project_type === 'agroforestry' && ['farmer', 'retro'].includes(s.subtype);
+const hasFarmerSite = () => (KL.boot?.mySites || []).some(isFarmerSite) || (KL.user?.all_sites && (KL.boot?.sites || []).some(isFarmerSite));
+/** A physical stock count: the director, a manager of the site or a crew supervisor (owner 2026-11-20). */
+const canCount = () => KL.user?.role === 'admin' || KL.user?.role === 'manager' || Boolean(KL.user?.supervisor);
 function insideSite(site) {
   const g = KL.ui.gps;
   if (!g || !site) return false;
+  if (anywhereSite(site)) return true;
   return distanceM(g.lat, g.lng, site.lat, site.lng) <= site.radius_m + Math.min(g.accuracy || 0, 50);
 }
 
