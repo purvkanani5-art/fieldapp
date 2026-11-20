@@ -456,3 +456,9 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
    (https://kshetralekha-vision.cognitiveservices.azure.com) and KL_VISION_KEY = secretref:vision-key (key also in
    .secrets/azure.env; never print it). travelfuel.read_words uses it first (Tesseract only as the fallback). Checked on
    sample images: bill 5.73 L x 104.72 = 600.00 sure; odometer 48213 at 99%. Over 5,000 a month: switch to S1 (paid).
+   Locked to the app (owner: "limit this API only to kshetralekha"): the container app has a system-assigned identity
+   (principal b8f237be-...) with the "Cognitive Services User" role on kshetralekha-vision only; disableLocalAuth=true on
+   the reader (keys refused: old key 403, none 401), both keys regenerated, KL_VISION_KEY and the vision-key secret
+   removed; travelfuel._vision_auth gets a token from the container's identity endpoint; start-up "vision self-test: ok"
+   in the log. No IP allow-list: the app's outbound addresses (~190) are shared with other Azure customers and change.
+   Real network isolation would need a VNet-integrated environment + private endpoint (paid; not done).
