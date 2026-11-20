@@ -168,7 +168,8 @@ KINDS: dict[str, dict] = {
     "expense": {"label": "Expense claims", "one": "Expense claim", "group": "money", "icon": "receipt", "create": "all", "scope": "own", "approval": "expense", "title": "category",
                 "photo": "Receipt", "amount": "amount",
                 "fields": [F("date", "Date", "date", required=True), F("category", "Category", "select", options=["Food", "Lodging", "Fuel", "Materials", "Repairs", "Phone", "Other"], required=True),
-                           F("amount", "Amount", "money", required=True), F("site", "Site", "site"), F("description", "What for", "textarea", required=True)]},
+                           F("amount", "Amount", "money", required=True), F("litres", "Litres", "number", show_if={"category": "Fuel"}),
+                           F("rate", "Rate per litre", "money", show_if={"category": "Fuel"}), F("site", "Site", "site"), F("description", "What for", "textarea", required=True)]},
     "advance": {"label": "Advances & loans", "one": "Advance", "group": "money", "icon": "receipt", "create": "all", "scope": "own", "approval": "advance", "title": "type", "amount": "amount",
                 "fields": [F("type", "Type", "select", options=["Salary advance", "Loan"], required=True), F("amount", "Amount", "money", required=True),
                            F("recover_months", "Recover over (months)", "number", default="3"), F("purpose", "Purpose", "textarea", required=True)]},
@@ -1027,6 +1028,14 @@ def make_router(user_dep: Any, db_dep: Any, *, save_upload: Callable, save_bytes
                     import maintplan
                     maintplan.serviced(db, eq["id"], actor["id"])  # its Monday task is done
                 db.update("records", eq["id"], {"data": json.dumps(ed), "status": data.get("result") or eq["status"], "updated_at": now_iso()})
+        if kind == "expense" and data.get("category") == "Fuel" and num(data.get("litres")) > 0:
+            import travelfuel
+            rec_ = db.one("SELECT * FROM records WHERE id = ?", rec_id)
+            fc = travelfuel.check_fuel(db, rec_)
+            data["fuel_check"] = fc
+            db.update("records", rec_id, {"data": json.dumps(data)})
+            if fc.get("flags"):
+                travelfuel._tell_director(db, f"Fuel bill flagged: {user['name']}", "; ".join(fc["flags"])[:200], f"#rec/expense/{rec_id}")
         db.audit(actor["id"], f"{kind}_saved", kind, rec_id, title)
         return {"id": rec_id}
 

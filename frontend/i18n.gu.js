@@ -2724,5 +2724,21 @@ window.I18N_DATA.gu = {
 "Received by": "મેળવનાર",
 "Dispatched by": "મોકલનાર",
 "Counted by": "ગણતરી કરનાર",
-"Maintenance": "જાળવણી"
+"Maintenance": "જાળવણી",
+"Travel plans": "મુસાફરી યોજના",
+"Travel plan": "મુસાફરી યોજના",
+"New travel plan": "નવી મુસાફરી યોજના",
+"Today's travel plan": "આજની મુસાફરી યોજના",
+"Who travels": "કોણ જાય છે",
+"Starts from": "ક્યાંથી શરૂ",
+"Work out the distance": "અંતર ગણો",
+"Save the plan": "યોજના સાચવો",
+"Travel & fuel": "મુસાફરી અને બળતણ",
+"Fuel check": "બળતણ તપાસ",
+"Litres": "લિટર",
+"Rate per litre": "લિટર દીઠ ભાવ",
+"Reading the photo…": "ફોટો વાંચી રહ્યા છીએ…",
+"Take the photo first: the app reads the number for you.": "પહેલાં ફોટો લો: એપ નંબર જાતે વાંચશે.",
+"Read from the photo. Check it matches.": "ફોટો પરથી વાંચ્યું. મેળ ખાય છે તે તપાસો.",
+"Vehicles": "વાહનો"
 };

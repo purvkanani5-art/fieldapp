@@ -190,6 +190,7 @@ function recDetail(k, id) {
   if (k.key === 'checklist_template') extra = `<a class="btn primary wide" style="margin-top:12px" href="#rec/checklist_run/new" data-action="startChecklist" data-id="${esc(id)}">${ic('play')} Start today's checklist</a>`;
   if (k.key === 'checklist_run') extra = group('Answers', `<div class="card flush">${(r.data.answers || []).map((a) => `<div class="lrow-static row"><span class="icon ${a.ok ? 'green' : 'red'}">${ic(a.ok ? 'check' : 'alert')}</span><span class="tx" style="flex:1"><b>${esc(a.item)}</b>${a.note ? `<span class="muted" style="font-size:13px;display:block">${esc(a.note)}</span>` : ''}</span>${tag(a.ok ? 'OK' : 'not OK', a.ok ? 'ok' : 'bad')}</div>`).join('')}</div>`);
   if (k.key === 'equipment') extra = equipmentHistory(r);
+  if (k.key === 'expense') extra = fuelCheckBox(r);
   if (k.key === 'incident') extra = caseTrack('incident', id);
   const statusBtns = (k.statuses || []).length && !k.approval && !['batch', 'purchase_request', 'incident'].includes(k.key) && (isStaff() || r.created_by === KL.user.id) ? `<div class="chips" style="margin-top:12px">${k.statuses.map((s) => `<button type="button" data-action="recStatus" data-kind="${esc(k.key)}" data-id="${esc(id)}" data-status="${esc(s)}" aria-pressed="${r.status === s}">${esc(s)}</button>`).join('')}</div>` : '';
   const prBtns = k.key === 'purchase_request' && isStaff() && ['approved', 'ordered'].includes(r.status) ? `<div class="btns" style="margin-top:12px">${r.status === 'approved' ? `<button type="button" class="btn primary" data-action="recStatus" data-kind="purchase_request" data-id="${esc(id)}" data-status="ordered">${ic('send')} Place order</button>` : `<button type="button" class="btn primary" data-action="recStatus" data-kind="purchase_request" data-id="${esc(id)}" data-status="received">${ic('box')} Mark received (adds to stock)</button>`}</div>` : '';
@@ -322,7 +323,9 @@ function recForm(k, id) {
     const type = { number: 'number', money: 'number', date: 'date', datetime: 'datetime-local', time: 'time' }[f.type] || 'text';
     return input(id_, v, { type, inputmode: ['number', 'money'].includes(f.type) ? 'decimal' : '', placeholder: f.placeholder || '', step: ['number', 'money'].includes(f.type) ? 'any' : '' });
   };
-  const fields = k.fields.filter((f) => f.type !== 'answers').map((f) => field(f.label + (f.required ? '' : ' (optional)'), ctl(f))).join('');
+  const shown = (f) => !f.show_if || Object.entries(f.show_if).every(([kk, vv]) => F(rk(k.key, kk), '') === vv);
+  const fields = k.fields.filter((f) => f.type !== 'answers' && shown(f)).map((f) => field(f.label + (f.required ? '' : ' (optional)'), ctl(f))).join('')
+    + (k.key === 'expense' && F(rk('expense', 'category'), '') === 'Fuel' && typeof readHint === 'function' ? readHint('rec-expense').replace('the number', 'the litres and rate') : '');
   const answers = k.key === 'checklist_run' ? checklistAnswers(k) : '';
   KL.ui.previewFn = () => recPreview(k);
   const anonOk = k.key === 'incident' && !editing;

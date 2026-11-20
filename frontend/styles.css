@@ -1436,3 +1436,10 @@ body.side-mini .side .brand .side-icon { display: block; width: 32px; height: 32
 
 /* Not employed yet / any more (before joining, after the last day): shown grey, neither present nor absent */
 .c-NE { background: var(--surface-3) !important; color: var(--muted) !important; }
+
+/* Travel plans and fuel check */
+.trip-flag { display: flex; gap: 6px; align-items: flex-start; margin-top: 4px; color: var(--danger); font-size: 13px; text-decoration: none; }
+.trip-flag svg { width: 15px; height: 15px; flex: none; margin-top: 2px; }
+.ok-text { color: var(--success, #15803d); }
+.tf-row { align-items: center; padding: 6px 0; border-top: 1px solid var(--border); }
+.tf-row:first-child { border-top: 0; }

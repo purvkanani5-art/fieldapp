@@ -531,6 +531,8 @@ def reset() -> None:
         demo_modules.seed(db)
         hrops.seed(db)
         maintplan.init(db)  # equipment numbers and site plan names
+        import travelfuel
+        travelfuel.init(db)
     finally:
         db.close()
 

@@ -15,6 +15,7 @@ function newTiles() {
     hrRole && { icon: 'calendar', label: 'Holiday', href: '#rec/holiday/new' },
     hasFarmerSite() && { icon: 'sprout', label: 'Farmer', href: '#farmers', action: 'farmerAdd' },
     { icon: 'bike', label: KL.me?.openTrip ? 'End trip' : 'Travel', href: '#trips' },
+    mayPlanTravel() && { icon: 'map', label: 'Travel plan', href: '#travelplan' },
     { icon: 'receipt', label: 'Expense', href: '#rec/expense/new' },
     { icon: 'sun', label: 'Leave', href: '#leaves' },
     { icon: 'alert', label: 'Incident', href: '#rec/incident/new' },

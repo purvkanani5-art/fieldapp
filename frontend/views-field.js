@@ -137,9 +137,10 @@ Views.trips = () => {
       <div class="status-card"><div class="big-ic blue">${ic('bike')}</div><div class="tx"><b>${esc(trip.vehicle)} · on the road <span data-since="${esc(trip.start_at)}">${esc(duration(trip.start_at))}</span></b><span>Started ${esc(fmtDate(trip.start_at))} at ${esc(fmtNum(trip.start_reading))} km${trip.purpose ? ` · ${esc(trip.purpose)}` : ''}${trip.site_id ? ` · ${esc(siteName(trip.site_id))}` : ''}</span></div></div>
       ${demoRibbon()}
       ${gpsLine()}
-      ${field('Odometer reading now (km)', input('trip-end-reading', F('trip-end-reading'), { type: 'number', inputmode: 'decimal', placeholder: String(Math.round(trip.start_reading)), step: '0.1', min: trip.start_reading }))}
-      <div id="preview">${KL.ui.previewFn()}</div>
       ${photoBox('tripEnd', 'Photograph the odometer', 'environment', stamp)}
+      ${field('Odometer reading now (km)', input('trip-end-reading', F('trip-end-reading'), { type: 'number', inputmode: 'decimal', placeholder: String(Math.round(trip.start_reading)), step: '0.1', min: trip.start_reading }))}
+      ${readHint('tripEnd')}
+      <div id="preview">${KL.ui.previewFn()}</div>
       <button type="button" class="btn primary wide" data-action="tripEnd" ${KL.ui.photos.tripEnd && gpsUsable() ? '' : 'disabled'}>${gpsUsable() ? `End trip and submit${weakText()}` : gpsWaitText()}</button>
     </div>`;
   } else {
@@ -147,12 +148,13 @@ Views.trips = () => {
     const stamp = [`${KL.user.name} · trip start`, vehicle];
     main = `<div class="card stack">
       ${field('Vehicle', select('trip-vehicle', vehicle, Object.entries(travel.vehicles).map(([v, r]) => [v, `${v} · ${travel.currency}${r}/km`])))}
+      ${photoBox('tripStart', 'Photograph the odometer', 'environment', stamp)}
       <div class="grid2">${field('Odometer reading (km)', input('trip-reading', F('trip-reading'), { type: 'number', inputmode: 'decimal', placeholder: 'e.g. 48213', step: '0.1' }))}
       ${field('Site (optional)', select('trip-site', F('trip-site'), (KL.boot?.mySites || []).map((s) => [s.id, s.name]), { blank: 'None' }))}</div>
+      ${readHint('tripStart')}
       ${field('Purpose', input('trip-purpose', F('trip-purpose'), { placeholder: 'e.g. Farmer visits, Vanthali cluster' }))}
       ${demoRibbon()}
       ${gpsLine()}
-      ${photoBox('tripStart', 'Photograph the odometer', 'environment', stamp)}
       <button type="button" class="btn primary wide" data-action="tripStart" ${KL.ui.photos.tripStart && gpsUsable() ? '' : 'disabled'}>${gpsUsable() ? `Start trip${weakText()}` : gpsWaitText()}</button>
       <p class="hint">The start and end photos, readings and GPS points go to your manager. The app also shows them the straight-line distance between the two points.</p>
     </div>`;
@@ -161,12 +163,13 @@ Views.trips = () => {
   const month = rows.filter((t) => t.status === 'approved' && (t.end_at || '').slice(0, 7) === todayISO().slice(0, 7));
   const sum = (k) => month.reduce((a, t) => a + (t[k] || 0), 0);
   return `${topbar('Travel allowance')}
+    ${todayPlanCard()}
     ${main}
     ${rows.length ? `<div class="tiles" style="margin-top:14px"><div class="tile blue"><div class="ti">${ic('bike')}</div><b>${num(sum('km_claimed'), 'trip-km')}</b><span>km approved this month</span></div><div class="tile ok"><div class="ti">${ic('receipt')}</div><b>${num(sum('amount'), 'trip-amt', 'rupee')}</b><span>approved this month</span></div><div class="tile warn"><div class="ti">${ic('clock')}</div><b>${rows.filter((t) => t.status === 'submitted').length}</b><span>awaiting approval</span></div></div>` : ''}
     ${group('My trips', list === null ? spinner() : list.error ? errorBox(list.error) : rows.length ? `<div class="card flush">${rows.map((t) => tripRow(t)).join('')}</div>` : `<div class="card"><p class="empty">No trips yet.</p></div>`)}`;
 };
 function tripRow(t, showUser = false) {
-  return `<div class="lrow-static row">${authImg(t.start_file)}<span class="tx" style="flex:1;min-width:0"><b>${esc(showUser ? t.user_name : `${fmtNum(t.km_claimed, 1)} km · ${t.vehicle}`)}</b>${refLine(t)}<span class="muted" style="font-size:13px;display:block">${esc(showUser ? `${fmtNum(t.km_claimed, 1)} km · ${t.vehicle} · ` : '')}${esc(fmtDate(t.start_at))}${t.purpose ? ` · ${esc(t.purpose)}` : ''}${t.km_straight !== null && t.km_straight !== undefined ? ` · straight line ${fmtNum(t.km_straight, 1)} km` : ''}</span>${t.decision_note ? `<span class="muted" style="font-size:12px;display:block">${esc(t.decision_note)}</span>` : ''}</span><span class="right"><b class="mono">${esc(rupees(t.amount))}</b><br/>${statusTag(t.status)}${!showUser && t.status === 'submitted' && t.user_id === KL.user.id ? `<br/><button type="button" class="btn small ghost" style="margin-top:6px" data-action="tripWithdraw" data-id="${esc(t.id)}">Withdraw</button>` : ''}</span></div>`;
+  return `<div class="lrow-static row">${authImg(t.start_file)}<span class="tx" style="flex:1;min-width:0"><b>${esc(showUser ? t.user_name : `${fmtNum(t.km_claimed, 1)} km · ${t.vehicle}`)}</b>${refLine(t)}<span class="muted" style="font-size:13px;display:block">${esc(showUser ? `${fmtNum(t.km_claimed, 1)} km · ${t.vehicle} · ` : '')}${esc(fmtDate(t.start_at))}${t.purpose ? ` · ${esc(t.purpose)}` : ''}${t.km_straight !== null && t.km_straight !== undefined ? ` · straight line ${fmtNum(t.km_straight, 1)} km` : ''}</span>${t.decision_note ? `<span class="muted" style="font-size:12px;display:block">${esc(t.decision_note)}</span>` : ''}</span><span class="right"><b class="mono">${esc(rupees(t.amount))}</b><br/>${statusTag(t.status)}${!showUser && t.status === 'submitted' && t.user_id === KL.user.id ? `<br/><button type="button" class="btn small ghost" style="margin-top:6px" data-action="tripWithdraw" data-id="${esc(t.id)}">Withdraw</button>` : ''}${tripFlags(t)}</span></div>`;
 }
 /** Button text while GPS is not good enough yet. */
 const gpsWaitText = () => (KL.ui.gps ? `Waiting for accurate GPS (±${Math.round(KL.ui.gps.accuracy)} m)` : 'Waiting for location…');
@@ -199,7 +202,7 @@ Actions.tripEnd = async () => {
   if (!gpsReadyFor('the trip end')) return;
   try {
     const r = await submitEvidence(`/api/trips/${trip.id}/end`, { reading, lat: g.lat, lng: g.lng, takenAt: p.at }, photoFile('tripEnd', 'odometer-end.jpg'), 'Trip end');
-    clearPhotos('tripEnd'); clearF('trip-end-reading');
+    clearPhotos('tripEnd'); clearF('trip-end-reading'); delete KL.ui.read.tripEnd;
     if (r.queued) { KL.me = { ...(KL.me || {}), openTrip: null }; saveMe(); }
     else await refreshMe();
     invalidate('trips', 'dashboard'); render();

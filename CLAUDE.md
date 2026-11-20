@@ -437,3 +437,16 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
    in at sign-in. Tests: kl_release1_check.py, kl-release1-ui.mjs. Release 2 (planned, not built): travel plans by day
    or week, planned road km (OSRM, else straight x 1.3) vs odometer km read from the photo (person types only when unsure),
    fuel litres / rate read from the bill vs km / mileage, one 15% limit in Settings, flag + notify the director.
+41. **Release 2: travel plans and the fuel check (2026-11-20, v0.7.0)**. backend/travelfuel.py: travel_plans (one row per
+   person per day; a week = every working day, up to 2 weeks; start site, stops in order, back to start), planned km from
+   OSRM (router.project-osrm.org; else straight x 1.3; sites with no fixed place are left out and named). Trips keep
+   plan_id, planned_km, flags, start_read / end_read (the photo's reading when sure); check_trip after a trip ends: day's
+   odometer km > planned x (1 + limit) and typed vs photo reading mismatches are flagged and the director notified.
+   Photo reading: POST /api/ocr/read (odometer / fuel) via Azure AI Vision when KL_VISION_ENDPOINT / KL_VISION_KEY are
+   set, else Tesseract (installed in the Docker image), else nothing (the person types); the phone reads the photo as
+   soon as it is taken (KL.onPhoto in views-travel.js) and fills the number only when sure. Fuel bills: expense fields
+   litres / rate (show_if category Fuel, a new record-form option); check_fuel: litres vs km since the previous fuel
+   bill / the vehicle's mileage, rate vs the 30-day median (3+ bills); flag only (owner) + director notified; stored as
+   data.fuel_check, shown on the record. Settings (setting travel_fuel): limit % (default 15, owner) and per vehicle fuel
+   type + km/L (#travelfuel); #travelplans, #travelplan, #fuelcheck; "+" Travel plan for managers; HR desk links.
+   Tests: kl_travel_check.py, kl-travel-ui.mjs.

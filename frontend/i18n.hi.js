@@ -2724,5 +2724,21 @@ window.I18N_DATA.hi = {
 "Received by": "प्राप्तकर्ता",
 "Dispatched by": "भेजने वाले",
 "Counted by": "गिनती करने वाले",
-"Maintenance": "रखरखाव"
+"Maintenance": "रखरखाव",
+"Travel plans": "यात्रा योजना",
+"Travel plan": "यात्रा योजना",
+"New travel plan": "नई यात्रा योजना",
+"Today's travel plan": "आज की यात्रा योजना",
+"Who travels": "कौन जाएगा",
+"Starts from": "कहाँ से शुरू",
+"Work out the distance": "दूरी निकालें",
+"Save the plan": "योजना सहेजें",
+"Travel & fuel": "यात्रा और ईंधन",
+"Fuel check": "ईंधन जाँच",
+"Litres": "लीटर",
+"Rate per litre": "प्रति लीटर दर",
+"Reading the photo…": "फोटो पढ़ रहे हैं…",
+"Take the photo first: the app reads the number for you.": "पहले फोटो लें: ऐप नंबर खुद पढ़ेगा.",
+"Read from the photo. Check it matches.": "फोटो से पढ़ा. मिलान जाँचें.",
+"Vehicles": "वाहन"
 };

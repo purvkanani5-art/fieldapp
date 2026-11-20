@@ -521,6 +521,7 @@ async function stampLines(stamp, sample) {
 function setPhoto(slot, blob, at, gps, sample = false) {
   if (KL.ui.photos[slot]) URL.revokeObjectURL(KL.ui.photos[slot].url);
   KL.ui.photos[slot] = { blob, url: URL.createObjectURL(blob), at: at.toISOString(), gps, sample };
+  if (KL.onPhoto && KL.onPhoto[slot]) setTimeout(() => KL.onPhoto[slot](blob), 0); // e.g. read the odometer or the fuel bill
 }
 /** Full-screen camera inside the app (getUserMedia); falls back to a photo file, and in the prototype to a sample photo. */
 function openCamera(slot, { facing = 'environment', stamp = [], kind = '' } = {}) {

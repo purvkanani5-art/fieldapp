@@ -34,13 +34,14 @@ import policies  # noqa: E402
 import mapsearch  # noqa: E402
 import casetrack  # noqa: E402
 import maintplan  # noqa: E402
+import travelfuel  # noqa: E402
 import hrops  # noqa: E402
 import modules  # noqa: E402
 import lists  # noqa: E402
 import perms  # noqa: E402
 import planner  # noqa: E402
 
-APP_VERSION = "0.6.6"
+APP_VERSION = "0.7.0"
 DEMO = os.environ.get("KL_DEMO", "1") == "1"  # prototype: demo accounts, person switch, reset
 FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
 
@@ -59,6 +60,7 @@ modules.init(_db0)
 hrops.init(_db0)
 ensure_refs(_db0)
 maintplan.init(_db0)
+travelfuel.init(_db0)
 if DEMO:
     demo.seed_activity(_db0)
     demo_modules.seed(_db0)
@@ -277,6 +279,7 @@ app.include_router(policies.make_router(UserDep, DbDep, save_upload=save_upload,
 app.include_router(mapsearch.make_router(UserDep))
 app.include_router(casetrack.make_router(UserDep, DbDep))
 app.include_router(casetrack.make_escalation_router(UserDep, DbDep))
+app.include_router(travelfuel.make_router(UserDep, DbDep))
 app.include_router(hrops.make_router(UserDep, DbDep, save_upload=save_upload, is_staff=is_staff, site_allowed=site_allowed, demo=DEMO))
 app.include_router(modules.make_router(UserDep, DbDep, save_upload=save_upload, save_bytes=save_bytes, is_staff=is_staff, site_allowed=site_allowed, demo=DEMO))
 
@@ -467,7 +470,7 @@ def bootstrap(user: UserDep, db: DbDep):
         t["fields"] = json.loads(t["fields"])
     people = db.all("SELECT id, employee_id, name, role, designation, photo_id FROM users WHERE active = 1 ORDER BY name")
     return {
-        "company": db.setting("company"), "travel": db.setting("travel"), "leaveTypes": db.setting("leave_types"),
+        "company": db.setting("company"), "travel": db.setting("travel"), "travelFuel": {"limitPct": travelfuel.settings(db)["limit_pct"]}, "leaveTypes": db.setting("leave_types"),
         "updatePrompts": db.setting("update_prompts"), "offices": db.setting("offices", []) or [], "sites": sites, "mySites": mine, "items": items, "templates": templates, "people": people,
         "demo": DEMO, "projects": modules.PROJECTS, "offKinds": [k for k, v in modules.KINDS.items() if v.get("off")], **lists.boot_extra(db),
         "gpsNeed": modules.num(modules.setting(db, "work_hours").get("gps_accuracy_m"), 50) or 50,
@@ -595,11 +598,16 @@ async def trip_start(user: UserDep, db: DbDep, vehicle: Annotated[str, Form()], 
     if vehicle not in travel["vehicles"]:
         raise HTTPException(422, "Unknown vehicle type")
     rd, la, ln = parse_float(reading, "Odometer reading"), parse_float(lat, "Latitude"), parse_float(lng, "Longitude")
+    blob = await photo.read()
+    await photo.seek(0)
+    last = db.one("SELECT end_reading FROM trips WHERE user_id = ? AND vehicle = ? AND end_reading IS NOT NULL ORDER BY start_at DESC LIMIT 1", user["id"], vehicle)
+    seen = travelfuel.read_odometer(blob, last["end_reading"] if last else rd)
     fid = await save_upload(db, photo, f"Travel/{user['employee_id']}", "odometer_start", user, lat=la, lng=ln, taken_at=takenAt, name=f"{stamp(takenAt)} start {rd:.0f} km.jpg")
     if db.one("SELECT 1 FROM trips WHERE user_id = ? AND status = 'open'", user["id"]):  # a second tap while the photo uploaded
         raise HTTPException(409, "A trip is already open. End it first.")
     tid = db.insert("trips", {"user_id": user["id"], "site_id": siteId or None, "vehicle": vehicle, "purpose": purpose.strip(), "start_at": takenAt or now_iso(),
-                              "start_reading": rd, "start_file": fid, "start_lat": la, "start_lng": ln, "rate_per_km": travel["vehicles"][vehicle], "status": "open"})
+                              "start_reading": rd, "start_file": fid, "start_lat": la, "start_lng": ln, "rate_per_km": travel["vehicles"][vehicle], "status": "open",
+                              "start_read": seen["value"] if seen.get("sure") else None})
     db.audit(user["id"], "trip_start", "trip", tid, f"{vehicle} @ {rd}")
     return {"id": tid}
 
@@ -620,11 +628,15 @@ async def trip_end(trip_id: str, user: UserDep, db: DbDep, reading: Annotated[st
     km = round(rd - trip["start_reading"], 1)
     if km > 1500:
         raise HTTPException(422, "More than 1,500 km in one trip looks like a typo. Check the reading.")
+    blob = await photo.read()
+    await photo.seek(0)
+    seen = travelfuel.read_odometer(blob, trip["start_reading"])
     fid = await save_upload(db, photo, f"Travel/{user['employee_id']}", "odometer_end", user, lat=la, lng=ln, taken_at=takenAt, name=f"{stamp(takenAt)} end {rd:.0f} km.jpg")
     straight = round(haversine_m(trip["start_lat"], trip["start_lng"], la, ln) / 1000, 1) if trip["start_lat"] is not None else None
     amount = round(km * (trip["rate_per_km"] or 0), 2)
     db.update("trips", trip["id"], {"end_at": takenAt or now_iso(), "end_reading": rd, "end_file": fid, "end_lat": la, "end_lng": ln, "km_claimed": km, "km_straight": straight,
-                                 "amount": amount, "status": "submitted"})
+                                 "amount": amount, "status": "submitted", "end_read": seen["value"] if seen.get("sure") else None})
+    travelfuel.check_trip(db, trip["id"])  # against the day's travel plan and the photo readings
     db.audit(user["id"], "trip_end", "trip", trip["id"], f"{km} km")
     modules.start_chain(db, "travel", trip["id"], user["id"], amount, f"Travel · {user['name']} · {km:g} km, ₹{amount:,.0f}", "#approvals")
     return {"id": trip["id"], "km": km, "straight": straight, "amount": amount}
@@ -648,6 +660,7 @@ def trips(user: UserDep, db: DbDep, scope: str = "mine", status: str | None = No
     sql += " ORDER BY t.start_at DESC LIMIT 300"
     rows = db.all(sql, *args)
     for t in rows:
+        t["flags"] = json.loads(t.get("flags") or "[]")
         if t["status"] == "submitted":
             cur = next((x for x in modules.steps_for(db, "travel", t["id"]) if x["status"] == "waiting"), None)
             t["waiting"] = (cur["approver_name"] or cur["role_label"]) if cur else ""
