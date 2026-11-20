@@ -121,12 +121,36 @@ def plan_km(db: Db, start_site: str | None, stops: list[str], back: bool) -> tup
 
 # ------------------------------------------------------------------ reading photos (odometer, fuel bill)
 
+_token: dict[str, Any] = {"value": "", "until": 0.0}
+
+
+def _vision_auth() -> dict[str, str] | None:
+    """Owner 2026-11-20: "limit this API only to kshetralekha". On the live server the app signs in with its own Azure
+    identity (key access is switched off on the reader, which also accepts only the app's addresses); a key is used only
+    where one is set (a developer's machine)."""
+    key = os.environ.get("KL_VISION_KEY", "")
+    if key:
+        return {"Ocp-Apim-Subscription-Key": key}
+    ep, hdr = os.environ.get("IDENTITY_ENDPOINT", ""), os.environ.get("IDENTITY_HEADER", "")
+    if not ep or not hdr:
+        return None
+    import time
+    if _token["value"] and time.time() < _token["until"] - 300:
+        return {"Authorization": f"Bearer {_token['value']}"}
+    q = urllib.parse.urlencode({"resource": "https://cognitiveservices.azure.com", "api-version": "2019-08-01"})
+    with urllib.request.urlopen(urllib.request.Request(f"{ep}?{q}", headers={"X-IDENTITY-HEADER": hdr}), timeout=10) as r:
+        tok = json.loads(r.read().decode())
+    _token.update(value=tok["access_token"], until=float(tok.get("expires_on") or time.time() + 3000))
+    return {"Authorization": f"Bearer {_token['value']}"}
+
+
 def _words_azure(blob: bytes) -> list[tuple[str, float]] | None:
-    ep, key = os.environ.get("KL_VISION_ENDPOINT", "").rstrip("/"), os.environ.get("KL_VISION_KEY", "")
-    if not ep or not key:
+    ep = os.environ.get("KL_VISION_ENDPOINT", "").rstrip("/")
+    auth = _vision_auth() if ep else None
+    if not ep or not auth:
         return None
     req = urllib.request.Request(f"{ep}/computervision/imageanalysis:analyze?api-version=2023-10-01&features=read", data=blob, method="POST",
-                                 headers={"Ocp-Apim-Subscription-Key": key, "Content-Type": "application/octet-stream"})
+                                 headers={**auth, "Content-Type": "application/octet-stream"})
     with urllib.request.urlopen(req, timeout=20) as r:
         res = json.loads(r.read().decode())
     out = []
@@ -178,6 +202,28 @@ def read_words(blob: bytes, digits: bool = False) -> tuple[list[tuple[str, float
     except Exception:  # noqa: BLE001
         pass
     return [], "none"
+
+
+def vision_self_test() -> None:
+    """At start-up on the live server: read a small made-up odometer once and log whether the Azure reader answers."""
+    if not os.environ.get("KL_VISION_ENDPOINT"):
+        return
+
+    def run() -> None:
+        import io
+        import sys
+        try:
+            from PIL import Image, ImageDraw
+            im = Image.new("RGB", (360, 120), "white")
+            ImageDraw.Draw(im).text((20, 40), "048213", fill="black")
+            b = io.BytesIO()
+            im.save(b, "JPEG")
+            w = _words_azure(b.getvalue())
+            print(f"vision self-test: {'ok' if w is not None else 'not configured'} ({len(w or [])} words)", file=sys.stderr)
+        except Exception as e:  # noqa: BLE001 - logged, the app falls back to Tesseract
+            print(f"vision self-test: failed: {e}", file=sys.stderr)
+
+    threading.Thread(target=run, name="vision-self-test", daemon=True).start()
 
 
 def read_odometer(blob: bytes, near: float | None = None) -> dict:

@@ -61,6 +61,7 @@ hrops.init(_db0)
 ensure_refs(_db0)
 maintplan.init(_db0)
 travelfuel.init(_db0)
+travelfuel.vision_self_test()  # the server log says whether the Azure photo reader answers
 if DEMO:
     demo.seed_activity(_db0)
     demo_modules.seed(_db0)
