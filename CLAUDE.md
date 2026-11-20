@@ -450,3 +450,9 @@ syngas gasifier projects in Gujarat). Prototype built 2026-11-09 in one session.
    data.fuel_check, shown on the record. Settings (setting travel_fuel): limit % (default 15, owner) and per vehicle fuel
    type + km/L (#travelfuel); #travelplans, #travelplan, #fuelcheck; "+" Travel plan for managers; HR desk links.
    Tests: kl_travel_check.py, kl-travel-ui.mjs.
+42. **Azure photo reading connected (2026-11-20)**. Owner: "connect azure photo reading service". Resource
+   kshetralekha-vision (Computer Vision, F0 free tier: 5,000 calls a month, 20 a minute) in rg-kshetralekha, Central India;
+   the subscription was registered for Microsoft.CognitiveServices. Live app env: KL_VISION_ENDPOINT
+   (https://kshetralekha-vision.cognitiveservices.azure.com) and KL_VISION_KEY = secretref:vision-key (key also in
+   .secrets/azure.env; never print it). travelfuel.read_words uses it first (Tesseract only as the fallback). Checked on
+   sample images: bill 5.73 L x 104.72 = 600.00 sure; odometer 48213 at 99%. Over 5,000 a month: switch to S1 (paid).
